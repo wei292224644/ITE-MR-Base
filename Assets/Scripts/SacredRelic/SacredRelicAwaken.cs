@@ -34,9 +34,9 @@ namespace MRBase.SacredRelic
         [SerializeField] ParticleSystem ashParticles;
 
         [Header("Timing")]
-        [SerializeField] float duration = 2.2f;
-        [SerializeField] float goldSeepEnd = 0.3f;
-        [SerializeField] float restoreStart = 0.35f;
+        [SerializeField] float duration = 5.0f;
+        [SerializeField] float goldSeepEnd = 0.45f;
+        [SerializeField] float restoreStart = 0.55f;
         [SerializeField] AnimationCurve dissolveCurve = AnimationCurve.EaseInOut(0f, 0f, 1f, 1f);
         [SerializeField] AnimationCurve restoreCurve = AnimationCurve.EaseInOut(0f, 0f, 1f, 1f);
 
@@ -58,6 +58,7 @@ namespace MRBase.SacredRelic
         static readonly int DissolveAmountId = Shader.PropertyToID("_DissolveAmount");
         static readonly int DissolveColorId = Shader.PropertyToID("_DissolveColor");
         static readonly int BurnColorId = Shader.PropertyToID("_Burn_Color");
+        static readonly int EdgeColorId = Shader.PropertyToID("_EdgeColor");
         static readonly int BaseColorId = Shader.PropertyToID("_BaseColor");
         static readonly int ColorId = Shader.PropertyToID("_Color");
 
@@ -137,6 +138,7 @@ namespace MRBase.SacredRelic
                     var gold = sacredGold * goldEdgeIntensity;
                     if (_shellMat.HasProperty(DissolveColorId)) _shellMat.SetColor(DissolveColorId, gold);
                     if (_shellMat.HasProperty(BurnColorId)) _shellMat.SetColor(BurnColorId, gold);
+                    if (_shellMat.HasProperty(EdgeColorId)) _shellMat.SetColor(EdgeColorId, gold);
                 }
             }
 
