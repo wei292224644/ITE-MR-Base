@@ -1,0 +1,15 @@
+fileFormatVersion: 2
+guid: 316b50c91a9a9924fae4c6678b86c877
+VisualEffectImporter:
+  externalObjects: {}
+  userData: 
+  assetBundleName: 
+  assetBundleVariant: 
+AssetOrigin:
+  serializedVersion: 1
+  productId: 240467
+  packageName: 'Dissolve FX: Master Kit'
+  packageVersion: 2.0
+  assetPath: Assets/INab Studio/Dissolve-FX-MasterKit/Vfx Graph Subgraphs/Utilities/Uniform
+    Mesh Sampling/Uniform Mesh Sample.vfxoperator
+  uploadId: 696727

@@ -1,0 +1,16 @@
+fileFormatVersion: 2
+guid: 66260ba0b2aee5a45885c41a94a32adf
+ShaderImporter:
+  externalObjects: {}
+  defaultTextures: []
+  nonModifiableTextures: []
+  userData: 
+  assetBundleName: 
+  assetBundleVariant: 
+AssetOrigin:
+  serializedVersion: 1
+  productId: 240467
+  packageName: 'Dissolve FX: Master Kit'
+  packageVersion: 2.0
+  assetPath: Assets/INab Studio/Dissolve-FX/Common/Subgraphs/Utilities/HLSL/TriplanarLOD.hlsl
+  uploadId: 696727

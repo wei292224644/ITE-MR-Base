@@ -1,0 +1,16 @@
+fileFormatVersion: 2
+guid: f933f63168e65de4dac2da5ec7a87cdf
+NativeFormatImporter:
+  externalObjects: {}
+  mainObjectFileID: 0
+  userData: 
+  assetBundleName: 
+  assetBundleVariant: 
+AssetOrigin:
+  serializedVersion: 1
+  productId: 240467
+  packageName: 'Dissolve FX: Master Kit'
+  packageVersion: 2.0
+  assetPath: Assets/INab Studio/Demo Assets/Unity Companion License/StarterAssets/ThirdPersonController/Character/Animations/Character
+    Idle.controller
+  uploadId: 696727

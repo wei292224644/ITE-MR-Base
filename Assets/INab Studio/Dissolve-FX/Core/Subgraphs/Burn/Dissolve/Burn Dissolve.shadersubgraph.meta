@@ -1,0 +1,17 @@
+fileFormatVersion: 2
+guid: e7f6945680f73954986d5fd4d449dc2b
+ScriptedImporter:
+  internalIDToNameTable: []
+  externalObjects: {}
+  serializedVersion: 2
+  userData: 
+  assetBundleName: 
+  assetBundleVariant: 
+  script: {fileID: 11500000, guid: 60072b568d64c40a485e0fc55012dc9f, type: 3}
+AssetOrigin:
+  serializedVersion: 1
+  productId: 240467
+  packageName: 'Dissolve FX: Master Kit'
+  packageVersion: 2.0
+  assetPath: Assets/INab Studio/Dissolve-FX/Core/Subgraphs/Burn/Dissolve/Burn Dissolve.shadersubgraph
+  uploadId: 696727

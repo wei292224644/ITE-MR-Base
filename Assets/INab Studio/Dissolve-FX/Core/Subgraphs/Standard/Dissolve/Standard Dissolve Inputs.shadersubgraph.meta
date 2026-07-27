@@ -1,0 +1,18 @@
+fileFormatVersion: 2
+guid: a54c8f64adb0a384e9ac08c9370a2e84
+ScriptedImporter:
+  internalIDToNameTable: []
+  externalObjects: {}
+  serializedVersion: 2
+  userData: 
+  assetBundleName: 
+  assetBundleVariant: 
+  script: {fileID: 11500000, guid: 60072b568d64c40a485e0fc55012dc9f, type: 3}
+AssetOrigin:
+  serializedVersion: 1
+  productId: 240467
+  packageName: 'Dissolve FX: Master Kit'
+  packageVersion: 2.0
+  assetPath: Assets/INab Studio/Dissolve-FX/Core/Subgraphs/Standard/Dissolve/Standard
+    Dissolve Inputs.shadersubgraph
+  uploadId: 696727

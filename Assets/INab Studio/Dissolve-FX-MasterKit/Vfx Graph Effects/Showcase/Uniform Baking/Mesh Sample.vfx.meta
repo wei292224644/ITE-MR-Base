@@ -1,0 +1,15 @@
+fileFormatVersion: 2
+guid: 6a3bddd504bd6b94cb1e1320bb626b58
+VisualEffectImporter:
+  externalObjects: {}
+  userData: 
+  assetBundleName: 
+  assetBundleVariant: 
+AssetOrigin:
+  serializedVersion: 1
+  productId: 240467
+  packageName: 'Dissolve FX: Master Kit'
+  packageVersion: 2.0
+  assetPath: Assets/INab Studio/Dissolve-FX-MasterKit/Vfx Graph Effects/Showcase/Uniform
+    Baking/Mesh Sample.vfx
+  uploadId: 696727

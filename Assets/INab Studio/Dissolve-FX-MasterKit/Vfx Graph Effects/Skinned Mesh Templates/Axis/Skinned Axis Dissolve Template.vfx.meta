@@ -1,0 +1,15 @@
+fileFormatVersion: 2
+guid: 3862ea4221020a148aeb1c7260750b87
+VisualEffectImporter:
+  externalObjects: {}
+  userData: 
+  assetBundleName: 
+  assetBundleVariant: 
+AssetOrigin:
+  serializedVersion: 1
+  productId: 240467
+  packageName: 'Dissolve FX: Master Kit'
+  packageVersion: 2.0
+  assetPath: Assets/INab Studio/Dissolve-FX-MasterKit/Vfx Graph Effects/Skinned Mesh
+    Templates/Axis/Skinned Axis Dissolve Template.vfx
+  uploadId: 696727

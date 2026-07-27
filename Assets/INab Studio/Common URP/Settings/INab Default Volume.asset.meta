@@ -1,0 +1,15 @@
+fileFormatVersion: 2
+guid: aee5b646a8dd2e5499ba0b413d0ff943
+NativeFormatImporter:
+  externalObjects: {}
+  mainObjectFileID: 11400000
+  userData: 
+  assetBundleName: 
+  assetBundleVariant: 
+AssetOrigin:
+  serializedVersion: 1
+  productId: 240467
+  packageName: 'Dissolve FX: Master Kit'
+  packageVersion: 2.0
+  assetPath: Assets/INab Studio/Common URP/Settings/INab Default Volume.asset
+  uploadId: 696727

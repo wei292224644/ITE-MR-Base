@@ -1,0 +1,15 @@
+fileFormatVersion: 2
+guid: 38a3df4f559843e4bbaa369e8d41cdc4
+VisualEffectImporter:
+  externalObjects: {}
+  userData: 
+  assetBundleName: 
+  assetBundleVariant: 
+AssetOrigin:
+  serializedVersion: 1
+  productId: 240467
+  packageName: 'Dissolve FX: Master Kit'
+  packageVersion: 2.0
+  assetPath: Assets/INab Studio/Dissolve-FX-MasterKit/Vfx Graph Subgraphs/Dissolve
+    Initialize/Properties/Dissolve Properties Edge Y.vfxblock
+  uploadId: 696727

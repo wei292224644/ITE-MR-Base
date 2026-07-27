@@ -1,0 +1,15 @@
+fileFormatVersion: 2
+guid: 39232b882f20e2447881f820f7bd45cd
+VisualEffectImporter:
+  externalObjects: {}
+  userData: 
+  assetBundleName: 
+  assetBundleVariant: 
+AssetOrigin:
+  serializedVersion: 1
+  productId: 240467
+  packageName: 'Dissolve FX: Master Kit'
+  packageVersion: 2.0
+  assetPath: Assets/INab Studio/Dissolve-FX-MasterKit/Vfx Graph Subgraphs/Dissolve
+    Initialize/Position/Skinned Mesh Position.vfxblock
+  uploadId: 696727

@@ -1,0 +1,15 @@
+fileFormatVersion: 2
+guid: a2ff990bf16aaf54a8bfdf825ee5da61
+VisualEffectImporter:
+  externalObjects: {}
+  userData: 
+  assetBundleName: 
+  assetBundleVariant: 
+AssetOrigin:
+  serializedVersion: 1
+  productId: 240467
+  packageName: 'Dissolve FX: Master Kit'
+  packageVersion: 2.0
+  assetPath: Assets/INab Studio/Dissolve-FX-MasterKit/Vfx Graph Subgraphs/Utilities/Dissolve
+    Nodes/Axis Dissolve Edge Z.vfxoperator
+  uploadId: 696727

@@ -1,0 +1,18 @@
+fileFormatVersion: 2
+guid: 5c181a0d3b3e087428e1c83709198ede
+MonoImporter:
+  externalObjects: {}
+  serializedVersion: 2
+  defaultReferences: []
+  executionOrder: 0
+  icon: {instanceID: 0}
+  userData: 
+  assetBundleName: 
+  assetBundleVariant: 
+AssetOrigin:
+  serializedVersion: 1
+  productId: 240467
+  packageName: 'Dissolve FX: Master Kit'
+  packageVersion: 2.0
+  assetPath: Assets/INab Studio/Dissolve-FX-MasterKit/Scripts/DissolvePropertyBinder/Editor/DissolvePropertyBinderEditor.cs
+  uploadId: 696727
