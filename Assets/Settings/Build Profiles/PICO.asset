@@ -20,7 +20,7 @@ MonoBehaviour:
     rid: 6462559428939612372
   m_OverrideGlobalSceneList: 0
   m_Scenes: []
-  m_HasScriptingDefines: 0
+  m_HasScriptingDefines: 1
   m_ScriptingDefines:
   - MRBASE_PICO
   m_PlayerSettingsYaml:

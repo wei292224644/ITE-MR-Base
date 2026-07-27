@@ -1,0 +1,25 @@
+{
+    "name": "MRBase.Localization.Native",
+    "rootNamespace": "",
+    "references": [
+        "MRBase.Localization",
+        "MRBase.Common",
+        "meta.xr.mrutilitykit",
+        "Oculus.VR"
+    ],
+    "includePlatforms": [],
+    "excludePlatforms": [],
+    "allowUnsafeCode": false,
+    "overrideReferences": false,
+    "precompiledReferences": [],
+    "autoReferenced": true,
+    "defineConstraints": [],
+    "versionDefines": [
+        {
+            "name": "com.meta.xr.mrutilitykit",
+            "expression": "",
+            "define": "MRBASE_HAS_MRUK"
+        }
+    ],
+    "noEngineReferences": false
+}

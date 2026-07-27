@@ -1,6 +1,8 @@
 {
   "dependencies": {
     "com.coplaydev.unity-mcp": "https://github.com/CoplayDev/unity-mcp.git?path=/MCPForUnity#main",
+    "com.meta.xr.mrutilitykit": "205.0.0",
+    "com.meta.xr.sdk.core": "205.0.0",
     "com.unity.feature.development": "1.0.2",
     "com.unity.ide.rider": "3.0.39",
     "com.unity.inputsystem": "1.19.0",
@@ -10,6 +12,7 @@
     "com.unity.nuget.newtonsoft-json": "3.2.2",
     "com.unity.render-pipelines.universal": "17.4.0",
     "com.unity.test-framework": "1.6.0",
+    "com.unity.visualeffectgraph": "17.4.0",
     "com.unity.xr.androidxr-openxr": "1.2.0",
     "com.unity.xr.arfoundation": "6.4.2",
     "com.unity.xr.compositionlayers": "2.4.0",
@@ -53,5 +56,14 @@
     "com.unity.modules.vr": "1.0.0",
     "com.unity.modules.wind": "1.0.0",
     "com.unity.modules.xr": "1.0.0"
-  }
+  },
+  "scopedRegistries": [
+    {
+      "name": "Meta",
+      "url": "https://npm.developer.oculus.com",
+      "scopes": [
+        "com.meta.xr"
+      ]
+    }
+  ]
 }
