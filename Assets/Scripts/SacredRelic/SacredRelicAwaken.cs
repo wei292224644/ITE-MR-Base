@@ -29,7 +29,10 @@ namespace MRBase.SacredRelic
         [Header("Optional Dissolver (INab)")]
         [SerializeField] MonoBehaviour dissolver; // INab.Dissolve.Dissolver when present
 
-        [Header("Particles")]
+        [Header("VFX Graph (project-owned)")]
+        [SerializeField] SacredRelicVfxController vfxController;
+
+        [Header("Legacy ParticleSystem (unused when VFX is set)")]
         [SerializeField] ParticleSystem chunkParticles;
         [SerializeField] ParticleSystem ashParticles;
 
@@ -127,6 +130,7 @@ namespace MRBase.SacredRelic
             }
 
             StopParticles();
+            vfxController?.HardStop();
             if (shellRenderer != null) shellRenderer.enabled = true;
             CurrentState = State.Sealed;
             ApplySealedLook();
@@ -178,6 +182,7 @@ namespace MRBase.SacredRelic
 
                 float dissolveN = dissolveCurve.Evaluate(n);
                 SetDissolve(dissolveN);
+                vfxController?.SetDissolveAmount(dissolveN);
 
                 // Restore mid-late
                 float restoreT = Mathf.InverseLerp(restoreStart, 1f, n);
@@ -197,14 +202,16 @@ namespace MRBase.SacredRelic
             }
 
             SetDissolve(1f);
+            vfxController?.SetDissolveAmount(1f);
             SetRestore(1f);
             SetInscriptionColor(restoredInscription);
             SetTabletColor(restoredStone);
 
             if (shellRenderer != null) shellRenderer.enabled = false;
-            // Stop emitting only — airborne chunks keep living and powderize via death sub-emitter.
+            // Stop emitting — let VFX particles finish dying into ash look
             if (chunkParticles != null)
                 chunkParticles.Stop(true, ParticleSystemStopBehavior.StopEmitting);
+            vfxController?.StopEmitting();
 
             CurrentState = State.Awakened;
             _sequence = null;
@@ -254,7 +261,13 @@ namespace MRBase.SacredRelic
 
         void PlayParticles()
         {
-            // Ash is Death sub-emitter of chunks — do not Play ash on its own.
+            if (vfxController != null)
+            {
+                vfxController.Play();
+                return;
+            }
+
+            // Legacy ParticleSystem path (only if no VFX)
             if (ashParticles != null)
                 ashParticles.Stop(true, ParticleSystemStopBehavior.StopEmittingAndClear);
 
@@ -267,6 +280,7 @@ namespace MRBase.SacredRelic
 
         void StopParticles()
         {
+            vfxController?.HardStop();
             if (chunkParticles != null)
                 chunkParticles.Stop(true, ParticleSystemStopBehavior.StopEmittingAndClear);
             if (ashParticles != null)
