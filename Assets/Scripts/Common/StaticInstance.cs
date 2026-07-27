@@ -13,4 +13,9 @@ public class StaticInstance<T> : MonoBehaviour where T : MonoBehaviour
     }
 
     protected virtual void AfterAwake() { }
+
+    /// <summary>
+    /// EditMode tests may not invoke Awake; bind the singleton explicitly when needed.
+    /// </summary>
+    public static void BindInstanceForTesting(T instance) => _instance = instance;
 }
