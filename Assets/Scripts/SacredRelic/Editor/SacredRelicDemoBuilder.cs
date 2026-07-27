@@ -45,7 +45,7 @@ namespace MRBase.SacredRelic.Editor
             EnsureCrackNoiseTexture();
             var shellMat = CreateShellMaterial();
             var tabletMat = CreateTabletMaterial();
-            var chunkMat = CreateParticleMaterial(MatChunkPath, ChunkBrown, false);
+            var chunkMat = CreateChunkMeshMaterial(MatChunkPath, ChunkBrown);
             var ashMat = CreateParticleMaterial(MatAshPath, AshGrey, true);
 
             var root = BuildPrefabHierarchy(shellMat, tabletMat, chunkMat, ashMat);
@@ -83,7 +83,7 @@ namespace MRBase.SacredRelic.Editor
             AssetDatabase.Refresh();
             Selection.activeGameObject = instance;
             EditorSceneManager.OpenScene(ScenePath);
-            Debug.Log("[SacredRelic] Rebuilt: center-out radial dissolve ~5s, dirt/ash particles. Space/Click awaken, R reset.");
+            Debug.Log("[SacredRelic] Rebuilt: crack → float up → powderize (~6.5s). Space/Click awaken, R reset.");
         }
 
         static void DeleteIfExists(string path)
@@ -157,14 +157,26 @@ namespace MRBase.SacredRelic.Editor
             return mat;
         }
 
+        static Material CreateChunkMeshMaterial(string path, Color tint)
+        {
+            // Solid mesh debris — Lit, not particle-unlit (avoids soft/pink billboard look)
+            var shader = Shader.Find("Universal Render Pipeline/Lit") ?? Shader.Find("Standard");
+            var mat = new Material(shader) { name = "M_Particle_Chunk" };
+            if (mat.HasProperty("_BaseColor")) mat.SetColor("_BaseColor", tint);
+            if (mat.HasProperty("_Color")) mat.SetColor("_Color", tint);
+            if (mat.HasProperty("_Smoothness")) mat.SetFloat("_Smoothness", 0.12f);
+            if (mat.HasProperty("_Metallic")) mat.SetFloat("_Metallic", 0f);
+            AssetDatabase.CreateAsset(mat, path);
+            return mat;
+        }
+
         static Material CreateParticleMaterial(string path, Color tint, bool additiveSoft)
         {
             var shader = Shader.Find("Universal Render Pipeline/Particles/Unlit");
             var mat = new Material(shader) { name = System.IO.Path.GetFileNameWithoutExtension(path) };
 
-            // Surface: Transparent
             if (mat.HasProperty("_Surface")) mat.SetFloat("_Surface", 1f);
-            if (mat.HasProperty("_Blend")) mat.SetFloat("_Blend", additiveSoft ? 1f : 0f); // 0 Alpha, 1 Additive-ish depending on URP
+            if (mat.HasProperty("_Blend")) mat.SetFloat("_Blend", additiveSoft ? 1f : 0f);
             if (mat.HasProperty("_BaseColor")) mat.SetColor("_BaseColor", tint);
             if (mat.HasProperty("_Color")) mat.SetColor("_Color", tint);
 
@@ -217,15 +229,18 @@ namespace MRBase.SacredRelic.Editor
             tmp.color = new Color(0.35f, 0.32f, 0.28f, 0.35f);
             tmp.rectTransform.sizeDelta = new Vector2(0.6f, 0.6f);
 
+            // Chunks peel first → float up → Death sub-emits ash powder.
             var chunk = CreateChunkParticles(root.transform, chunkMat);
-            var ash = CreateAshParticles(root.transform, ashMat);
+            var ash = CreateAshParticles(chunk.transform, ashMat);
+            WireChunkToAshSubEmitter(chunk, ash);
 
-            // Slow ease: linger at center crack, then expand
+            // Shell dissolve LAGS chunks: peel visible first, then holes open.
             var dissolveCurve = new AnimationCurve(
-                new Keyframe(0f, 0f, 0f, 0f),
-                new Keyframe(0.15f, 0.08f, 0.4f, 0.4f),
-                new Keyframe(0.55f, 0.45f, 0.9f, 0.9f),
-                new Keyframe(1f, 1.15f, 0.6f, 0f));
+                new Keyframe(0f, 0f),
+                new Keyframe(0.18f, 0.02f),
+                new Keyframe(0.4f, 0.25f),
+                new Keyframe(0.7f, 0.7f),
+                new Keyframe(1f, 1.25f));
 
             var so = new SerializedObject(awaken);
             so.FindProperty("shellRenderer").objectReferenceValue = shellRend;
@@ -233,10 +248,10 @@ namespace MRBase.SacredRelic.Editor
             so.FindProperty("inscriptionText").objectReferenceValue = tmp;
             so.FindProperty("chunkParticles").objectReferenceValue = chunk;
             so.FindProperty("ashParticles").objectReferenceValue = ash;
-            so.FindProperty("dissolver").objectReferenceValue = null; // own radial shader
-            so.FindProperty("duration").floatValue = 5.0f;
-            so.FindProperty("goldSeepEnd").floatValue = 0.5f;
-            so.FindProperty("restoreStart").floatValue = 0.6f;
+            so.FindProperty("dissolver").objectReferenceValue = null;
+            so.FindProperty("duration").floatValue = 6.5f;
+            so.FindProperty("goldSeepEnd").floatValue = 0.35f;
+            so.FindProperty("restoreStart").floatValue = 0.55f;
             so.FindProperty("sacredGold").colorValue = SacredGold;
             so.FindProperty("goldEdgeIntensity").floatValue = 8f;
             so.FindProperty("dissolveCurve").animationCurveValue = dissolveCurve;
@@ -245,6 +260,23 @@ namespace MRBase.SacredRelic.Editor
             return root;
         }
 
+        static void WireChunkToAshSubEmitter(ParticleSystem chunk, ParticleSystem ash)
+        {
+            var sub = chunk.subEmitters;
+            // Clear any existing
+            while (sub.subEmittersCount > 0)
+                sub.RemoveSubEmitter(0);
+            sub.enabled = true;
+            sub.AddSubEmitter(
+                ash,
+                ParticleSystemSubEmitterType.Death,
+                ParticleSystemSubEmitterProperties.InheritNothing,
+                12); // particles spawned per dying chunk
+        }
+
+        /// <summary>
+        /// Stage 1–2: solid-looking debris cracks off and floats upward.
+        /// </summary>
         static ParticleSystem CreateChunkParticles(Transform parent, Material mat)
         {
             var go = new GameObject("ChunkDebris");
@@ -255,62 +287,103 @@ namespace MRBase.SacredRelic.Editor
             var main = ps.main;
             main.playOnAwake = false;
             main.loop = false;
-            main.duration = 3.5f;
-            main.startLifetime = new ParticleSystem.MinMaxCurve(1.4f, 2.2f);
-            main.startSpeed = new ParticleSystem.MinMaxCurve(0.35f, 1.1f);
-            main.startSize = new ParticleSystem.MinMaxCurve(0.06f, 0.16f);
+            main.duration = 4.5f;
+            // Long life so they are seen floating before powderize
+            main.startLifetime = new ParticleSystem.MinMaxCurve(2.2f, 3.4f);
+            main.startSpeed = new ParticleSystem.MinMaxCurve(0.55f, 1.4f);
+            main.startSize3D = true;
+            main.startSizeX = new ParticleSystem.MinMaxCurve(0.05f, 0.12f);
+            main.startSizeY = new ParticleSystem.MinMaxCurve(0.04f, 0.1f);
+            main.startSizeZ = new ParticleSystem.MinMaxCurve(0.03f, 0.08f);
             main.startColor = ChunkBrown;
-            main.gravityModifier = 0.65f;
-            main.maxParticles = 64;
+            // Negative gravity = float upward into the air
+            main.gravityModifier = -0.35f;
+            main.maxParticles = 80;
             main.simulationSpace = ParticleSystemSimulationSpace.World;
-            main.startRotation = new ParticleSystem.MinMaxCurve(0f, Mathf.PI * 2f);
+            main.startRotation3D = true;
+            main.startRotationX = new ParticleSystem.MinMaxCurve(0f, Mathf.PI);
+            main.startRotationY = new ParticleSystem.MinMaxCurve(0f, Mathf.PI);
+            main.startRotationZ = new ParticleSystem.MinMaxCurve(0f, Mathf.PI * 2f);
 
             var emission = ps.emission;
             emission.rateOverTime = 0f;
-            // Staggered bursts as crack expands from center
+            // Crack waves from center outward over time
             emission.SetBursts(new[]
             {
-                new ParticleSystem.Burst(0.2f, 10, 16),
-                new ParticleSystem.Burst(0.8f, 14, 22),
-                new ParticleSystem.Burst(1.6f, 12, 18),
-                new ParticleSystem.Burst(2.6f, 8, 14)
+                new ParticleSystem.Burst(0.15f, 8, 12),
+                new ParticleSystem.Burst(0.7f, 12, 18),
+                new ParticleSystem.Burst(1.5f, 14, 20),
+                new ParticleSystem.Burst(2.5f, 10, 16),
+                new ParticleSystem.Burst(3.5f, 6, 10)
             });
 
             var shape = ps.shape;
             shape.enabled = true;
-            shape.shapeType = ParticleSystemShapeType.Circle;
-            shape.radius = 0.08f;
-            shape.radiusThickness = 1f;
-            shape.position = Vector3.zero;
-            // Emit in face plane, outward
-            shape.rotation = new Vector3(0f, 0f, 0f);
-            shape.scale = Vector3.one;
+            shape.shapeType = ParticleSystemShapeType.Box;
+            shape.scale = new Vector3(0.7f, 0.95f, 0.05f);
+            shape.position = new Vector3(0f, 0f, -0.05f);
+            shape.randomDirectionAmount = 0.35f;
 
+            // Initial kick: mostly up + slight out from face
+            var velocity = ps.velocityOverLifetime;
+            velocity.enabled = true;
+            velocity.space = ParticleSystemSimulationSpace.Local;
+            // Constant mode for all axes (avoid pink-era mode mismatch)
+            velocity.x = 0f;
+            velocity.y = 0.85f;
+            velocity.z = -0.45f;
+
+            var rot = ps.rotationOverLifetime;
+            rot.enabled = true;
+            rot.z = new ParticleSystem.MinMaxCurve(1.5f, 3.5f);
+
+            // Stay chunky mid-flight, crush to dust near end (signals powderize)
             var size = ps.sizeOverLifetime;
             size.enabled = true;
-            size.size = new ParticleSystem.MinMaxCurve(1f, AnimationCurve.Linear(0f, 1f, 1f, 0.25f));
+            size.size = new ParticleSystem.MinMaxCurve(1f, new AnimationCurve(
+                new Keyframe(0f, 1f),
+                new Keyframe(0.55f, 0.95f),
+                new Keyframe(0.85f, 0.45f),
+                new Keyframe(1f, 0.05f)));
 
             var col = ps.colorOverLifetime;
             col.enabled = true;
             var g = new Gradient();
             g.SetKeys(
-                new[] { new GradientColorKey(ChunkBrown, 0f), new GradientColorKey(new Color(0.2f, 0.14f, 0.08f), 1f) },
-                new[] { new GradientAlphaKey(1f, 0f), new GradientAlphaKey(0.7f, 0.55f), new GradientAlphaKey(0f, 1f) });
+                new[]
+                {
+                    new GradientColorKey(ChunkBrown, 0f),
+                    new GradientColorKey(new Color(0.28f, 0.2f, 0.12f), 0.7f),
+                    new GradientColorKey(new Color(0.45f, 0.42f, 0.4f), 1f)
+                },
+                new[]
+                {
+                    new GradientAlphaKey(1f, 0f),
+                    new GradientAlphaKey(1f, 0.65f),
+                    new GradientAlphaKey(0.2f, 0.9f),
+                    new GradientAlphaKey(0f, 1f)
+                });
             col.color = g;
 
-            // Expand emission radius over time via shape — approximate with velocity outward
-            var force = ps.forceOverLifetime;
-            force.enabled = true;
-            force.x = new ParticleSystem.MinMaxCurve(-0.15f, 0.15f);
-            force.y = new ParticleSystem.MinMaxCurve(-0.1f, 0.25f);
-            force.z = new ParticleSystem.MinMaxCurve(-0.9f, -0.35f);
-
             var renderer = go.GetComponent<ParticleSystemRenderer>();
-            renderer.renderMode = ParticleSystemRenderMode.Billboard;
+            // Mesh chunks read as solid debris, not soft billboards
+            renderer.renderMode = ParticleSystemRenderMode.Mesh;
+            renderer.mesh = Resources.GetBuiltinResource<Mesh>("Cube.fbx");
+            if (renderer.mesh == null)
+            {
+                // Fallback cube via temporary primitive
+                var tmp = GameObject.CreatePrimitive(PrimitiveType.Cube);
+                renderer.mesh = tmp.GetComponent<MeshFilter>().sharedMesh;
+                Object.DestroyImmediate(tmp);
+            }
             renderer.sharedMaterial = mat;
+            renderer.enableGPUInstancing = true;
             return ps;
         }
 
+        /// <summary>
+        /// Stage 3: dying chunks spawn fine powder that keeps drifting upward.
+        /// </summary>
         static ParticleSystem CreateAshParticles(Transform parent, Material mat)
         {
             var go = new GameObject("FineAsh");
@@ -321,41 +394,50 @@ namespace MRBase.SacredRelic.Editor
             var main = ps.main;
             main.playOnAwake = false;
             main.loop = false;
-            main.duration = 4.5f;
-            main.startLifetime = new ParticleSystem.MinMaxCurve(1.8f, 2.8f);
-            main.startSpeed = new ParticleSystem.MinMaxCurve(0.05f, 0.3f);
-            main.startSize = new ParticleSystem.MinMaxCurve(0.015f, 0.045f);
+            main.duration = 1f;
+            main.startLifetime = new ParticleSystem.MinMaxCurve(1.6f, 2.8f);
+            main.startSpeed = new ParticleSystem.MinMaxCurve(0.05f, 0.35f);
+            main.startSize = new ParticleSystem.MinMaxCurve(0.01f, 0.04f);
             main.startColor = AshGrey;
-            main.gravityModifier = -0.06f;
-            main.maxParticles = 140;
+            main.gravityModifier = -0.12f; // keep rising as powder
+            main.maxParticles = 600;
             main.simulationSpace = ParticleSystemSimulationSpace.World;
 
+            // Emission only via sub-emitter — no own bursts
             var emission = ps.emission;
             emission.rateOverTime = 0f;
-            emission.SetBursts(new[]
-            {
-                new ParticleSystem.Burst(0.5f, 25, 40),
-                new ParticleSystem.Burst(1.4f, 30, 45),
-                new ParticleSystem.Burst(2.5f, 25, 40),
-                new ParticleSystem.Burst(3.5f, 15, 25)
-            });
+            emission.SetBursts(System.Array.Empty<ParticleSystem.Burst>());
 
             var shape = ps.shape;
             shape.enabled = true;
-            shape.shapeType = ParticleSystemShapeType.Circle;
-            shape.radius = 0.12f;
-            shape.radiusThickness = 1f;
+            shape.shapeType = ParticleSystemShapeType.Sphere;
+            shape.radius = 0.04f;
 
             var force = ps.forceOverLifetime;
             force.enabled = true;
-            force.y = 0.2f;
+            force.x = 0f;
+            force.y = 0.35f;
+            force.z = 0f;
+
+            var size = ps.sizeOverLifetime;
+            size.enabled = true;
+            size.size = new ParticleSystem.MinMaxCurve(1f, AnimationCurve.Linear(0f, 1f, 1f, 0.2f));
 
             var col = ps.colorOverLifetime;
             col.enabled = true;
             var g = new Gradient();
             g.SetKeys(
-                new[] { new GradientColorKey(new Color(0.65f, 0.65f, 0.68f), 0f), new GradientColorKey(new Color(0.4f, 0.4f, 0.42f), 1f) },
-                new[] { new GradientAlphaKey(0.85f, 0f), new GradientAlphaKey(0.35f, 0.6f), new GradientAlphaKey(0f, 1f) });
+                new[]
+                {
+                    new GradientColorKey(new Color(0.7f, 0.68f, 0.65f), 0f),
+                    new GradientColorKey(new Color(0.45f, 0.45f, 0.48f), 1f)
+                },
+                new[]
+                {
+                    new GradientAlphaKey(0.9f, 0f),
+                    new GradientAlphaKey(0.4f, 0.55f),
+                    new GradientAlphaKey(0f, 1f)
+                });
             col.color = g;
 
             var renderer = go.GetComponent<ParticleSystemRenderer>();
@@ -377,7 +459,7 @@ namespace MRBase.SacredRelic.Editor
             var ugui = textGo.AddComponent<UnityEngine.UI.Text>();
             ugui.font = Resources.GetBuiltinResource<Font>("LegacyRuntime.ttf")
                         ?? Resources.GetBuiltinResource<Font>("Arial.ttf");
-            ugui.text = "Center-out dissolve ~5s — Space/Click awaken | R reset";
+            ugui.text = "Crack → float up → powderize  |  Space/Click awaken | R reset";
             ugui.fontSize = 18;
             ugui.alignment = TextAnchor.LowerCenter;
             ugui.color = new Color(1f, 0.9f, 0.7f, 0.85f);

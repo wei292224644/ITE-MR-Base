@@ -34,10 +34,15 @@ namespace MRBase.SacredRelic
         [SerializeField] ParticleSystem ashParticles;
 
         [Header("Timing")]
-        [SerializeField] float duration = 5.0f;
-        [SerializeField] float goldSeepEnd = 0.45f;
+        [SerializeField] float duration = 6.5f;
+        [SerializeField] float goldSeepEnd = 0.35f;
         [SerializeField] float restoreStart = 0.55f;
-        [SerializeField] AnimationCurve dissolveCurve = AnimationCurve.EaseInOut(0f, 0f, 1f, 1f);
+        [Tooltip("Shell dissolve lags so chunks peel first, then holes open.")]
+        [SerializeField] AnimationCurve dissolveCurve = new AnimationCurve(
+            new Keyframe(0f, 0f),
+            new Keyframe(0.2f, 0.05f),
+            new Keyframe(0.55f, 0.45f),
+            new Keyframe(1f, 1.2f));
         [SerializeField] AnimationCurve restoreCurve = AnimationCurve.EaseInOut(0f, 0f, 1f, 1f);
 
         [Header("Sacred Gold")]
@@ -197,7 +202,9 @@ namespace MRBase.SacredRelic
             SetTabletColor(restoredStone);
 
             if (shellRenderer != null) shellRenderer.enabled = false;
-            StopParticles();
+            // Stop emitting only — airborne chunks keep living and powderize via death sub-emitter.
+            if (chunkParticles != null)
+                chunkParticles.Stop(true, ParticleSystemStopBehavior.StopEmitting);
 
             CurrentState = State.Awakened;
             _sequence = null;
@@ -247,22 +254,23 @@ namespace MRBase.SacredRelic
 
         void PlayParticles()
         {
+            // Ash is Death sub-emitter of chunks — do not Play ash on its own.
+            if (ashParticles != null)
+                ashParticles.Stop(true, ParticleSystemStopBehavior.StopEmittingAndClear);
+
             if (chunkParticles != null)
             {
                 chunkParticles.Stop(true, ParticleSystemStopBehavior.StopEmittingAndClear);
                 chunkParticles.Play();
             }
-            if (ashParticles != null)
-            {
-                ashParticles.Stop(true, ParticleSystemStopBehavior.StopEmittingAndClear);
-                ashParticles.Play();
-            }
         }
 
         void StopParticles()
         {
-            if (chunkParticles != null) chunkParticles.Stop(true, ParticleSystemStopBehavior.StopEmitting);
-            if (ashParticles != null) ashParticles.Stop(true, ParticleSystemStopBehavior.StopEmitting);
+            if (chunkParticles != null)
+                chunkParticles.Stop(true, ParticleSystemStopBehavior.StopEmittingAndClear);
+            if (ashParticles != null)
+                ashParticles.Stop(true, ParticleSystemStopBehavior.StopEmittingAndClear);
         }
     }
 }
