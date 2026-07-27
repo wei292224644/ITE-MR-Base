@@ -133,9 +133,9 @@ Material:
     - _Blend: 0
     - _BlendModePreserveSpecular: 0
     - _BumpScale: 1
-    - _Burn_Hardness: 0.083
+    - _Burn_Hardness: 0.12
     - _Burn_Offset: 1.1
-    - _Burn_Width: 0.245
+    - _Burn_Width: 0.32
     - _CastShadows: 1
     - _ClearCoatMask: 0
     - _ClearCoatSmoothness: 0
@@ -205,8 +205,8 @@ Material:
     - _Additional_Edge_Color_1: {r: 0, g: 2.133333, b: 4, a: 0}
     - _Additional_Edge_Color_2: {r: 0.01943774, g: 0, b: 0.7490196, a: 0}
     - _Back_Color: {r: 766.9961, g: 56.21961, b: 0, a: 0}
-    - _BaseColor: {r: 0.25, g: 0.2, b: 0.15, a: 1}
-    - _Burn_Color: {r: 4, g: 2.88, b: 1.12, a: 4}
+    - _BaseColor: {r: 0.18, g: 0.14, b: 0.1, a: 1}
+    - _Burn_Color: {r: 8, g: 4.2, b: 0.9, a: 1}
     - _Color: {r: 1, g: 1, b: 1, a: 1}
     - _DissolveColor: {r: 9.858462, g: 2.2862422, b: 0.5161497, a: 1}
     - _Ember_Color: {r: 0, g: 0, b: 0, a: 0}
