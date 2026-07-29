@@ -24,7 +24,7 @@ Material:
     serializedVersion: 3
     m_TexEnvs:
     - _BaseMap:
-        m_Texture: {fileID: 0}
+        m_Texture: {fileID: 2800000, guid: cd152e1fcf6af407da6e725369538147, type: 3}
         m_Scale: {x: 1, y: 1}
         m_Offset: {x: 0, y: 0}
     - _CrackMask:
@@ -45,13 +45,15 @@ Material:
     - _Dissolve: 0
     - _DissolveMode: 0
     - _EdgeStrength: 2.1
-    - _EdgeWidth: 0.09
+    - _EdgeWidth: 0.06
     - _GlowStrength: 7
     - _GoldIntensity: 0
-    - _GrooveDepth: 0.9
+    - _GrainScale: 2.6
+    - _GrainStrength: 0.75
+    - _GrooveDepth: 1
     - _GuideStrength: 0.035
     - _GuideTilling: 8
-    - _NoiseScale: 42
+    - _NoiseScale: 9
     - _Progress: 0
     - _Smoothness: 0.1
     - _TipBoost: 5
@@ -61,7 +63,9 @@ Material:
     - _BaseColor: {r: 0.47, g: 0.43, b: 0.365, a: 1}
     - _EdgeColor: {r: 1, g: 0.55, b: 0.18, a: 1}
     - _GlowColor: {r: 1, g: 0.63, b: 0.22, a: 1}
-    - _GrooveColor: {r: 0.015, g: 0.012, b: 0.009, a: 1}
+    - _GrooveColor: {r: 0.055, g: 0.045, b: 0.035, a: 1}
+    - _ShardCentreOS: {r: 0, g: 0, b: 0, a: 0}
+    - _ShardSizeOS: {r: 1, g: 1, b: 1, a: 0}
     - _SpreadEndWS: {r: 0, g: 0, b: 0, a: 0}
     - _SpreadStartWS: {r: 0, g: 0, b: 0, a: 0}
   m_BuildTextureStacks: []

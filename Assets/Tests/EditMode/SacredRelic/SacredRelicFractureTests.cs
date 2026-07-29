@@ -65,6 +65,12 @@ namespace MRBase.SacredRelic.Tests
         [Test]
         public void Centre_Shard_Releases_Before_The_Rim_Shard()
         {
+            // Directional spread recomputes arrive/detach from where each shard sits, so the
+            // authored detach values in SetUp do not decide the order — the wave does. Aim it
+            // at the centre shard's corner, otherwise this asserts against whatever the
+            // component's default from→to happens to be.
+            _relic.SetSpreadDirection(Vector2.zero, Vector2.one);
+
             // Just into the burst beat: the piece the crack freed first is already flying,
             // the last piece the crack reaches has not moved yet.
             _relic.Evaluate(_relic.TotalDuration * 0.5f);

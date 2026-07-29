@@ -248,12 +248,18 @@ def node_key(p, q=1e-5):
     return (int(round(p[0] / q)), int(round(p[1] / q)))
 
 
-def build_propagation(table):
-    """Label every crack point with when the fracture reaches it, 0 at the centre.
+def build_propagation(table, origin_xy=None):
+    """Label every crack point with when the fracture reaches it, 0 at the origin.
 
     Distance is measured *along the crack graph* (Dijkstra), not straight-line from
-    the centre. Straight-line would light up a far segment before the crack that
+    the origin. Straight-line would light up a far segment before the crack that
     connects it, so isolated glowing stubs would pop out of nowhere.
+
+    origin_xy picks where the fracture starts, in the same centred coordinates as the
+    cells; None keeps the historical behaviour of starting at the centre. Seeding it
+    from a corner is what makes the crack read as travelling in that direction — the
+    shader grows the network out of this channel per pixel, so a directional wipe
+    applied on top of a centre-out bake can only ever fade the whole net in at once.
     """
     adj = {}
     for entry in table.values():
@@ -271,7 +277,9 @@ def build_propagation(table):
 
     if not adj:
         return
-    origin = min(adj, key=lambda k: math.hypot(k[0], k[1]))
+    # node_key quantises by 1e-5, so compare the origin hint in the same units.
+    ox, oy = (0.0, 0.0) if origin_xy is None else (origin_xy[0] / 1e-5, origin_xy[1] / 1e-5)
+    origin = min(adj, key=lambda k: math.hypot(k[0] - ox, k[1] - oy))
     dist = {origin: 0.0}
     heap = [(0.0, origin)]
     while heap:
@@ -451,15 +459,33 @@ def make_core(w, h, thickness, bevel):
 # ------------------------------------------------------------------ crack mask
 
 
+def mask_resolution(outer_w, outer_h, res):
+    """Power-of-two raster with roughly square pixels for a non-square face.
+
+    `res` sizes the long axis. A square raster on a tall stele makes vertical pixels
+    2.4x coarser than horizontal ones, so a crack authored a few millimetres wide
+    lands below one pixel going up the face and breaks into a dotted hairline.
+    """
+    def pot(v):
+        return 1 << max(3, int(round(math.log2(max(1.0, v)))))
+
+    if outer_h >= outer_w:
+        return pot(res * outer_w / max(EPS, outer_h)), res
+    return res, pot(res * outer_h / max(EPS, outer_w))
+
+
 def rasterise_mask(path, table, cells, outer_w, outer_h, res, half_width):
     """R = crack intensity, G = radial distance from centre, B = cell id, A = 1.
 
     Distances are measured in metres, so cracks keep a constant real-world width
     even though the texture is square and the tablet is not.
     """
-    res_x = res_y = res
+    res_x, res_y = mask_resolution(outer_w, outer_h, res)
     px_x = outer_w / res_x
     px_y = outer_h / res_y
+    print(f"MASK raster        {res_x}x{res_y} px=({px_x*1000:.2f},{px_y*1000:.2f})mm "
+          f"half_width={half_width*1000:.1f}mm -> "
+          f"({half_width/px_x:.1f},{half_width/px_y:.1f})px")
 
     xs = (np.arange(res_x) + 0.5) * px_x - outer_w / 2
     ys = (np.arange(res_y) + 0.5) * px_y - outer_h / 2

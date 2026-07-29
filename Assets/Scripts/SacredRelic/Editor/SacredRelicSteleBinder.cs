@@ -110,18 +110,37 @@ namespace MRBase.SacredRelic.EditorTools
             float height = Mathf.Max(0.9f, manifest.height);
             RelicDustSource dust = EnsureBakedDust(stele.transform, height);
 
-            var fracture = stele.GetComponent<SacredRelicFracture>()
-                           ?? stele.AddComponent<SacredRelicFracture>();
+            var fracture = stele.GetComponent<SacredRelicFracture>();
+            bool freshComponent = fracture == null;
+            if (freshComponent) fracture = stele.AddComponent<SacredRelicFracture>();
             Vector3 faceLocal = stele.transform.InverseTransformDirection(Vector3.back);
             fracture.Bind(stele.transform, coreRenderer, shards, dust, faceLocal);
 
-            var so = new SerializedObject(fracture);
-            so.FindProperty("burstReach").floatValue = Mathf.Clamp(height * 0.045f, 0.4f, 1.5f);
-            so.FindProperty("seamOpening").floatValue = Mathf.Clamp(height * 0.0012f, 0.006f, 0.04f);
-            so.FindProperty("spreadMode").enumValueIndex = 1; // Directional
-            so.FindProperty("spreadFrom").vector2Value = new Vector2(0f, 1f);
-            so.FindProperty("spreadTo").vector2Value = new Vector2(1f, 0f);
-            so.ApplyModifiedPropertiesWithoutUndo();
+            // Seed the look only when this component is new. Re-binding after a mesh or mask
+            // change must not throw away hand-tuned values — the numbers below are a sane
+            // starting point, not the authority. Delete the component to get them back.
+            if (freshComponent)
+            {
+                var so = new SerializedObject(fracture);
+                // A 16 m stele needs metres of travel before the wind reads at all; 4.5% of
+                // height put every flake inside its own silhouette. At 38% the crust clears
+                // roughly a third of the stele before it powders, which is what makes the gust
+                // look like it is actually carrying the pieces off.
+                so.FindProperty("burstReach").floatValue = Mathf.Clamp(height * 0.38f, 2.5f, 10f);
+                so.FindProperty("seamOpening").floatValue =
+                    Mathf.Clamp(height * 0.0012f, 0.006f, 0.04f);
+                // A steady gust carries the late flakes nearly as far as the early ones; the
+                // difference should read as when they left, not how hard they were thrown.
+                so.FindProperty("rimReach").floatValue = 0.75f;
+                // Long enough for the peel hinge to actually swing before the shard lets go.
+                so.FindProperty("goldHold").floatValue = 0.55f;
+                so.FindProperty("spreadMode").enumValueIndex = 1; // Directional
+                so.FindProperty("spreadFrom").vector2Value = new Vector2(0f, 0f);
+                so.FindProperty("spreadTo").vector2Value = new Vector2(1f, 1f);
+                so.FindProperty("radialFan").floatValue = 0f;
+                so.FindProperty("spinDegrees").floatValue = 40f;
+                so.ApplyModifiedPropertiesWithoutUndo();
+            }
 
             if (stele.GetComponent<SacredRelicTrigger>() == null)
                 stele.AddComponent<SacredRelicTrigger>();
@@ -257,21 +276,31 @@ namespace MRBase.SacredRelic.EditorTools
         {
             Shader shader = Shader.Find(ShellShader);
             var material = AssetDatabase.LoadAssetAtPath<Material>(path);
-            if (material == null)
+            bool freshMaterial = material == null;
+            if (freshMaterial)
             {
                 material = new Material(shader);
                 AssetDatabase.CreateAsset(material, path);
             }
+
+            // Structural, and safe to reassert every bind: which mask this material reads and
+            // whether it is the weathered outside or a fracture face.
             material.shader = shader;
             material.SetTexture("_CrackMask", mask);
-            material.SetColor("_BaseColor", baseColour);
             material.SetFloat("_CrackStrength", crack);
-            material.SetColor("_GlowColor", new Color(1f, 0.63f, 0.22f));
-            material.SetFloat("_GlowStrength", 7f);
-            material.SetFloat("_TipBoost", 5f);
-            material.SetFloat("_EdgeStrength", 2.1f);
-            material.SetFloat("_EdgeWidth", 0.09f);
             material.enableInstancing = true;
+
+            // Look values are a starting point only. Re-binding after a mask change must not
+            // undo hand-tuning in the material inspector; delete the .mat to reseed them.
+            if (freshMaterial)
+            {
+                material.SetColor("_BaseColor", baseColour);
+                material.SetColor("_GlowColor", new Color(1f, 0.63f, 0.22f));
+                material.SetFloat("_GlowStrength", 7f);
+                material.SetFloat("_TipBoost", 5f);
+                material.SetFloat("_EdgeStrength", 2.1f);
+                material.SetFloat("_EdgeWidth", 0.09f);
+            }
             EditorUtility.SetDirty(material);
             return material;
         }
@@ -297,6 +326,13 @@ namespace MRBase.SacredRelic.EditorTools
                 material.SetColor("_BaseColor", new Color(0.51f, 0.47f, 0.40f));
             }
             material.SetFloat("_Smoothness", 0.28f);
+            // The relic's light is driven per frame into _EmissionColor via a property block.
+            // Without the keyword and a non-black GI flag URP compiles the emission out and
+            // nothing the component writes ever shows.
+            material.EnableKeyword("_EMISSION");
+            material.globalIlluminationFlags = MaterialGlobalIlluminationFlags.RealtimeEmissive;
+            if (material.GetColor("_EmissionColor").maxColorComponent <= 0f)
+                material.SetColor("_EmissionColor", Color.black);
             EditorUtility.SetDirty(material);
             return material;
         }

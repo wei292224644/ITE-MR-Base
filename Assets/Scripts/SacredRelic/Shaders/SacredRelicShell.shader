@@ -33,7 +33,13 @@ Shader "MRBase/Sacred Relic Shell"
 
         [Header(Dissolve Mode 0 Noise 1 Axis)]
         _DissolveMode ("Dissolve Mode", Float) = 0
-        _NoiseScale ("Noise Scale", Float) = 42
+        // Cells across one shard, not per metre — see DissolveNoise.
+        _NoiseScale ("Noise Scale (cells per shard)", Float) = 9
+        _GrainScale ("Grain Scale", Float) = 2.6
+        _GrainStrength ("Grain Strength", Range(0, 1)) = 0.75
+        // Filled per shard by SacredRelicFracture so the noise can be normalised by size.
+        _ShardCentreOS ("Shard Centre (OS)", Vector) = (0, 0, 0, 0)
+        _ShardSizeOS ("Shard Size (OS)", Vector) = (1, 1, 1, 0)
 
         // Axis mode mirrors INab's "Object Axis Mask" so a VFX Graph fed the same
         // numbers spawns its dust exactly on this surface's eroding front.
@@ -80,6 +86,10 @@ Shader "MRBase/Sacred Relic Shell"
             half _EdgeStrength;
             float _DissolveMode;
             float _NoiseScale;
+            float _GrainScale;
+            float _GrainStrength;
+            float4 _ShardCentreOS;
+            float4 _ShardSizeOS;
             float4 _AxisDir;
             float _AxisMin;
             float _AxisMax;
@@ -110,11 +120,48 @@ Shader "MRBase/Sacred Relic Shell"
             return lerp(lerp(n00, n10, f.y), lerp(n01, n11, f.y), f.z);
         }
 
+        float3 Hash33(float3 p)
+        {
+            p = float3(dot(p, float3(127.1, 311.7, 74.7)),
+                       dot(p, float3(269.5, 183.3, 246.1)),
+                       dot(p, float3(113.5, 271.9, 124.6)));
+            return frac(sin(p) * 43758.5453);
+        }
+
+        // Distance to the nearest of a jittered lattice of points. Sharp cell walls are what
+        // give the eroding edge a grain of sand rather than a soft blob.
+        float Worley(float3 p)
+        {
+            float3 i = floor(p);
+            float3 f = frac(p);
+            float best = 1e9;
+            [unroll] for (int x = -1; x <= 1; ++x)
+            [unroll] for (int y = -1; y <= 1; ++y)
+            [unroll] for (int z = -1; z <= 1; ++z)
+            {
+                float3 g = float3(x, y, z);
+                float3 o = Hash33(i + g);
+                float3 d = g + o - f;
+                best = min(best, dot(d, d));
+            }
+            return saturate(sqrt(best));
+        }
+
         // Object space so the erosion pattern stays welded to the shard as it tumbles.
+        //
+        // Normalised by the shard's own size first. These pieces are authored with baked vertex
+        // offsets, so positionOS is really world space — metres, running to 16 on a tall stele.
+        // Scaling that directly meant _NoiseScale 42 produced cells 2.4 cm across, far under a
+        // pixel when the whole stele is in frame, and clip() turned it into crawling static.
+        // Dividing by the bounds makes _NoiseScale mean "cells across this shard" instead.
         float DissolveNoise(float3 positionOS)
         {
-            float3 p = positionOS * _NoiseScale;
-            return saturate(VNoise(p) * 0.68 + VNoise(p * 2.7) * 0.32);
+            float3 p = (positionOS - _ShardCentreOS.xyz) / max(1e-4, _ShardSizeOS.x) * _NoiseScale;
+            float fbm = VNoise(p) * 0.6 + VNoise(p * 2.3) * 0.27 + VNoise(p * 5.1) * 0.13;
+            // Worley pulls the iso-surface into grain-shaped clumps; the fbm keeps those clumps
+            // from tiling into a visible lattice.
+            float grain = Worley(p * _GrainScale);
+            return saturate(lerp(fbm, fbm * 0.55 + grain * 0.45, _GrainStrength));
         }
 
         // Object space so the erosion front stays welded to the shard as it tumbles.

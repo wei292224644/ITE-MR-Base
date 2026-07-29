@@ -48,11 +48,26 @@ def parse_args():
     p.add_argument("--crust", type=float, default=0.04, help="decay-shell thickness")
     p.add_argument("--cells", type=int, default=48)
     p.add_argument("--seed", type=int, default=20260728)
-    p.add_argument("--seg-len", type=float, default=0.012)
-    p.add_argument("--jag", type=float, default=0.014)
-    p.add_argument("--mask", type=int, default=2048)
-    p.add_argument("--crack-width", type=float, default=0.004)
+    # 0 = derive from the stele's real height once it is known. A scanned stele can be
+    # 16 m tall or 1 m tall; fixed millimetre defaults only ever suit one of those.
+    p.add_argument("--seg-len", type=float, default=0.0)
+    p.add_argument("--jag", type=float, default=0.0)
+    p.add_argument("--mask", type=int, default=2048, help="long-axis crack mask resolution")
+    p.add_argument("--crack-width", type=float, default=0.0)
     return p.parse_args(argv)
+
+
+def resolve_crack_scale(args, outer_h):
+    """Fill in the crack shaping args that were left at 0, proportional to the stele."""
+    if args.seg_len <= 0:
+        args.seg_len = outer_h * 0.004
+    if args.jag <= 0:
+        args.jag = outer_h * 0.006
+    if args.crack_width <= 0:
+        args.crack_width = outer_h * 0.0013
+    print(f"CRACK scale        seg_len={args.seg_len:.4f} jag={args.jag:.4f} "
+          f"width={args.crack_width:.4f} (outer_h={outer_h:.3f})")
+    return args
 
 
 def under_sketchfab(obj):
@@ -325,26 +340,70 @@ def ensure_detail_face_on_neg_y(obj):
     return True
 
 
+def face_groups(bm):
+    """Split a bmesh into edge-connected face components."""
+    seen = set()
+    groups = []
+    for seed in bm.faces:
+        if seed.index in seen:
+            continue
+        stack = [seed]
+        seen.add(seed.index)
+        group = []
+        while stack:
+            f = stack.pop()
+            group.append(f)
+            for edge in f.edges:
+                for nb in edge.link_faces:
+                    if nb.index not in seen:
+                        seen.add(nb.index)
+                        stack.append(nb)
+        groups.append(group)
+    return groups
+
+
+def group_signed_volume(faces):
+    """Signed volume of a triangle soup: positive when the faces wind outward."""
+    total = 0.0
+    for f in faces:
+        verts = f.verts[:]
+        for i in range(1, len(verts) - 1):
+            a, b, c = verts[0].co, verts[i].co, verts[i + 1].co
+            total += a.dot(b.cross(c)) / 6.0
+    return total
+
+
 def ensure_core_outward(obj):
-    """Volume-based outward normals, then flip if the front (-Y) side still points in."""
+    """Point every shell of the scan outward.
+
+    The scan arrives with correct authored winding, and reorient_stele_z_up already
+    reverses every face to compensate for its mirrored axis. Do NOT recalc_face_normals
+    here: the body is thousands of disconnected, not-quite-closed shells, recalc has to
+    guess "outside" for each one, and it guesses wrong often enough to leave patches of
+    the stele lit from behind. Only flip components that are measurably inverted.
+    """
     bm = bmesh.new()
     bm.from_mesh(obj.data)
-    bmesh.ops.recalc_face_normals(bm, faces=bm.faces[:])
+    bm.faces.index_update()
+
+    groups = face_groups(bm)
+    flipped = 0
+    for group in groups:
+        if group_signed_volume(group) < 0:
+            bmesh.ops.reverse_faces(bm, faces=group)
+            flipped += 1
+    bm.normal_update()
     bm.to_mesh(obj.data)
     bm.free()
     obj.data.update()
 
-    # Sample faces near the minimum Y (inscription face). Their normals must aim -Y.
-    ys = [v.co.y for v in obj.data.vertices]
-    y_min = min(ys)
-    thresh = y_min + (max(ys) - y_min) * 0.08
-    dots = []
+    volume = 0.0
     for p in obj.data.polygons:
-        if p.center.y <= thresh:
-            dots.append(p.normal.y)
-    if dots and (sum(dots) / len(dots)) > 0:
-        flip_mesh_normals(obj)
-    print(f"STELE core front ny={sum(dots)/len(dots) if dots else 0:.3f} faces={len(dots)}")
+        vs = [obj.data.vertices[i].co for i in p.vertices]
+        for i in range(1, len(vs) - 1):
+            volume += vs[0].dot(vs[i].cross(vs[i + 1])) / 6.0
+    print(f"STELE {obj.name} components={len(groups)} flipped={flipped} "
+          f"signed_volume={volume:.3f}")
 
 
 def triangulate(obj):
@@ -469,6 +528,36 @@ def planar_uv_from_front(obj, x0, x1, z0, z1):
             uv[li].uv = ((co.x - x0) / sx, (co.z - z0) / sz)
 
 
+def export_fbx(path, objects):
+    """Export exactly `objects` with the axis conventions Unity's importer expects."""
+    for o in bpy.data.objects:
+        o.select_set(False)
+    for o in objects:
+        o.select_set(True)
+    kwargs = dict(
+        filepath=path,
+        use_selection=True,
+        apply_unit_scale=True,
+        apply_scale_options="FBX_SCALE_UNITS",
+        axis_forward="-Z",
+        axis_up="Y",
+        object_types={"EMPTY", "MESH"},
+        use_mesh_modifiers=True,
+        mesh_smooth_type="FACE",
+        use_tspace=True,
+        bake_space_transform=False,
+        path_mode="COPY",
+        embed_textures=True,
+    )
+    try:
+        bpy.ops.export_scene.fbx(**kwargs)
+    except TypeError:
+        for drop in ("use_tspace", "apply_scale_options", "bake_space_transform",
+                     "embed_textures"):
+            kwargs.pop(drop, None)
+        bpy.ops.export_scene.fbx(**kwargs)
+
+
 def make_prism(poly_xz, y0, y1, name):
     """Extrude a 2D cell (X,Z) through depth Y to cut a shell piece."""
     bm = bmesh.new()
@@ -522,6 +611,9 @@ def run(args=None):
     body = join_meshes(bodies, "Stele_Body")
     mn, mx, height_axis, scale, reorient = scale_to_height(body, args.height)
     ensure_detail_face_on_neg_y(body)
+    # Repair the joined body before anything is copied off it, so Stele_Body and the
+    # Relic_Core duplicate carry the same, correct winding.
+    ensure_core_outward(body)
     # Bounds change after the possible 180° spin — refresh before placing the crust.
     mn, mx = world_bounds(body)
     size = mx - mn
@@ -532,6 +624,7 @@ def run(args=None):
     z0, z1 = mn.z - pad, mx.z + pad
     outer_w, outer_h = (x1 - x0), (z1 - z0)
     y_front = mn.y
+    resolve_crack_scale(args, outer_h)
 
     albedo = find_stele_albedo()
     core_mat = make_core_material(albedo)
@@ -596,6 +689,10 @@ def run(args=None):
         "height": round(size.z, 5),
         "thickness": round(size.y, 5),
         "crust": args.crust,
+        "segLen": round(args.seg_len, 5),
+        "jag": round(args.jag, 5),
+        "crackWidth": round(args.crack_width, 5),
+        "maskRes": list(G.mask_resolution(outer_w, outer_h, args.mask)),
         "outerWidth": round(outer_w, 5),
         "outerHeight": round(outer_h, 5),
         "cellCount": len(pieces),
@@ -626,58 +723,30 @@ def run(args=None):
             "tris": tris,
         })
 
+    mask_path = os.path.join(textures, "T_SacredRelic_CrackMask.png")
+    # `table`, cell["poly"] and cell["seed"] never left centred space — only ["refined"]
+    # was pushed out to world XZ to cut the prisms. Feed the rasteriser those originals.
+    #
+    # Do NOT re-centre poly here and do NOT rebuild the edge table: poly is already
+    # centred, so subtracting (cx, cz) again slid the whole crack network down by half
+    # the stele, and rebuilding re-keys edge_key, which re-seeds displace_edge and sends
+    # the painted cracks wandering off the seams the pieces were actually cut along.
+    seg_count = G.rasterise_mask(mask_path, table, cells, outer_w, outer_h,
+                                 args.mask, args.crack_width)
+
     # Hide the working body; Sketchfab original stays as reference.
     body.hide_set(True)
     body.hide_render = True
 
-    mask_path = os.path.join(textures, "T_SacredRelic_CrackMask.png")
-    # Rasteriser expects cells/table in centred coordinates.
-    centred_cells = []
-    for cell in cells:
-        centred = dict(cell)
-        centred["poly"] = [(p[0] - cx, p[1] - cz) for p in cell["poly"]]
-        centred["refined"] = [(p[0] - cx, p[1] - cz) for p in cell["refined"]]
-        centred_cells.append(centred)
-    # Rebuild edge table in centred space for the mask (propagation already on cell timings).
-    table_c = G.build_edge_table(
-        [{"seed": c["seed"], "poly": c["poly"]} for c in centred_cells],
-        outer_w, outer_h, args.seg_len, args.jag)
-    G.build_propagation(table_c)
-    for src, dst in zip(centred_cells, cells):
-        # Keep arrive/detach from the live cells used for pieces.
-        src["arrive"] = dst["arrive"]
-        src["detach"] = dst["detach"]
-    seg_count = G.rasterise_mask(mask_path, table_c, centred_cells, outer_w, outer_h,
-                                 args.mask, args.crack_width)
-
     # Export only the relic hierarchy.
-    for o in bpy.data.objects:
-        o.select_set(False)
-    root.select_set(True)
-    for o in root.children_recursive:
-        o.select_set(True)
+    #
+    # Deliberately NOT written here: SacredRelic_Stele.fbx, the file the Unity binder
+    # imports. That one also carries the raw Sketchfab meshes (Object_6/8/9/10/11) with
+    # their authored normals, and a hand-repaired Relic_Core. Regenerating it from this
+    # script drops both and the stele renders with patches lit from behind — see
+    # ensure_core_outward for why the scan cannot be re-derived cleanly yet.
     fbx_path = os.path.join(models, "SacredRelic_Fractured.fbx")
-    kwargs = dict(
-        filepath=fbx_path,
-        use_selection=True,
-        apply_unit_scale=True,
-        apply_scale_options="FBX_SCALE_UNITS",
-        axis_forward="-Z",
-        axis_up="Y",
-        object_types={"EMPTY", "MESH"},
-        use_mesh_modifiers=True,
-        mesh_smooth_type="FACE",
-        use_tspace=True,
-        bake_space_transform=False,
-        path_mode="COPY",
-        embed_textures=True,
-    )
-    try:
-        bpy.ops.export_scene.fbx(**kwargs)
-    except TypeError:
-        for drop in ("use_tspace", "apply_scale_options", "bake_space_transform", "embed_textures"):
-            kwargs.pop(drop, None)
-        bpy.ops.export_scene.fbx(**kwargs)
+    export_fbx(fbx_path, [root] + list(root.children_recursive))
 
     manifest["crackSegments"] = seg_count
     manifest["coreTris"] = len(core.data.polygons)
