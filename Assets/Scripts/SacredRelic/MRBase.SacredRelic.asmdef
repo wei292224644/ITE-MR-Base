@@ -3,7 +3,8 @@
     "rootNamespace": "MRBase.SacredRelic",
     "references": [
         "Unity.TextMeshPro",
-        "Unity.InputSystem"
+        "Unity.InputSystem",
+        "Unity.VisualEffectGraph.Runtime"
     ],
     "includePlatforms": [],
     "excludePlatforms": [],

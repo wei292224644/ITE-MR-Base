@@ -1,0 +1,325 @@
+using System;
+using System.Collections.Generic;
+using System.IO;
+using System.Linq;
+using UnityEditor;
+using UnityEditor.SceneManagement;
+using UnityEngine;
+
+namespace MRBase.SacredRelic.EditorTools
+{
+    /// <summary>
+    /// Wires SacredRelicFracture onto a user-imported SacredRelic_Stele instance in the open scene.
+    /// </summary>
+    public static class SacredRelicSteleBinder
+    {
+        const string ManifestPath = "Assets/SacredRelicDemo/Generated/Models/SacredRelic_Fractured.json";
+        const string MaskPath = "Assets/SacredRelicDemo/Generated/Textures/T_SacredRelic_CrackMask.png";
+        const string AlbedoPath = "Assets/SacredRelicDemo/Generated/Textures/Image_0.png";
+        const string ShellShader = "MRBase/Sacred Relic Shell";
+
+        [Serializable]
+        class PieceEntry
+        {
+            public string name;
+            public float arrive;
+            public float detach;
+        }
+
+        [Serializable]
+        class Manifest
+        {
+            public float width;
+            public float height;
+            public float thickness;
+            public PieceEntry[] pieces;
+        }
+
+        [MenuItem("Tools/Sacred Relic/Bind Scene Stele")]
+        public static void BindSceneStele()
+        {
+            var stele = GameObject.Find("SacredRelic_Stele");
+            if (stele == null)
+            {
+                EditorUtility.DisplayDialog("Sacred Relic",
+                    "Scene has no SacredRelic_Stele. Import/place that FBX first.", "OK");
+                return;
+            }
+
+            var old = GameObject.Find("SacredRelic");
+            if (old != null) old.SetActive(false);
+
+            foreach (Transform t in stele.GetComponentsInChildren<Transform>(true))
+            {
+                if (t.name == "Stele_Body") t.gameObject.SetActive(false);
+            }
+
+            // Inscription normals on the imported FBX face +Z; turn to face the camera (-Z).
+            stele.transform.SetPositionAndRotation(Vector3.zero, Quaternion.Euler(0f, 180f, 0f));
+
+            Texture2D mask = AssetDatabase.LoadAssetAtPath<Texture2D>(MaskPath);
+            Texture2D albedo = AssetDatabase.LoadAssetAtPath<Texture2D>(AlbedoPath);
+            Material outer = EnsureShellMaterial("Assets/SacredRelicDemo/M_Relic_Shell_Outer.mat",
+                mask, new Color(0.145f, 0.118f, 0.090f), 1f);
+            Material inner = EnsureShellMaterial("Assets/SacredRelicDemo/M_Relic_Shell_Inner.mat",
+                mask, new Color(0.470f, 0.430f, 0.365f), 0f);
+            Material coreMat = EnsureCoreMaterial(albedo);
+
+            Manifest manifest = LoadManifest();
+            var timing = new Dictionary<string, PieceEntry>();
+            if (manifest.pieces != null)
+                foreach (PieceEntry p in manifest.pieces) timing[p.name] = p;
+
+            Renderer coreRenderer = null;
+            var shards = new List<SacredRelicFracture.Shard>();
+            foreach (Renderer rend in stele.GetComponentsInChildren<Renderer>(true))
+            {
+                if (rend.name.Contains("Core"))
+                {
+                    rend.sharedMaterial = coreMat;
+                    coreRenderer = rend;
+                    continue;
+                }
+
+                if (!rend.name.StartsWith("Shell_Piece", StringComparison.Ordinal)) continue;
+
+                rend.sharedMaterials = new[] { outer, inner };
+                var shard = new SacredRelicFracture.Shard
+                {
+                    transform = rend.transform,
+                    renderer = rend,
+                };
+                if (timing.TryGetValue(rend.name, out PieceEntry entry))
+                {
+                    shard.arrive = entry.arrive;
+                    shard.detach = entry.detach;
+                }
+                shards.Add(shard);
+            }
+
+            if (coreRenderer == null || shards.Count == 0)
+            {
+                EditorUtility.DisplayDialog("Sacred Relic",
+                    "SacredRelic_Stele is missing Relic_Core or Shell_Piece_* children.", "OK");
+                return;
+            }
+
+            // Dust bake samples shell meshes on the CPU — Read/Write must be on.
+            EnsureSteleMeshesReadable();
+
+            float height = Mathf.Max(0.9f, manifest.height);
+            RelicDustSource dust = EnsureBakedDust(stele.transform, height);
+
+            var fracture = stele.GetComponent<SacredRelicFracture>()
+                           ?? stele.AddComponent<SacredRelicFracture>();
+            Vector3 faceLocal = stele.transform.InverseTransformDirection(Vector3.back);
+            fracture.Bind(stele.transform, coreRenderer, shards, dust, faceLocal);
+
+            var so = new SerializedObject(fracture);
+            so.FindProperty("burstReach").floatValue = Mathf.Clamp(height * 0.045f, 0.4f, 1.5f);
+            so.FindProperty("seamOpening").floatValue = Mathf.Clamp(height * 0.0012f, 0.006f, 0.04f);
+            so.FindProperty("spreadMode").enumValueIndex = 1; // Directional
+            so.FindProperty("spreadFrom").vector2Value = new Vector2(0f, 1f);
+            so.FindProperty("spreadTo").vector2Value = new Vector2(1f, 0f);
+            so.ApplyModifiedPropertiesWithoutUndo();
+
+            if (stele.GetComponent<SacredRelicTrigger>() == null)
+                stele.AddComponent<SacredRelicTrigger>();
+
+            FrameCamera(stele);
+
+            EditorSceneManager.MarkAllScenesDirty();
+            EditorSceneManager.SaveOpenScenes();
+            AssetDatabase.SaveAssets();
+
+            Selection.activeGameObject = stele;
+            Debug.Log($"[SacredRelic] Bound SacredRelic_Stele: {shards.Count} shards, " +
+                      $"faceLocal={faceLocal}. Play → Space to awaken.");
+        }
+
+        static void EnsureSteleMeshesReadable()
+        {
+            const string fbx = "Assets/SacredRelicDemo/Generated/Models/SacredRelic_Stele.fbx";
+            var importer = AssetImporter.GetAtPath(fbx) as ModelImporter;
+            if (importer == null) return;
+            if (importer.isReadable) return;
+            importer.isReadable = true;
+            importer.SaveAndReimport();
+        }
+
+        static RelicDustSource EnsureBakedDust(Transform parent, float steleHeight)
+        {
+            Transform dustTf = parent.Find("Dust (Baked Points)");
+            GameObject go = dustTf != null ? dustTf.gameObject : new GameObject("Dust (Baked Points)");
+            if (dustTf == null) go.transform.SetParent(parent, false);
+
+            var ps = go.GetComponent<ParticleSystem>() ?? go.AddComponent<ParticleSystem>();
+            ps.Stop(true, ParticleSystemStopBehavior.StopEmittingAndClear);
+
+            float sizeScale = Mathf.Clamp(steleHeight / 1.2f, 1f, 12f);
+
+            var main = ps.main;
+            main.loop = true;
+            main.playOnAwake = false;
+            main.duration = 3f;
+            main.startLifetime = 2.4f;
+            main.startSize = 0.01f * sizeScale;
+            main.startSpeed = 0f;
+            main.startColor = new ParticleSystem.MinMaxGradient(
+                new Color(0.68f, 0.60f, 0.47f, 0.75f), new Color(0.86f, 0.74f, 0.55f, 0.55f));
+            main.gravityModifier = -0.03f;
+            main.maxParticles = 20000;
+            main.simulationSpace = ParticleSystemSimulationSpace.World;
+
+            var emission = ps.emission;
+            emission.enabled = false;
+
+            var shape = ps.shape;
+            shape.enabled = false;
+
+            var noise = ps.noise;
+            noise.enabled = true;
+            noise.strength = 0.06f * sizeScale;
+            noise.frequency = 0.45f;
+            noise.scrollSpeed = 0.12f;
+
+            var colour = ps.colorOverLifetime;
+            colour.enabled = true;
+            var gradient = new Gradient();
+            gradient.SetKeys(
+                new[]
+                {
+                    new GradientColorKey(new Color(1f, 0.78f, 0.45f), 0f),
+                    new GradientColorKey(new Color(0.74f, 0.68f, 0.58f), 0.35f),
+                    new GradientColorKey(new Color(0.6f, 0.57f, 0.52f), 1f)
+                },
+                new[]
+                {
+                    new GradientAlphaKey(0f, 0f),
+                    new GradientAlphaKey(0.85f, 0.15f),
+                    new GradientAlphaKey(0f, 1f)
+                });
+            colour.color = new ParticleSystem.MinMaxGradient(gradient);
+
+            var renderer = go.GetComponent<ParticleSystemRenderer>();
+            renderer.renderMode = ParticleSystemRenderMode.Billboard;
+            renderer.sharedMaterial = LoadOrCreateDustMaterial();
+            renderer.sortMode = ParticleSystemSortMode.Distance;
+
+            var dust = go.GetComponent<RelicDustBakedPoints>()
+                       ?? go.AddComponent<RelicDustBakedPoints>();
+
+            // Scale the baked-point emitter so grains read on a ~16m stele.
+            var dso = new SerializedObject(dust);
+            dso.FindProperty("samplesPerShard").intValue = 480;
+            dso.FindProperty("sizeRange").vector2Value =
+                new Vector2(0.006f, 0.018f) * sizeScale;
+            dso.FindProperty("driftUp").floatValue = 0.11f * sizeScale;
+            dso.FindProperty("pushOffSurface").floatValue = 0.035f * sizeScale;
+            dso.FindProperty("scatter").floatValue = 0.03f * sizeScale;
+            dso.ApplyModifiedPropertiesWithoutUndo();
+            return dust;
+        }
+
+        static Material LoadOrCreateDustMaterial()
+        {
+            const string path = "Assets/SacredRelicDemo/M_Relic_Dust.mat";
+            var existing = AssetDatabase.LoadAssetAtPath<Material>(path);
+            if (existing != null) return existing;
+
+            // Fallback if the demo builder has not created it yet.
+            Shader shader = Shader.Find("Universal Render Pipeline/Particles/Unlit")
+                            ?? Shader.Find("Universal Render Pipeline/Unlit");
+            var material = new Material(shader) { name = "M_Relic_Dust" };
+            material.SetColor("_BaseColor", new Color(0.82f, 0.72f, 0.55f, 1f));
+            var grain = AssetDatabase.LoadAssetAtPath<Texture2D>(
+                "Assets/SacredRelicDemo/Generated/Textures/T_RelicDustGrain.png");
+            if (grain != null) material.SetTexture("_BaseMap", grain);
+            if (material.HasProperty("_Surface")) material.SetFloat("_Surface", 1f);
+            material.SetOverrideTag("RenderType", "Transparent");
+            material.SetInt("_SrcBlend", (int)UnityEngine.Rendering.BlendMode.SrcAlpha);
+            material.SetInt("_DstBlend", (int)UnityEngine.Rendering.BlendMode.OneMinusSrcAlpha);
+            material.SetInt("_ZWrite", 0);
+            material.EnableKeyword("_SURFACE_TYPE_TRANSPARENT");
+            material.renderQueue = (int)UnityEngine.Rendering.RenderQueue.Transparent;
+            AssetDatabase.CreateAsset(material, path);
+            return material;
+        }
+
+        static Manifest LoadManifest()
+        {
+            if (!File.Exists(ManifestPath))
+                return new Manifest { pieces = Array.Empty<PieceEntry>(), height = 16f, width = 6.6f, thickness = 2.7f };
+            return JsonUtility.FromJson<Manifest>(File.ReadAllText(ManifestPath));
+        }
+
+        static Material EnsureShellMaterial(string path, Texture2D mask, Color baseColour, float crack)
+        {
+            Shader shader = Shader.Find(ShellShader);
+            var material = AssetDatabase.LoadAssetAtPath<Material>(path);
+            if (material == null)
+            {
+                material = new Material(shader);
+                AssetDatabase.CreateAsset(material, path);
+            }
+            material.shader = shader;
+            material.SetTexture("_CrackMask", mask);
+            material.SetColor("_BaseColor", baseColour);
+            material.SetFloat("_CrackStrength", crack);
+            material.SetColor("_GlowColor", new Color(1f, 0.63f, 0.22f));
+            material.SetFloat("_GlowStrength", 7f);
+            material.SetFloat("_TipBoost", 5f);
+            material.SetFloat("_EdgeStrength", 2.1f);
+            material.SetFloat("_EdgeWidth", 0.09f);
+            material.enableInstancing = true;
+            EditorUtility.SetDirty(material);
+            return material;
+        }
+
+        static Material EnsureCoreMaterial(Texture2D albedo)
+        {
+            const string path = "Assets/SacredRelicDemo/M_Relic_Core.mat";
+            Shader lit = Shader.Find("Universal Render Pipeline/Lit");
+            var material = AssetDatabase.LoadAssetAtPath<Material>(path);
+            if (material == null)
+            {
+                material = new Material(lit);
+                AssetDatabase.CreateAsset(material, path);
+            }
+            material.shader = lit;
+            if (albedo != null)
+            {
+                material.SetTexture("_BaseMap", albedo);
+                material.SetColor("_BaseColor", Color.white);
+            }
+            else
+            {
+                material.SetColor("_BaseColor", new Color(0.51f, 0.47f, 0.40f));
+            }
+            material.SetFloat("_Smoothness", 0.28f);
+            EditorUtility.SetDirty(material);
+            return material;
+        }
+
+        static void FrameCamera(GameObject stele)
+        {
+            Camera cam = Camera.main;
+            if (cam == null) return;
+
+            Renderer[] rends = stele.GetComponentsInChildren<Renderer>()
+                .Where(r => r.enabled && r.gameObject.activeInHierarchy).ToArray();
+            if (rends.Length == 0) return;
+
+            Bounds b = rends[0].bounds;
+            for (int i = 1; i < rends.Length; i++) b.Encapsulate(rends[i].bounds);
+
+            float dist = Mathf.Max(b.size.y, b.size.x) * 1.35f + b.size.z * 0.5f + 1.5f;
+            cam.transform.SetPositionAndRotation(
+                new Vector3(b.center.x, b.center.y, b.center.z - dist),
+                Quaternion.Euler(4f, 0f, 0f));
+            cam.farClipPlane = Mathf.Max(100f, dist * 4f);
+            cam.backgroundColor = new Color(0.035f, 0.038f, 0.048f);
+            cam.clearFlags = CameraClearFlags.SolidColor;
+        }
+    }
+}
