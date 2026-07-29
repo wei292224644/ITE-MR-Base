@@ -108,6 +108,7 @@ Material:
     - _DetailNormalMapScale: 1
     - _DissolveAmount: 0
     - _DstBlend: 0
+    - _DstBlendAlpha: 0
     - _EdgeWidth: 0.0051
     - _EnvironmentReflections: 1
     - _GlossMapScale: 0
@@ -126,6 +127,7 @@ Material:
     - _SmoothnessTextureChannel: 0
     - _SpecularHighlights: 1
     - _SrcBlend: 1
+    - _SrcBlendAlpha: 1
     - _Strength: 0.543
     - _Surface: 0
     - _TRIPLANAR_SPACE: 0
