@@ -100,6 +100,11 @@ namespace MRBase.SacredRelic
         [SerializeField, Min(0.05f)] float crackDuration = 3.2f;
         [Tooltip("单块碎片自身裂开的快慢曲线（0→1）。默认两头缓、中间快。")]
         [SerializeField] AnimationCurve crackEase = AnimationCurve.EaseInOut(0, 0, 1, 1);
+        [Tooltip("【金光纹路的提前量】裂纹显现前沿比碎片脱落提前多少（0-1，蔓延进度的单位）。\n" +
+                 "必须大于材质上的 Crack Softness（默认 0.05），否则裂纹刚画到这片、它就已经飞走了，\n" +
+                 "金光纹路根本来不及看见。0 = 显现和脱落同时发生。\n" +
+                 "调大 = 提前更多，能看到成片的金色裂纹网络铺开之后才开始剥落。")]
+        [SerializeField, Range(0f, 0.6f)] float crackLead = 0.2f;
 
         [Header("节拍 2 · 金光从裂缝渗出")]
         [Tooltip("一块碎片被裂纹切开后，缝隙金光涨到最亮需要几秒。只影响发光，不影响运动。")]
@@ -150,7 +155,8 @@ namespace MRBase.SacredRelic
         [SerializeField, Range(0f, 90f)] float peelAngle = 26f;
 
         [Tooltip("【飞行距离】碎片最远能飞多少米。想让石块飞得更远就调这个。\n" +
-                 "Binder 会按碑高自动设成 高度×0.22（16 m 的碑 ≈ 3.5 m），手动改会在下次重绑时被覆盖。")]
+                 "Binder 只在第一次挂上组件时按碑高播种 clamp(高度×0.38, 2.5, 10)；\n" +
+                 "之后重绑不会覆盖手调值（想恢复默认就删掉组件重绑）。")]
         [SerializeField, Min(0.01f)] float burstReach = 0.5f;
         [Tooltip("最晚脱落的碎片能飞到 Burst Reach 的百分之多少。最早脱落的永远飞满 100%。\n" +
                  "1 = 所有碎片飞一样远；调小 = 先飞的冲得远、后飞的近，前沿更明显。")]
@@ -539,12 +545,22 @@ namespace MRBase.SacredRelic
 
             Vector3 face = FaceNormal;
 
-            // Where the wave has reached across the whole face, 0-1. The mask's arrival channel
-            // is baked in these same global units, so FromManifest has to be handed this rather
+            // Where the wave has reached across the whole face. The mask's arrival channel is
+            // baked in these same global units, so FromManifest has to be handed this rather
             // than a shard's own local progress — comparing a global per-pixel value against a
             // local scalar makes every pixel on a shard cross the threshold at once, which is
             // the uniform fade the directional path already suffers from.
-            float crackGlobal = crackEase.Evaluate(Mathf.Clamp01(time / Mathf.Max(0.01f, crackDuration)));
+            //
+            // crackLead is not cosmetic. A cell's `detach` in the manifest IS the largest
+            // arrival value on its own outline, so with no lead the front finishes drawing a
+            // shard's cracks at the exact instant it lets go: the gold is never on screen long
+            // enough to read. The lead eases in so nothing pops at t=0, and is allowed to carry
+            // the front past 1 so the last shards' seams light up before they leave too.
+            float crackWave = Mathf.Clamp01(time / Mathf.Max(0.01f, crackDuration));
+            // Mathf.SmoothStep interpolates between its first two arguments — it is not HLSL's
+            // smoothstep(edge0, edge1, x). Ramp 0→1 and scale, or the lead comes out 0.12x.
+            float leadRamp = Mathf.SmoothStep(0f, 1f, Mathf.Clamp01(crackWave / 0.12f));
+            float crackGlobal = crackEase.Evaluate(crackWave) + crackLead * leadRamp;
 
             for (int i = 0; i < shards.Count; i++)
             {

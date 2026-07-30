@@ -83,7 +83,19 @@ namespace MRBase.SacredRelic.EditorTools
 
                 if (!rend.name.StartsWith("Shell_Piece", StringComparison.Ordinal)) continue;
 
-                rend.sharedMaterials = new[] { outer, inner };
+                // Only hand over the second material if the mesh actually has a second submesh.
+                // The sketchfab crust prisms leave every face on material index 0, so they
+                // export as a single submesh — and Unity renders a surplus material by drawing
+                // the last submesh AGAIN. That redraw put the fracture-face material (which has
+                // _CrackStrength 0 by design) on top of the weathered outside at the same depth,
+                // erasing the crack network and its gold entirely.
+                var filter = rend.GetComponent<MeshFilter>();
+                int submeshes = filter != null && filter.sharedMesh != null
+                    ? filter.sharedMesh.subMeshCount
+                    : 1;
+                rend.sharedMaterials = submeshes >= 2
+                    ? new[] { outer, inner }
+                    : new[] { outer };
                 var shard = new SacredRelicFracture.Shard
                 {
                     transform = rend.transform,
