@@ -1,14 +1,14 @@
 ## 1. M0 前置：分支与依赖
 
-- [ ] 1.1 打 tag 备份当前分支状态，把 `feature/qrcode-marker-localization`（30 个提交）合并进 `master`，确认 Editor 打开无报错
-- [ ] 1.2 从 `master` 拉 `feature/mr-core-scene` 作为本变更的工作分支
-- [ ] 1.3 处理 `Assets/_Recovery/0.unity`（17MB 未跟踪，疑似崩溃恢复残留）：确认无用后删除，或加入 `.gitignore`
+- [x] 1.1 打 tag 备份当前分支状态，把 `feature/qrcode-marker-localization`（30 个提交）合并进 `master`，确认 Editor 打开无报错
+- [x] 1.2 从 `master` 拉 `feature/mr-core-scene` 作为本变更的工作分支
+- [x] 1.3 处理 `Assets/_Recovery/0.unity`（17MB 未跟踪，疑似崩溃恢复残留）：确认无用后删除，或加入 `.gitignore`
 - [ ] 1.4 升级依赖至 design D12 表格：`xr.hands` → 1.8.1、`interaction.toolkit` → 3.5.1、`meta-openxr` → 2.5.1、`compositionlayers` → 2.5.0；**`xr.openxr` 保持 1.16.1 不动**；URP / AR Foundation / Meta SDK 不动。确认 Console 零编译错误
-- [ ] 1.5 从 `Packages/manifest.json` 移除误装的 `com.unity.purchasing` 5.4.2（内购包，与项目无关）
+- [x] 1.5 从 `Packages/manifest.json` 移除误装的 `com.unity.purchasing` 5.4.2（内购包，与项目无关）
 - [ ] 1.6 通过 Package Manager 的 git URL 安装 PICO Integration SDK：`https://github.com/Pico-Developer/PICO-Unity-Integration-SDK.git#release_3.4.0`
 - [ ] 1.7 **闸门**：确认 PICO SDK 3.4.0 + Unity 6000.4.4 编译通过（零错误）。失败则原样记录错误内容，暂停后续任务并回到 design 修订 PICO 路径假设
 - [ ] 1.8 **闸门**：核验 `PXR_HandSubSystem` 在 XR Hands 1.8.1 下无 `must implement inherited abstract member` 类错误（design 硬约束 #3 针对 1.7.3，升级后须重做）。失败则将 `xr.hands` 退回 1.7.3 并在 design 中记为版本上限
-- [ ] 1.9 确认 `ProjectSettings > Audio > Spatializer Plugin` 未指向任何厂商专属插件
+- [x] 1.9 确认 `ProjectSettings > Audio > Spatializer Plugin` 未指向任何厂商专属插件
 
 ## 2. M0 打包脚本（design D14，后续所有出包都经由它）
 
