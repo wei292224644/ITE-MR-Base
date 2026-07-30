@@ -53,15 +53,6 @@
 
 ## 6. M0 PICO 真机验证（真正的未知）
 
-- [ ] 6.0 **先修 `PicoMarkerProvider.cs`，否则 PICO 端无法出包。** 该文件在 `#if MRBASE_PICO` 内，
-  之前从未参与编译，现经反射核实与真实 API 有三处不符：
-  正确类型是 `Unity.XR.PICO.TOBSupport.PXR_Enterprise`（程序集 `PICO.TobSupport`，
-  非 `Unity.XR.PXR`）；真实签名是
-  `static int SetMarkerInfoCallback(TrackingOriginModeFlags trackingMode, float cameraYOffset, Action<List<MarkerInfo>> markerInfos)`
-  而代码只传了 1 个参数；`StopTracking()` 里的 `SetMarkerInfoCallback(null)` 同样不成立。
-  需要定的是 trackingMode 与 cameraYOffset 取值、以及「停止追踪」的正确做法，
-  并核对回调数据结构 `MarkerInfo` 与 `HandleMarkerInfo` 的形状
-
 - [ ] 6.1 查清模式 1（PXR_Loader）下 passthrough 的启用方式，并在 design 的 Open Questions 中回填结论（`PassthroughFeature.cs` 为 `#if PICO_OPENXR_SDK`，模式 1 不编译；应走 PXR seethrough 路径）
 - [ ] 6.2 在 XR Origin 上挂 `PXR_Manager` 并勾选 Hand Tracking，经 `MRBase/Build/Pico` 出包并装机
 - [ ] 6.3 **闸门**：确认 HUD 的 descriptor `id` 显示 `"PICO Hands"` 且双手 tracked。手不出来则检查 `PXR_Manager` 勾选与系统设置中的手势追踪开关

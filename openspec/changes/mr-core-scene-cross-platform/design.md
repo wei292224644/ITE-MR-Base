@@ -288,6 +288,18 @@ M3  业务接入：Localization / SacredRelic 改为 additive 挂载到 MRCore
 
 ## Open Questions
 
+- **外部阻塞（不属本变更范围）：PICO 出包被 `PicoMarkerProvider.cs` 阻塞。** 该文件属上一变更
+  `qrcode-marker-localization`，位于 `#if MRBASE_PICO` 内，此前 `MRBASE_PICO` 从未生效故从未编译。
+  装入 PICO SDK 3.4.0 后经反射核实与真实 API 有结构性不符：
+  正确类型为 `Unity.XR.PICO.TOBSupport.PXR_Enterprise`（程序集 `PICO.TobSupport`，非 `Unity.XR.PXR`）；
+  真实签名为 `static int SetMarkerInfoCallback(TrackingOriginModeFlags trackingMode, float cameraYOffset, Action<List<MarkerInfo>> markerInfos)`，
+  回调一次给出**当前可见 marker 的列表**而非单个 marker，且不提供「某 marker 已丢失」的信号；
+  `MarkerInfo` 字段为 `iMarkerId / posX,posY,posZ / rotationX,Y,Z,W / validFlag / markerType / dTimestamp / reserve`。
+  现有代码假设「单 marker 回调 + isTracked 标志」，需重写而非改名。
+  待定项：`trackingMode` 与 `cameraYOffset` 取值、`StopTracking()` 的正确做法、
+  `MarkerLost` 是否用前后帧差集实现、`validFlag` 语义（须真机实测）。
+  **影响本变更的任务 6.2（PICO 出包）；建议另开变更修复，本变更不承担。**
+
 - Pico 模式 1 下 passthrough 的启用方式未查清。`PassthroughFeature.cs` 为 `#if PICO_OPENXR_SDK`，模式 1 下不编译；模式 1 应走 PXR 的 seethrough（`Utils/PXR_VstModelPosCheck.cs` 那套），具体入口待 M0 确认
 - 两端 passthrough 下相机 clear / alpha 的具体配置待 M0 实测确定
 - `IPassthroughController` 是否 M1 就抽成接口。倾向 M1 直接在 `MRBootstrap` 里 `#if`，M2 再抽（避免过早抽象）
