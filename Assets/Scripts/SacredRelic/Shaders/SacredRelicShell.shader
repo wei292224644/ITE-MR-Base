@@ -120,12 +120,17 @@ Shader "MRBase/Sacred Relic Shell"
             return lerp(lerp(n00, n10, f.y), lerp(n01, n11, f.y), f.z);
         }
 
+        // Deliberately sin-free. Worley below calls this 27 times per fragment, so the obvious
+        // frac(sin(dot(...))) form costs 81 transcendentals per pixel while the crust dissolves —
+        // in three passes, on a Quest. It is also the one construct whose result genuinely differs
+        // between this shader and RelicDustBakedPoints' CPU twin: sin of a few-thousand argument
+        // has no accurate low bits left in fp32, and the *43758 amplifies whatever is there. Pure
+        // frac/mul/add stays bit-comparable, so the dust can sit exactly on the eroding edge.
         float3 Hash33(float3 p)
         {
-            p = float3(dot(p, float3(127.1, 311.7, 74.7)),
-                       dot(p, float3(269.5, 183.3, 246.1)),
-                       dot(p, float3(113.5, 271.9, 124.6)));
-            return frac(sin(p) * 43758.5453);
+            p = frac(p * float3(0.1031, 0.1030, 0.0973));
+            p += dot(p, p.yxz + 33.33);
+            return frac((p.xxy + p.yxx) * p.zyx);
         }
 
         // Distance to the nearest of a jittered lattice of points. Sharp cell walls are what

@@ -18,9 +18,6 @@ namespace MRBase.SacredRelic
         [Tooltip("Surface samples per shard. More means finer dust and a bigger bake.")]
         [SerializeField, Min(16)] int samplesPerShard = 320;
 
-        [Tooltip("Must match the shell material's Noise Scale or the dust will lag the erosion.")]
-        [SerializeField] float noiseScale = 42f;
-
         [Header("Dust motion")]
         [SerializeField] float driftUp = 0.11f;
         [SerializeField] float pushOffSurface = 0.035f;
@@ -35,6 +32,30 @@ namespace MRBase.SacredRelic
             public Vector3 positionOS;
             public Vector3 normalOS;
             public float threshold;
+        }
+
+        /// <summary>
+        /// Everything the dissolve field needs, pulled off the shard rather than duplicated in the
+        /// inspector. The shape of the field depends on the shard's own bounds, so it genuinely is
+        /// per shard and cannot be one number shared by the emitter.
+        /// </summary>
+        public struct NoiseSettings
+        {
+            public Vector3 centreOS;
+            public float sizeOS;
+            public float scale;
+            public float grainScale;
+            public float grainStrength;
+
+            /// <summary>Matches SacredRelicShell.shader's property defaults.</summary>
+            public static NoiseSettings Default => new NoiseSettings
+            {
+                centreOS = Vector3.zero,
+                sizeOS = 1f,
+                scale = 9f,
+                grainScale = 2.6f,
+                grainStrength = 0.75f
+            };
         }
 
         sealed class Baked
@@ -65,9 +86,35 @@ namespace MRBase.SacredRelic
             {
                 var entry = new Baked { transform = shard.transform };
                 Mesh mesh = ResolveMesh(shard);
-                entry.points = mesh != null ? Bake(mesh) : System.Array.Empty<SurfacePoint>();
+                entry.points = mesh != null
+                    ? Bake(mesh, ResolveNoise(shard))
+                    : System.Array.Empty<SurfacePoint>();
                 _baked.Add(entry);
             }
+        }
+
+        /// <summary>
+        /// Reads the dissolve field's shape straight off the shard and its material, so there is no
+        /// second copy of these numbers to fall out of sync with the shader.
+        /// </summary>
+        static NoiseSettings ResolveNoise(SacredRelicFracture.Shard shard)
+        {
+            NoiseSettings s = NoiseSettings.Default;
+
+            // SacredRelicFracture fills these in CacheRest, which always runs before Prepare.
+            if (shard.boundsSizeOS.x > 1e-4f)
+            {
+                s.centreOS = shard.boundsCentreOS;
+                s.sizeOS = shard.boundsSizeOS.x;
+            }
+
+            Material material = shard.renderer != null ? shard.renderer.sharedMaterial : null;
+            if (material == null) return s;
+            if (material.HasProperty("_NoiseScale")) s.scale = material.GetFloat("_NoiseScale");
+            if (material.HasProperty("_GrainScale")) s.grainScale = material.GetFloat("_GrainScale");
+            if (material.HasProperty("_GrainStrength"))
+                s.grainStrength = material.GetFloat("_GrainStrength");
+            return s;
         }
 
         static Mesh ResolveMesh(SacredRelicFracture.Shard shard)
@@ -84,7 +131,7 @@ namespace MRBase.SacredRelic
             return filter.sharedMesh;
         }
 
-        SurfacePoint[] Bake(Mesh mesh)
+        SurfacePoint[] Bake(Mesh mesh, NoiseSettings noise)
         {
             Vector3[] verts = mesh.vertices;
             Vector3[] normals = mesh.normals;
@@ -127,7 +174,7 @@ namespace MRBase.SacredRelic
                 {
                     positionOS = p,
                     normalOS = n,
-                    threshold = DissolveNoise(p, noiseScale)
+                    threshold = DissolveNoise(p, noise)
                 };
             }
 
@@ -198,8 +245,11 @@ namespace MRBase.SacredRelic
             }
         }
 
-        // --- CPU twin of the shader's dissolve field. Keep in lockstep with
-        // SacredRelicShell.shader's DissolveNoise or the dust will drift off the erosion front.
+        // --- CPU twin of the shader's dissolve field. Every function below mirrors one in
+        // SacredRelicShell.shader line for line, and a point's threshold is the _Dissolve value at
+        // which clip() erases it. If the two drift apart the grains appear off the eroding edge —
+        // early in mid-surface, or late after the stone there is already gone. Change one, change
+        // both, and re-check the numbers.
 
         static float Frac(float v) => v - Mathf.Floor(v);
 
@@ -230,10 +280,42 @@ namespace MRBase.SacredRelic
             return Mathf.Lerp(Mathf.Lerp(n00, n10, f.y), Mathf.Lerp(n01, n11, f.y), f.z);
         }
 
-        public static float DissolveNoise(Vector3 positionOS, float scale)
+        static Vector3 Hash33(Vector3 p)
         {
-            Vector3 p = positionOS * scale;
-            return Mathf.Clamp01(VNoise(p) * 0.68f + VNoise(p * 2.7f) * 0.32f);
+            p = new Vector3(Frac(p.x * 0.1031f), Frac(p.y * 0.1030f), Frac(p.z * 0.0973f));
+            // dot(p, p.yxz + 33.33)
+            float d = p.x * (p.y + 33.33f) + p.y * (p.x + 33.33f) + p.z * (p.z + 33.33f);
+            p += new Vector3(d, d, d);
+            // frac((p.xxy + p.yxx) * p.zyx)
+            return new Vector3(Frac((p.x + p.y) * p.z),
+                               Frac((p.x + p.x) * p.y),
+                               Frac((p.y + p.x) * p.x));
+        }
+
+        static float Worley(Vector3 p)
+        {
+            var i = new Vector3(Mathf.Floor(p.x), Mathf.Floor(p.y), Mathf.Floor(p.z));
+            var f = new Vector3(Frac(p.x), Frac(p.y), Frac(p.z));
+            float best = 1e9f;
+            for (int x = -1; x <= 1; x++)
+            for (int y = -1; y <= 1; y++)
+            for (int z = -1; z <= 1; z++)
+            {
+                var g = new Vector3(x, y, z);
+                Vector3 d = g + Hash33(i + g) - f;
+                best = Mathf.Min(best, Vector3.Dot(d, d));
+            }
+            return Mathf.Clamp01(Mathf.Sqrt(best));
+        }
+
+        public static float DissolveNoise(Vector3 positionOS, NoiseSettings noise)
+        {
+            // Normalised by the shard's own bounds first: these meshes carry baked vertex offsets,
+            // so positionOS is really world metres, and scaling that raw made the cells sub-pixel.
+            Vector3 p = (positionOS - noise.centreOS) / Mathf.Max(1e-4f, noise.sizeOS) * noise.scale;
+            float fbm = VNoise(p) * 0.6f + VNoise(p * 2.3f) * 0.27f + VNoise(p * 5.1f) * 0.13f;
+            float grain = Worley(p * noise.grainScale);
+            return Mathf.Clamp01(Mathf.Lerp(fbm, fbm * 0.55f + grain * 0.45f, noise.grainStrength));
         }
     }
 }
