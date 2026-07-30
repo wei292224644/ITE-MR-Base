@@ -22,6 +22,9 @@
 | 10 | XR Composition Layers 是 provider-based（依赖里无 openxr），PICO 已实现该 provider，layer 类型两端几乎逐个对齐 | `com.unity.xr.compositionlayers/package.json`；`PICO/Runtime/CompositionLayers/PXR_{Quad,Cylinder,Cube,Equirect,Default}Layer.cs` + `PXR_CustomLayerHandler.cs`（含 `#if UNITY_VIDEO`） |
 | 11 | PICO Integration SDK 3.4 是**双后端**的，两个 PICO SDK 不互斥 | `PXR_HandSubsystem.cs` 为 `#if !PICO_OPENXR_SDK`；`Runtime/Scripts/OpenXRFeatures/Features/PassthroughFeature.cs` 为 `#if PICO_OPENXR_SDK` |
 | 12 | PICO 3.4 声明的版本兼容点 | `PICO/Runtime/Unity.XR.PICO.asmdef` `versionDefines`：`xr.hands >= 1.1.0`、`xr.openxr >= 1.16.0`、`compositionlayers >= 1.0.0`、`arfoundation >= 6.0.0` |
+| 13 | **两家 SDK 携带同名 native 库，只要都装着就在 Gradle 阶段冲突** —— `lib/arm64-v8a/libopenxr_loader.so` 同时来自 PICO 的 `LoaderForUnitySDK_1_1_0.aar` 与 Meta 的 `OVRPlugin.aar`，`MergeNativeLibsTask` 直接失败。native plugin 是否进包由 `PluginImporter` 决定，**与启用了哪个 XR loader 无关**，所以双 APK 挡不住 | Quest 出包实测（本变更实施中发现） |
+| 14 | **Git 来源的包不可变，无法改其 plugin 平台兼容性** —— `SetCompatibleWithPlatform(Android, false)` 在内存中生效，`SaveAndReimport()` 后被静默回滚（实测 `before=True → 设为 false → 重读 True`，`PackageInfo.source = Git`）。可用的是会话级、不落盘的 `SetIncludeInBuildDelegate`（PICO SDK 自己也用它门控 `PxrPlatform.aar`） | 同上 |
+| 15 | **PICO SDK 的构建校验对所有 Android 构建生效，不分平台** —— `PXR_BuildHooks.OnPreprocessBuild` 要求 `androidApplicationEntry = Activity`，而 Unity 6 默认 `GameActivity`，导致装了 PICO SDK 后连 Quest 包都打不出来。`Activity` 对 Meta 同样有效，故两端共用一个值即可 | `PXR_BuildProcessor.cs:219`，Quest 出包实测 |
 
 ## Goals / Non-Goals
 
@@ -233,9 +236,14 @@ BuildQuest() / BuildPico()
        （XRPackageMetadataStore.AssignLoader / RemoveLoader）
   3. 设置 OpenXR feature 开关（Quest 需 Meta 系 feature，Pico 不需）
   4. 校验：defines 与 loader 一致、Spatializer 未指向厂商插件；不一致则中止
-  5. BuildPipeline.BuildPlayer(...)
-  6. finally 还原第 2、3 步的设置改动（避免在 XR 设置资产上留下 git diff）
-  7. 可选：出包后 adb install 到已连接设备
+  5. 排除另一端的 Android native plugin（硬约束 #13：不排除则 Gradle 合并冲突）
+       用 SetIncludeInBuildDelegate，不能用 SetCompatibleWithPlatform（硬约束 #14）
+  6. BuildPipeline.BuildPlayer(...)
+  7. finally 还原 loader、plugin delegate 与激活的 Profile
+  8. 可选：出包后 adb install 到已连接设备
+
+另有一项一次性的全局配置（不属脚本职责，改一次即可）：
+`androidApplicationEntry` 必须为 `Activity`（硬约束 #15）。
 
 入口：
   菜单项  MRBase/Build/Quest · MRBase/Build/Pico            日常打包
