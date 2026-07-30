@@ -1,4 +1,5 @@
 using System;
+using System.Collections.Generic;
 using System.IO;
 using System.Linq;
 using UnityEditor;
@@ -30,16 +31,21 @@ public static class BuildScript
     // Unity.XR.PICO —— 任一 SDK 未安装时本脚本仍能编译。
     static readonly string[] k_AndroidLoaders = { k_OpenXRLoader, k_PicoLoader };
 
+    const string k_PicoPackageRoot = "Packages/com.unity.xr.picoxr";
+    const string k_MetaPackageRoot = "Packages/com.meta.xr.sdk.core";
+
     [MenuItem("MRBase/Build/Quest")]
     public static void BuildQuest()
     {
-        Build(k_QuestProfilePath, "MRBASE_QUEST", k_OpenXRLoader, "Builds/Quest/MR_Base.apk");
+        Build(k_QuestProfilePath, "MRBASE_QUEST", k_OpenXRLoader, "Builds/Quest/MR_Base.apk",
+            excludePluginRoot: k_PicoPackageRoot);
     }
 
     [MenuItem("MRBase/Build/Pico")]
     public static void BuildPico()
     {
-        Build(k_PicoProfilePath, "MRBASE_PICO", k_PicoLoader, "Builds/Pico/MR_Base.apk");
+        Build(k_PicoProfilePath, "MRBASE_PICO", k_PicoLoader, "Builds/Pico/MR_Base.apk",
+            excludePluginRoot: k_MetaPackageRoot);
     }
 
     /// <summary>
@@ -67,6 +73,7 @@ public static class BuildScript
         string expectedDefine,
         string loaderTypeName,
         string outputPath,
+        string excludePluginRoot = null,
         bool dryRun = false)
     {
         var profile = AssetDatabase.LoadAssetAtPath<BuildProfile>(profilePath);
@@ -79,10 +86,12 @@ public static class BuildScript
         var manager = AndroidManagerSettings();
         var restoreLoaders = SnapshotAndroidLoaders();
         var previousProfile = BuildProfile.GetActiveBuildProfile();
+        List<string> restorePlugins = null;
 
         try
         {
             ApplyAndroidLoader(manager, loaderTypeName);
+            restorePlugins = DisableAndroidPluginsUnder(excludePluginRoot);
 
             // 激活 Profile 会带入它的 scripting defines（MRBASE_QUEST / MRBASE_PICO），
             // 这是构建正确的前提，但也意味着 Editor 的 define 集合被改动 —— 必须在 finally 还原。
@@ -125,10 +134,12 @@ public static class BuildScript
         }
         finally
         {
-            // 还原 loader 与激活的 Profile。前者避免在 XRGeneralSettingsPerBuildTarget.asset
-            // 上留下 git diff，后者避免把 Editor 留在另一个平台的 define 集合下
-            // （会让另一端的平台代码意外参与编译）。
+            // 还原 loader、plugin 兼容性与激活的 Profile。分别避免：
+            // 在 XRGeneralSettingsPerBuildTarget.asset 上留 git diff、
+            // 让另一端的 native plugin 处于关闭状态、
+            // 把 Editor 留在另一个平台的 define 集合下（会让另一端平台代码意外参与编译）。
             RestoreAndroidLoaders(manager, restoreLoaders);
+            RestoreAndroidPlugins(restorePlugins);
             if (previousProfile != profile)
                 BuildProfile.SetActiveBuildProfile(previousProfile);
         }
@@ -218,6 +229,68 @@ public static class BuildScript
 
         AssetDatabase.SaveAssets();
         Debug.Log($"[BuildScript] Android loader = {loaderTypeName}");
+    }
+
+    // ---- 另一端的 native plugin ----
+
+    /// <summary>
+    /// 把指定包下的 Android native plugin 从本次构建中排除。
+    ///
+    /// 必要性：native plugin 是否进包由 PluginImporter 决定，**与启用了哪个 XR loader 无关**。
+    /// 所以打 Quest 包时 PICO 的 AAR 一样会被打进去，而两家都携带
+    /// `lib/arm64-v8a/libopenxr_loader.so`（PICO 的 LoaderForUnitySDK 与 Meta 的 OVRPlugin），
+    /// Gradle 的 MergeNativeLibsTask 会因同名文件冲突直接失败。双 APK 本身挡不住这件事。
+    ///
+    /// 用 <see cref="PluginImporter.SetIncludeInBuildDelegate"/> 而不是
+    /// <c>SetCompatibleWithPlatform</c>：两个 SDK 都是 Git 来源的**不可变包**，改平台兼容性
+    /// 需要写包内 `.meta`，Unity 会在 <c>SaveAndReimport()</c> 时静默回滚。
+    /// delegate 是会话级的、不落盘，PICO SDK 自己也是用这个机制门控 PxrPlatform.aar 的。
+    /// </summary>
+    /// <returns>被设过 delegate 的资源路径，供 finally 清除。</returns>
+    static List<string> DisableAndroidPluginsUnder(string packageRoot)
+    {
+        var changed = new List<string>();
+        if (string.IsNullOrEmpty(packageRoot))
+            return changed;
+
+        foreach (var path in AndroidPluginPathsUnder(packageRoot))
+        {
+            if (!(AssetImporter.GetAtPath(path) is PluginImporter importer))
+                continue;
+            if (!importer.GetCompatibleWithPlatform(BuildTarget.Android))
+                continue;
+
+            importer.SetIncludeInBuildDelegate(_ => false);
+            changed.Add(path);
+        }
+
+        if (changed.Count > 0)
+            Debug.Log($"[BuildScript] 已为本次构建排除 {packageRoot} 下 {changed.Count} 个 Android native plugin");
+
+        return changed;
+    }
+
+    static void RestoreAndroidPlugins(List<string> changed)
+    {
+        if (changed == null)
+            return;
+
+        foreach (var path in changed)
+        {
+            if (AssetImporter.GetAtPath(path) is PluginImporter importer)
+                importer.SetIncludeInBuildDelegate(null);
+        }
+    }
+
+    static IEnumerable<string> AndroidPluginPathsUnder(string packageRoot)
+    {
+        foreach (var guid in AssetDatabase.FindAssets(string.Empty, new[] { packageRoot }))
+        {
+            var path = AssetDatabase.GUIDToAssetPath(guid);
+            if (path.EndsWith(".aar", StringComparison.OrdinalIgnoreCase) ||
+                path.EndsWith(".so", StringComparison.OrdinalIgnoreCase))
+                yield return path;
+        }
     }
 
     static void RestoreAndroidLoaders(XRManagerSettings manager, bool[] state)
