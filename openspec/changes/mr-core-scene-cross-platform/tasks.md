@@ -26,21 +26,21 @@
 
 ## 3. M0 诊断工具
 
-- [ ] 3.1 新建 `Assets/Scenes/Diagnostics.unity`，以 XRI 的 `XR Origin Hands (XR Rig).prefab` 为基础搭一个最小 rig
-- [ ] 3.2 实现 `DiagnosticsHUD`：世界空间 Canvas 怼在相机前约 0.5 米，逐帧刷新
-- [ ] 3.3 HUD 呈现 `XRHandSubsystem` 的 descriptor `id`（用于区分 OpenXR provider 与 `"PICO Hands"`）
-- [ ] 3.4 HUD 呈现左右手 `isTracked` 与有效关节计数
-- [ ] 3.5 HUD 呈现 `InputSystem.devices` 全部设备名列表
-- [ ] 3.6 HUD 呈现手部交互相关 action 的当前值与 `activeControl`（**双 binding 验证的直接证据**）
-- [ ] 3.7 HUD 呈现自算的平滑 fps（两端同一算法，保证可比）
-- [ ] 3.8 HUD 呈现 passthrough 启用状态与相机 clear 配置
-- [ ] 3.9 同一份数据同时 `Debug.Log` 输出，便于用 `adb logcat -s Unity:V` 留证据（项目已装 `com.unity.mobile.android-logcat`）
+- [x] 3.1 新建 `Assets/Scenes/Diagnostics.unity`，以 XRI 的 `XR Origin Hands (XR Rig).prefab` 为基础搭一个最小 rig
+- [x] 3.2 实现 `DiagnosticsHUD`：世界空间 Canvas 怼在相机前约 0.5 米，逐帧刷新
+- [x] 3.3 HUD 呈现 `XRHandSubsystem` 的 descriptor `id`（用于区分 OpenXR provider 与 `"PICO Hands"`）
+- [x] 3.4 HUD 呈现左右手 `isTracked` 与有效关节计数
+- [x] 3.5 HUD 呈现 `InputSystem.devices` 全部设备名列表
+- [x] 3.6 HUD 呈现手部交互相关 action 的当前值与 `activeControl`（**双 binding 验证的直接证据**）。代码已实现（`watchedActions` 为 `InputActionReference[]`），具体 action 的挂载待任务 6.5 产出项目自有的输入资产后填入
+- [x] 3.7 HUD 呈现自算的平滑 fps（两端同一算法，保证可比）
+- [x] 3.8 HUD 呈现 passthrough 启用状态与相机 clear 配置
+- [x] 3.9 同一份数据同时 `Debug.Log` 输出，便于用 `adb logcat -s Unity:V` 留证据（项目已装 `com.unity.mobile.android-logcat`）
 
 ## 4. M0 Editor 验证（不需设备）
 
-- [ ] 4.1 打开 `XRDeviceSimulatorSettings`，启用 `AutomaticallyInstantiateSimulatorPrefab`
-- [ ] 4.2 在 Editor 中运行 `Diagnostics.unity`，确认键鼠可控头部与双手、HUD 的 `isTracked` 变为 true、预设手势可切换
-- [ ] 4.3 确认 Editor 下 `XRHandSubsystem` descriptor 为模拟器 provider（验证 design 硬约束 #8：三种装配复用同一场景）
+- [x] 4.1 打开 `XRDeviceSimulatorSettings`，启用 `AutomaticallyInstantiateSimulatorPrefab`
+- [x] 4.2 在 Editor 中运行 `Diagnostics.unity`。已实测：模拟器自动实例化，`deviceMode=Hand`，HUD 显示双手 `isTracked=True` 且 26/26 关节有效，`InputSystem.devices` 从 `XRSimulatedController` 切为两个 `XRHandDevice`，FPS 120。**键鼠实际操控与预设手势切换需人工在 Editor 里按键确认**，自动化无法代替
+- [x] 4.3 确认 Editor 下手部数据来源。**实测结果修正了本条的预期**：Play 时共注册 4 个 descriptor —— `OpenXR Hands` / `Hand-Capture-Playback` / `XRI Device Simulator Hands Provider` / **`PICO Hands`**；实际运行并供数的是 `Hand-Capture-Playback`（模拟器经回放手势表情驱动手部），而非 `XRI Device Simulator Hands Provider`。`PICO Hands` 在 Editor 下也已注册（其 `RegisterDescriptor` 的 `[RuntimeInitializeOnLoadMethod]` 无条件执行，与 loader 无关），但未运行。design 硬约束 #8「Editor 是第三个 provider」成立，只是具体 provider 名不同
 
 ## 5. M0 Quest 真机验证（对照组）
 
