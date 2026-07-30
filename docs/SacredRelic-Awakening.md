@@ -91,6 +91,42 @@ shards 列表、instancing），手调的演出参数和 look 参数一律不碰
 
 想恢复出厂默认 → 删掉组件（或删掉 `.mat`）再重绑。
 
+### 前提条件（照文档重建时最容易漏的三样）
+
+**① 场景里必须有主光源。** 外壳用的是自写 shader，不是 URP/Lit —— 它在 `Shade()` 里自己
+`GetMainLight()` + 遍历附加光 + `SampleSH()`。**没有 Directional Light，整座碑只剩环境光，接近全黑。**
+
+当前场景（`_GlowStrength = 1.3` 就是在这套亮度下调出来的）：
+
+| 灯 | 类型 | 强度 | 颜色 | 欧拉角 | 阴影 |
+|---|---|---|---|---|---|
+| Directional Light | Directional | 2.2 | (1.00, 0.96, 0.90) 暖 | (25, 15, 0) | Soft |
+| Fill Light | Directional | 2.2 | (0.62, 0.72, 0.95) 冷 | (348, 145, 0) | 无 |
+
+环境光 = Skybox，intensity 1。
+
+**换灯光就得重调金光。** 两个 2.2 的平行光已经把石头照得不暗，金色是**加在**这个亮度之上的，
+而项目没有 HDR —— 灯调亮一点，金光就会削顶变白（坑 3）；灯调暗，`1.3` 又会不够亮。
+
+**② 包依赖。** 两个 asmdef 引用了 `Unity.InputSystem`、`Unity.VisualEffectGraph.Runtime`、
+`Unity.TextMeshPro`。**缺任何一个，整个 `MRBase.SacredRelic` 程序集都编译不过**（不只是少个功能）。
+InputSystem 是 `SacredRelicTrigger` 的键鼠分支要的，VFX Graph 是备选方案 `RelicDustVfx` 要的。
+
+**③ 资产路径在 Binder 里是硬编码的**，文件夹改名或移动必须同步改 `SacredRelicSteleBinder.cs`：
+
+```
+Assets/SacredRelicDemo/Generated/Models/SacredRelic_Fractured.json   ManifestPath
+Assets/SacredRelicDemo/Generated/Models/SacredRelic_Stele.fbx        EnsureSteleMeshesReadable
+Assets/SacredRelicDemo/Generated/Textures/T_SacredRelic_CrackMask.png MaskPath
+Assets/SacredRelicDemo/Generated/Textures/Image_0.png                AlbedoPath
+Assets/SacredRelicDemo/Generated/Textures/T_RelicDustGrain.png       LoadOrCreateDustMaterial
+Assets/SacredRelicDemo/M_Relic_Shell_Outer.mat / _Inner.mat          BindSceneStele
+Assets/SacredRelicDemo/M_Relic_Core.mat / M_Relic_Dust.mat           EnsureCore/DustMaterial
+```
+
+shader 是按**名字**找的：`Shader.Find("MRBase/Sacred Relic Shell")` —— 文件可以挪，
+但 `.shader` 第一行的名字不能改。
+
 ---
 
 ## 4. 运行时 API
