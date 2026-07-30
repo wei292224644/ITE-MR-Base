@@ -12,17 +12,17 @@
 
 ## 2. M0 打包脚本（design D14，后续所有出包都经由它）
 
-- [ ] 2.1 新建 `Assets/Scripts/Editor/`（`MRBase.Build.Editor` 程序集）
-- [ ] 2.2 实现 `BuildQuest()` / `BuildPico()`：激活对应 Build Profile（带入其 defines 与 scene 列表）
-- [ ] 2.3 在构建前设置 Android XR loader（Quest → `OpenXRLoader`，Pico → `PXR_Loader`），使用 `XRPackageMetadataStore.AssignLoader` / `RemoveLoader`
-- [ ] 2.4 在构建前设置 OpenXR feature 开关（Quest 需 Meta 系 feature，Pico 走 PXR loader 时不需）
-- [ ] 2.5 实现构建前一致性校验：构建意图 define 与 loader 对应关系、Spatializer 未指向厂商插件；不一致则中止构建并输出不匹配项
-- [ ] 2.6 在 `finally` 中还原第 2.3 / 2.4 步修改的 XR 设置，确认打包后 `git status` 中不出现 `XRGeneralSettingsPerBuildTarget.asset` 等改动
-- [ ] 2.7 暴露菜单项 `MRBase/Build/Quest` 与 `MRBase/Build/Pico`
-- [ ] 2.8 暴露命令行入口（`Unity -batchmode -quit -executeMethod ...`），确认退出码可用于判定成败
-- [ ] 2.9 写一个外层 shell 脚本分两次调用 Unity 完成两端构建，作为「两端编译回归」的执行方式；**不得实现单次执行内连续构建两端的 `BuildBoth()`**（切换 defines 触发重编译会打断脚本执行）
+- [x] 2.1 新建 `Assets/Scripts/Editor/`（`MRBase.Build.Editor` 程序集）
+- [x] 2.2 实现 `BuildQuest()` / `BuildPico()`：激活对应 Build Profile（带入其 defines 与 scene 列表）
+- [x] 2.3 在构建前设置 Android XR loader（Quest → `OpenXRLoader`，Pico → `PXR_Loader`），使用 `XRPackageMetadataStore.AssignLoader` / `RemoveLoader`
+- [ ] 2.4 在构建前设置 OpenXR feature 开关 —— **有意跳过**：Pico 走 PXR_Loader 时 OpenXR 未进 loader 列表，其 feature 与 manifest 注入均不生效；Quest 走 OpenXRLoader 时现有 feature 配置已正确。加此代码属投机，等出现真实需要再补
+- [x] 2.5 实现构建前一致性校验：构建意图 define 与 loader 对应关系、Spatializer 未指向厂商插件；不一致则中止构建并输出不匹配项
+- [x] 2.6 在 `finally` 中还原第 2.3 / 2.4 步修改的 XR 设置，确认打包后 `git status` 中不出现 `XRGeneralSettingsPerBuildTarget.asset` 等改动
+- [x] 2.7 暴露菜单项 `MRBase/Build/Quest` 与 `MRBase/Build/Pico`
+- [x] 2.8 暴露命令行入口（`Unity -batchmode -quit -executeMethod ...`），确认退出码可用于判定成败
+- [x] 2.9 写一个外层 shell 脚本分两次调用 Unity 完成两端构建，作为「两端编译回归」的执行方式；**不得实现单次执行内连续构建两端的 `BuildBoth()`**（切换 defines 触发重编译会打断脚本执行）
 - [ ] 2.10 可选：构建成功后自动 `adb install -r` 到已连接设备
-- [ ] 2.11 验证：故意把 loader 留成错的一个，经打包入口构建，确认脚本自行纠正而非产出错包
+- [x] 2.11 验证：故意把 loader 留成错的一个，经打包入口构建，确认脚本自行纠正而非产出错包
 
 ## 3. M0 诊断工具
 
@@ -52,6 +52,15 @@
 - [ ] 5.6 记录 Quest 端 fps 基线数值
 
 ## 6. M0 PICO 真机验证（真正的未知）
+
+- [ ] 6.0 **先修 `PicoMarkerProvider.cs`，否则 PICO 端无法出包。** 该文件在 `#if MRBASE_PICO` 内，
+  之前从未参与编译，现经反射核实与真实 API 有三处不符：
+  正确类型是 `Unity.XR.PICO.TOBSupport.PXR_Enterprise`（程序集 `PICO.TobSupport`，
+  非 `Unity.XR.PXR`）；真实签名是
+  `static int SetMarkerInfoCallback(TrackingOriginModeFlags trackingMode, float cameraYOffset, Action<List<MarkerInfo>> markerInfos)`
+  而代码只传了 1 个参数；`StopTracking()` 里的 `SetMarkerInfoCallback(null)` 同样不成立。
+  需要定的是 trackingMode 与 cameraYOffset 取值、以及「停止追踪」的正确做法，
+  并核对回调数据结构 `MarkerInfo` 与 `HandleMarkerInfo` 的形状
 
 - [ ] 6.1 查清模式 1（PXR_Loader）下 passthrough 的启用方式，并在 design 的 Open Questions 中回填结论（`PassthroughFeature.cs` 为 `#if PICO_OPENXR_SDK`，模式 1 不编译；应走 PXR seethrough 路径）
 - [ ] 6.2 在 XR Origin 上挂 `PXR_Manager` 并勾选 Hand Tracking，经 `MRBase/Build/Pico` 出包并装机
