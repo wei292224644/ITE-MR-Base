@@ -3,10 +3,7 @@
     "rootNamespace": "",
     "references": [
         "Unity.XR.Management",
-        "Unity.XR.Management.Editor",
-        "Unity.XR.OpenXR",
-        "Unity.XR.OpenXR.Editor",
-        "Unity.XR.Hands"
+        "Unity.XR.Management.Editor"
     ],
     "includePlatforms": [
         "Editor"
