@@ -67,18 +67,18 @@
 
 ## 7. M1 核心场景
 
-- [ ] 7.1 新建 `Assets/Scenes/MRCore.unity`，加入 `EditorBuildSettings`
-- [ ] 7.2 建 `Assets/Prefabs/Rig/XROrigin_Base.prefab`（平台无关部分），并预留控制器挂点但不实现降级逻辑（追踪丢失降级已明确延后）
-- [ ] 7.3 建 `XROrigin_Pico.prefab` 变体，差量为 `PXR_Manager`；确认 Quest 构建产物中不含该组件
-- [ ] 7.4 按任务 6.1 的结论在两端启用 passthrough，配置相机 clear 使背景不遮挡真实环境
-- [ ] 7.5 从 `Assets/Samples/XR Hands/1.7.3/HandVisualizer/` 取手网格 FBX 与 `XRHandSkeletonDriver` 组合，接入左右手
-- [ ] 7.6 制作半透明手部材质，采用深度预写 + 描边解决自相交排序（参考 PICO 自家 `HandEditorTransparentOutlinedHandPrepassZ.mat` 的思路）；两端共用同一材质资产
-- [ ] 7.7 验证手移出视野后呈现消失、移回后在当前实际位置重新出现（无位置残留、无卡死）
-- [ ] 7.8 接入 `NearFarInteractor` 与 `XRPokeInteractor`，select 输入使用任务 6.5 的多 binding 配置
-- [ ] 7.9 放置测试用可抓取方块与可触碰按钮
-- [ ] 7.10 实现 `MRContext`（继承既有 `Assets/Scripts/Common/StaticInstance.cs`），至少暴露相机、XR Origin、双手数据访问器
-- [ ] 7.11 实现 `MRBootstrap` 最小版本：平台前置条件检查 → 装配 → 就绪；`#if MRBASE_*` 仅出现于此处
-- [ ] 7.12 前置条件不满足时呈现可操作的引导信息，不静默失败、不抛未处理异常终止应用
+- [x] 7.1 新建 `Assets/Scenes/MRCore.unity`，加入 `EditorBuildSettings` —— 并排到索引 0，真机启动即核心场景；`Diagnostics.unity` 退到索引 1 仍可用。（`SampleScene.unity` 是模板残留，还在列表里，待清理）
+- [x] 7.2 建 `Assets/Prefabs/Rig/XROrigin_Base.prefab` —— 做成 XRI `XR Origin Hands (XR Rig).prefab` 的**变体**而非拷贝：示例被重新导入时基座回到已知良好状态，我们的差量留在变体里。控制器挂点由基座自带，追踪丢失降级未实现（已明确延后）
+- [ ] 7.3 建 `XROrigin_Pico.prefab` 变体，差量为 `PXR_Manager` —— **作废**。6.2 实测：PXR_Loader 模式下场景不挂 `PXR_Manager` 组件，passthrough 与手部追踪照常工作；手势开关在构建期的 `PXR_ProjectSetting.handTracking`。没有差量，两端共用 `XROrigin_Base.prefab`
+- [x] 7.4 两端启用 passthrough —— 由 `PlatformRuntime.EnablePassthrough()` 承担（Quest 建 `ARSession` + 挂 `ARCameraManager`，PICO 设 `PXR_Manager.EnableVideoSeeThrough`）。相机 clear 设为 SolidColor + 背景 alpha 0，两端通用故留在场景里
+- [x] 7.5 手网格与驱动接入 —— 已由 XRI rig 基座自带的 `HandVisualizer`（`Assets/Samples/XR Hands/1.7.3/HandVisualizer/Scripts/HandVisualizer.cs`）+ prefab 内置网格满足，两端实测均渲染。选网格逻辑在 `HandVisualizer.cs:206`：仅 `detectedHandMeshLayout == OpenXRAndroidXR` 走 AndroidXR 网格，PICO 落 else 分支复用 Meta 网格 —— 两端同为 XR Hands 26 关节骨架，故可通用
+- [x] 7.6 半透明手部材质 + 深度预写 —— 基座已实现：左右手各挂两个材质，`DepthOnly`（`Unlit/DepthOnly`，queue 3001）先写深度，`Unity_Hand_Medium`（`Shader Graphs/Unity_Hand_Noise`，queue 3002，`ZWrite=0`）再画半透明本体。**描边不做** —— 已确认当前效果足以看清动作，外观细节不投入
+- [ ] 7.7 验证手移出视野后呈现消失、移回后在当前实际位置重新出现（无位置残留、无卡死）—— 需真机
+- [x] 7.8 `NearFarInteractor` 与 `XRPokeInteractor` —— 基座自带各 4 个（左右手 × 手/手柄）。select 输入走 `XRI Default Input Actions`，即 6.5 补过 `<PicoAimHand>` 的那份
+- [x] 7.9 放置测试用可抓取方块与可触碰按钮 —— `Grabbable Cube`（`XRGrabInteractable` + `Rigidbody`，**关重力**：MR 场景没有地板，开重力会掉走）与 `Test Button Canvas`（世界空间 + `TrackedDeviceGraphicRaycaster`，点击后文案 `NOT CLICKED` → `CLICKED`）
+- [x] 7.10 实现 `MRContext` —— `Assets/Scripts/Core/MRContext.cs`，继承 `StaticInstance<T>`，暴露 `Camera` / `Origin` / `Hands`。相机取自 `XROrigin.Camera` 而非 `Camera.main`（多相机场景下后者不可靠）；`Hands` 惰性解析且可能为 null，XR 子系统启动晚于 Awake
+- [x] 7.11 实现 `MRBootstrap` 最小版本 —— `Assets/Scripts/Core/MRBootstrap.cs`：查构建 define → 查 XR loader → 查 `MRContext`/`XROrigin` → 等手部子系统（默认 5 秒超时）→ 报就绪。**`#if MRBASE_*` 不在这里**，改由 `PlatformRuntime.Name` 提供平台身份 —— 条件编译集中在 `PlatformRuntime` 一处，原文的「仅出现于 MRBootstrap」按此调整
+- [x] 7.12 前置条件不满足时呈现可操作的引导信息 —— 世界空间 `Status Canvas`（默认隐藏），失败时显示具体原因与下一步动作，同时 `Debug.LogError`；不抛异常、不终止应用
 
 ## 8. M1 验收
 

@@ -23,6 +23,21 @@ using Unity.XR.PXR;
 /// </summary>
 public static class PlatformRuntime
 {
+    /// <summary>
+    /// 本次构建的目标平台，供别处判断而不必自己写 <c>#if MRBASE_*</c>。
+    /// 构建意图未配置时为 null —— 调用方据此报错，而不是默默按某一端跑。
+    /// </summary>
+    public static string Name =>
+#if MRBASE_QUEST
+        "Quest";
+#elif MRBASE_PICO && MRBASE_HAS_PICO_SDK
+        "PICO";
+#elif MRBASE_PICO
+        null;   // 构建意图是 PICO 但 com.unity.xr.picoxr 没装,等同于未配置
+#else
+        null;
+#endif
+
     [RuntimeInitializeOnLoadMethod(RuntimeInitializeLoadType.AfterSceneLoad)]
     static void Install()
     {

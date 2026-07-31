@@ -6,6 +6,9 @@ EditorBuildSettings:
   serializedVersion: 2
   m_Scenes:
   - enabled: 1
+    path: Assets/Scenes/MRCore.unity
+    guid: 52b82bb628c6247b48d25ef0fa8b30db
+  - enabled: 1
     path: Assets/Scenes/Diagnostics.unity
     guid: 585a0f96530074d368079baaaedc9965
   - enabled: 1
