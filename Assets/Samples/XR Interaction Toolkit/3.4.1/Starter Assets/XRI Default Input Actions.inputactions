@@ -589,6 +589,17 @@
                 },
                 {
                     "name": "",
+                    "id": "2e0dce38-ed33-4217-95d8-d8f2f4eeb08d",
+                    "path": "<PicoAimHand>{LeftHand}/devicePosition",
+                    "interactions": "",
+                    "processors": "",
+                    "groups": "",
+                    "action": "Aim Position",
+                    "isComposite": false,
+                    "isPartOfComposite": false
+                },
+                {
+                    "name": "",
                     "id": "8ee39b25-fde6-4195-bc6e-68caadef9183",
                     "path": "<HandInteraction>{LeftHand}/pointer/position",
                     "interactions": "",
@@ -624,6 +635,17 @@
                     "name": "",
                     "id": "2623b909-75bd-40da-97bd-ae1ecfb0a89b",
                     "path": "<MetaAimHand>{LeftHand}/deviceRotation",
+                    "interactions": "",
+                    "processors": "",
+                    "groups": "",
+                    "action": "Aim Rotation",
+                    "isComposite": false,
+                    "isPartOfComposite": false
+                },
+                {
+                    "name": "",
+                    "id": "84c3ae42-c362-415a-996f-1c3bf16e011f",
+                    "path": "<PicoAimHand>{LeftHand}/deviceRotation",
                     "interactions": "",
                     "processors": "",
                     "groups": "",
@@ -831,6 +853,17 @@
                 },
                 {
                     "name": "",
+                    "id": "086c4511-6108-4cd3-aacb-9e6aebba62ad",
+                    "path": "<PicoAimHand>{LeftHand}/aimFlags",
+                    "interactions": "",
+                    "processors": "",
+                    "groups": "",
+                    "action": "Meta Aim Flags",
+                    "isComposite": false,
+                    "isPartOfComposite": false
+                },
+                {
+                    "name": "",
                     "id": "21a4b6f9-1ebe-434f-b572-066a77b04c48",
                     "path": "<XRHandDevice>{LeftHand}/gripPosition",
                     "interactions": "",
@@ -1002,6 +1035,17 @@
                 },
                 {
                     "name": "",
+                    "id": "1c0f7f69-c4e0-4908-af63-07482e80d17b",
+                    "path": "<PicoAimHand>{LeftHand}/indexPressed",
+                    "interactions": "",
+                    "processors": "",
+                    "groups": "",
+                    "action": "Select",
+                    "isComposite": false,
+                    "isPartOfComposite": false
+                },
+                {
+                    "name": "",
                     "id": "3bbf9f24-2edd-41b9-8456-683298f1e58c",
                     "path": "<HandInteraction>{LeftHand}/graspFirm",
                     "interactions": "",
@@ -1059,6 +1103,17 @@
                     "name": "",
                     "id": "304be843-4b23-45d9-89fa-005ac163d9b9",
                     "path": "<MetaAimHand>{LeftHand}/pinchStrengthIndex",
+                    "interactions": "",
+                    "processors": "",
+                    "groups": "",
+                    "action": "Select Value",
+                    "isComposite": false,
+                    "isPartOfComposite": false
+                },
+                {
+                    "name": "",
+                    "id": "cf27240b-8c54-453f-a7cf-57281c7fd8c2",
+                    "path": "<PicoAimHand>{LeftHand}/pinchStrengthIndex",
                     "interactions": "",
                     "processors": "",
                     "groups": "",
@@ -1145,6 +1200,17 @@
                 },
                 {
                     "name": "",
+                    "id": "68ccb709-0e7a-4d77-8f05-15677b54e93a",
+                    "path": "<PicoAimHand>{LeftHand}/indexPressed",
+                    "interactions": "",
+                    "processors": "",
+                    "groups": "",
+                    "action": "UI Press",
+                    "isComposite": false,
+                    "isPartOfComposite": false
+                },
+                {
+                    "name": "",
                     "id": "fc8b2287-429e-4be4-a34b-cca7c50eeb52",
                     "path": "<HandInteraction>{LeftHand}/pointerActivated",
                     "interactions": "",
@@ -1191,6 +1257,17 @@
                     "name": "",
                     "id": "d250c9be-4bf2-4b5c-8962-4fcf5d53bdb3",
                     "path": "<MetaAimHand>{LeftHand}/pinchStrengthIndex",
+                    "interactions": "",
+                    "processors": "",
+                    "groups": "",
+                    "action": "UI Press Value",
+                    "isComposite": false,
+                    "isPartOfComposite": false
+                },
+                {
+                    "name": "",
+                    "id": "930aa9d6-e1ce-4857-841e-d2f2d79224ce",
+                    "path": "<PicoAimHand>{LeftHand}/pinchStrengthIndex",
                     "interactions": "",
                     "processors": "",
                     "groups": "",
@@ -1682,6 +1759,17 @@
                 },
                 {
                     "name": "",
+                    "id": "bdb55b41-b4be-4f22-8b66-556f0768ed59",
+                    "path": "<PicoAimHand>{RightHand}/devicePosition",
+                    "interactions": "",
+                    "processors": "",
+                    "groups": "",
+                    "action": "Aim Position",
+                    "isComposite": false,
+                    "isPartOfComposite": false
+                },
+                {
+                    "name": "",
                     "id": "e60d7767-705f-4af2-ae42-f135e6580630",
                     "path": "<HandInteraction>{RightHand}/pointer/position",
                     "interactions": "",
@@ -1717,6 +1805,17 @@
                     "name": "",
                     "id": "2bb1158a-2d78-446b-9351-6f9b3f1364cb",
                     "path": "<MetaAimHand>{RightHand}/deviceRotation",
+                    "interactions": "",
+                    "processors": "",
+                    "groups": "",
+                    "action": "Aim Rotation",
+                    "isComposite": false,
+                    "isPartOfComposite": false
+                },
+                {
+                    "name": "",
+                    "id": "343ae266-8694-403e-a114-f3902d7a012b",
+                    "path": "<PicoAimHand>{RightHand}/deviceRotation",
                     "interactions": "",
                     "processors": "",
                     "groups": "",
@@ -1924,6 +2023,17 @@
                 },
                 {
                     "name": "",
+                    "id": "88cbf383-44c8-41c0-b940-57799f19fe8e",
+                    "path": "<PicoAimHand>{RightHand}/aimFlags",
+                    "interactions": "",
+                    "processors": "",
+                    "groups": "",
+                    "action": "Meta Aim Flags",
+                    "isComposite": false,
+                    "isPartOfComposite": false
+                },
+                {
+                    "name": "",
                     "id": "efcaf94e-8faa-439e-983b-c65f79c3b743",
                     "path": "<XRHandDevice>{RightHand}/gripPosition",
                     "interactions": "",
@@ -2095,6 +2205,17 @@
                 },
                 {
                     "name": "",
+                    "id": "a84b7bc0-2745-4bcc-9f51-372c271a2d87",
+                    "path": "<PicoAimHand>{RightHand}/indexPressed",
+                    "interactions": "",
+                    "processors": "",
+                    "groups": "",
+                    "action": "Select",
+                    "isComposite": false,
+                    "isPartOfComposite": false
+                },
+                {
+                    "name": "",
                     "id": "1fe3ab58-51f3-4274-995c-176ac72d9610",
                     "path": "<HandInteraction>{RightHand}/graspFirm",
                     "interactions": "",
@@ -2152,6 +2273,17 @@
                     "name": "",
                     "id": "770a07b5-a199-4342-b4a5-b3baafbe2bcb",
                     "path": "<MetaAimHand>{RightHand}/pinchStrengthIndex",
+                    "interactions": "",
+                    "processors": "",
+                    "groups": "",
+                    "action": "Select Value",
+                    "isComposite": false,
+                    "isPartOfComposite": false
+                },
+                {
+                    "name": "",
+                    "id": "55db9090-c361-434e-be2c-70dd59560dc3",
+                    "path": "<PicoAimHand>{RightHand}/pinchStrengthIndex",
                     "interactions": "",
                     "processors": "",
                     "groups": "",
@@ -2238,6 +2370,17 @@
                 },
                 {
                     "name": "",
+                    "id": "b3c8ac14-0e4f-411b-b68c-fa4b1260f279",
+                    "path": "<PicoAimHand>{RightHand}/indexPressed",
+                    "interactions": "",
+                    "processors": "",
+                    "groups": "",
+                    "action": "UI Press",
+                    "isComposite": false,
+                    "isPartOfComposite": false
+                },
+                {
+                    "name": "",
                     "id": "7ae41e93-9c2b-4d15-8387-0eddbc823053",
                     "path": "<HandInteraction>{RightHand}/pointerActivated",
                     "interactions": "",
@@ -2284,6 +2427,17 @@
                     "name": "",
                     "id": "620cd3c3-a8c2-4a24-825a-ef6eb1cb41ef",
                     "path": "<MetaAimHand>{RightHand}/pinchStrengthIndex",
+                    "interactions": "",
+                    "processors": "",
+                    "groups": "",
+                    "action": "UI Press Value",
+                    "isComposite": false,
+                    "isPartOfComposite": false
+                },
+                {
+                    "name": "",
+                    "id": "8c3483a2-8187-44ea-8a7a-ae5108e4e594",
+                    "path": "<PicoAimHand>{RightHand}/pinchStrengthIndex",
                     "interactions": "",
                     "processors": "",
                     "groups": "",
