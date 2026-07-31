@@ -48,7 +48,7 @@
 - [x] 5.2 确认 HUD 显示双手 tracked、关节数 26 —— `左手 isTracked=True 有效关节=26/26`、`右手 isTracked=True 有效关节=26/26`
 - [x] 5.3 确认 `InputSystem.devices` 列表中出现 Meta 的手部 aim 设备 —— 出现 `MetaAimHand` / `MetaAimHand1`（左右各一）
 - [x] 5.4 捏合，确认 Select action 数值跳变且 `activeControl` 指向 Meta 设备 —— `Select Value = 0.6356577  activeControl: /MetaAimHand1/pinchStrengthIndex`。所用绑定是 XRI Default Input Actions 里既有的 `<MetaAimHand>{RightHand}/pinchStrengthIndex`，与 design 的多绑定方案同构（PicoAimHand 将作为同一 action 的兄弟绑定接入）
-- [ ] 5.5 场景内放一个世界空间 Canvas 按钮，确认远场射线可点中 —— 场景已建好 `RayTargetCanvas/RayTargetButton`（含 `TrackedDeviceGraphicRaycaster` + `EventSystem`/`XRUIInputModule`），点中后按钮文案由 `NOT CLICKED` 变 `CLICKED`。**待戴头显实点确认**
+- [x] 5.5 场景内放一个世界空间 Canvas 按钮，确认远场射线可点中 —— `RayTargetCanvas/RayTargetButton`（含 `TrackedDeviceGraphicRaycaster` + `EventSystem`/`XRUIInputModule`）。真机实点确认：按钮文案由 `NOT CLICKED` 变 `CLICKED`，即 NearFarInteractor 的远场射线 → UI 这条链路在 Quest 上通
 - [x] 5.6 记录 Quest 端 fps 基线数值 —— 71.9 FPS @ 72Hz 目标刷新率（Diagnostics 场景，几乎无渲染负载）
 - [x] 5.7 passthrough 打通：Diagnostics 场景原本没有任何 AR Foundation 组件，`Meta.ARCameraFeature` 虽已启用但无人驱动。补 `AR Session` + 相机上的 `ARCameraManager` 后，logcat 报 `PassthroughApiManager: PT is: ON numLayers: 1`
 - [x] 5.8 修 XR Hands 1.8.1 的 manifest 注入缺陷（见 design 硬约束 #16），否则 Quest 在无手柄时直接拦截启动
