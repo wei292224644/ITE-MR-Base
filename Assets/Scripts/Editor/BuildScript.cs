@@ -34,6 +34,9 @@ public static class BuildScript
     const string k_PicoPackageRoot = "Packages/com.unity.xr.picoxr";
     const string k_MetaPackageRoot = "Packages/com.meta.xr.sdk.core";
 
+    const string k_PicoSettingsKey = "Unity.XR.PXR.Settings";
+    const string k_PicoSettingsPath = "Assets/XR/Settings/PXR_Settings.asset";
+
     [MenuItem("MRBase/Build/Quest")]
     public static void BuildQuest()
     {
@@ -82,6 +85,8 @@ public static class BuildScript
 
         AssertNoVendorSpatializer();
         AssertProfileDeclaresDefine(profile, expectedDefine, profilePath);
+        if (loaderTypeName == k_PicoLoader)
+            EnsurePicoSettingsRegistered();
 
         var manager = AndroidManagerSettings();
         var restoreLoaders = SnapshotAndroidLoaders();
@@ -158,6 +163,35 @@ public static class BuildScript
             throw new BuildFailedException(
                 $"[BuildScript] Spatializer Plugin 被设为 \"{spatializer}\"。跨端项目必须使用 Unity 内置方案，" +
                 "请在 Project Settings > Audio 中清空该项。");
+    }
+
+    /// <summary>
+    /// 把 PXR_Settings 资产注册进 EditorBuildSettings 的 config object 表。
+    ///
+    /// 必要性：PICO 的 manifest 写入器 <c>PXR_Manifest</c> 里
+    /// <c>PXR_XmlTools.GetSettings()</c> 就是读这张表（TryGetConfigObject("Unity.XR.PXR.Settings")）。
+    /// 表里没有则返回 null，紧接着 PXR_BuildProcessor.cs:486 解引用它抛 NullReferenceException。
+    /// Unity 吞掉该异常继续构建，于是 doc.Save() 从不执行 —— PICO 那 20 多项 meta-data
+    /// （pvr.app.type / handtracking / com.picovr.permission.* …）一项都不进包，
+    /// 而构建本身「成功」，只有真机上表现为不进 VR 模式。
+    ///
+    /// 这张表平时由 Project Settings &gt; XR Plug-in Management 的 PICO 页面在首次打开时填好。
+    /// 本项目的 loader 是用 XRPackageMetadataStore 代码装的，绕过了那个界面，所以必须自己补。
+    /// </summary>
+    static void EnsurePicoSettingsRegistered()
+    {
+        if (EditorBuildSettings.TryGetConfigObject(k_PicoSettingsKey, out UnityEngine.Object registered) &&
+            registered != null)
+            return;
+
+        var settings = AssetDatabase.LoadAssetAtPath<UnityEngine.Object>(k_PicoSettingsPath);
+        if (settings == null)
+            throw new BuildFailedException(
+                $"[BuildScript] 找不到 {k_PicoSettingsPath}。" +
+                "请打开一次 Project Settings > XR Plug-in Management > PICO 让 SDK 生成它。");
+
+        EditorBuildSettings.AddConfigObject(k_PicoSettingsKey, settings, true);
+        Debug.Log($"[BuildScript] 已注册 {k_PicoSettingsKey} -> {k_PicoSettingsPath}");
     }
 
     static void AssertProfileDeclaresDefine(BuildProfile profile, string expectedDefine, string profilePath)
