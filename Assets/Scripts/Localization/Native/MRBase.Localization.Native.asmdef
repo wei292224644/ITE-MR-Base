@@ -6,7 +6,8 @@
         "MRBase.Common",
         "meta.xr.mrutilitykit",
         "Oculus.VR",
-        "Unity.XR.PICO"
+        "Unity.XR.PICO",
+        "PICO.TobSupport"
     ],
     "includePlatforms": [],
     "excludePlatforms": [],

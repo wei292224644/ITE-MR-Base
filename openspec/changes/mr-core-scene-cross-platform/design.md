@@ -311,6 +311,25 @@ M3  业务接入：Localization / SacredRelic 改为 additive 挂载到 MRCore
   `MarkerLost` 是否用前后帧差集实现、`validFlag` 语义（须真机实测）。
   **影响本变更的任务 6.2（PICO 出包）；建议另开变更修复，本变更不承担。**
 
+  **已解决（2026-07-31）**。用户确认目标机为企业版 / 具备 TOB 授权后按真实 API 重写，
+  编译已通过（`MRBase.Localization.Native` 程序集，实现 `IMarkerTrackingProvider` 成立）。
+  上述待定项的落法：
+  - `trackingMode` 从活动 `XRInputSubsystem.GetTrackingOriginMode()` 读取，取不到才回退 `Floor`。
+    写死会让 SDK 按错误的原点高度补偿 `posY`，每个 marker 差一个人高，真机上极难定位。
+  - `cameraYOffset` 传 `0`：SDK 仅在 `Device` 模式下使用它，`Floor` 模式内部会置零。
+  - `StopTracking()` 用 `PXR_Enterprise.UnBindEnterpriseService()`（TOB 无反注册 marker 回调的 API），
+    并以 `tracking` 标志吞掉解绑期间在途的回调。
+  - `MarkerLost` 确为前后帧差集。快照为 `null` 时不能提前返回，否则上一帧可见的 marker 永远收不到 lost。
+  - `validFlag == 0` 视为识别无效，跳过（仍须真机复核语义）。
+  - 坐标系无需自行转换：`MarkerInfoCallback.JsonToMarkerInfos` 已把右手系转为 Unity 左手系
+    （`posZ` 取负、`rotationX/Y` 取负）并补偿原点高度，且经 `PXR_EnterpriseTools.QueueOnMainThread`
+    派发回主线程，故回调内可直接访问 Unity API。
+  - 新增两条编译期约束：`Unity.XR.PICO.TOBSupport` 内有与 `UnityEngine.Pose` 同名的 `Pose`，
+    须用 `using Pose = UnityEngine.Pose;` 钉死；asmdef 须引用 `PICO.TobSupport` 程序集。
+
+  **仍未验证**：企业服务能否在目标机上真正绑定。`PXR_EnterprisePlugin` 的实现体裹在
+  `#if (UNITY_ANDROID && !UNITY_EDITOR)` 内，Editor 中恒返回 `-1`，只能真机验（任务 6.x）。
+
 - Pico 模式 1 下 passthrough 的启用方式未查清。`PassthroughFeature.cs` 为 `#if PICO_OPENXR_SDK`，模式 1 下不编译；模式 1 应走 PXR 的 seethrough（`Utils/PXR_VstModelPosCheck.cs` 那套），具体入口待 M0 确认
 - 两端 passthrough 下相机 clear / alpha 的具体配置待 M0 实测确定
 - `IPassthroughController` 是否 M1 就抽成接口。倾向 M1 直接在 `MRBootstrap` 里 `#if`，M2 再抽（避免过早抽象）
