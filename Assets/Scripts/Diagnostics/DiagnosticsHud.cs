@@ -78,7 +78,7 @@ public class DiagnosticsHud : MonoBehaviour
     {
         var fps = m_SmoothedDeltaTime > 0f ? 1f / m_SmoothedDeltaTime : 0f;
         m_Builder.Append("FPS ").Append(fps.ToString("F1"))
-            .Append("   目标刷新率 ").Append(Screen.currentResolution.refreshRateRatio.value.ToString("F0"))
+            .Append("   refresh ").Append(Screen.currentResolution.refreshRateRatio.value.ToString("F0"))
             .Append('\n');
     }
 
@@ -89,7 +89,7 @@ public class DiagnosticsHud : MonoBehaviour
         m_Builder.Append("\n== XRHandSubsystem (").Append(m_HandSubsystems.Count).Append(") ==\n");
         if (m_HandSubsystems.Count == 0)
         {
-            m_Builder.Append("  无。XR 未初始化，或当前 loader 不提供手部追踪。\n");
+            m_Builder.Append("  none. XR not initialized, or loader provides no hand tracking.\n");
             return;
         }
 
@@ -109,8 +109,8 @@ public class DiagnosticsHud : MonoBehaviour
                 .Append(" pinchValue=").Append(descriptor.supportsPinchValue)
                 .Append(" grasp=").Append(descriptor.supportsGraspValue).Append('\n');
 
-            AppendHand("  左手", subsystem.leftHand);
-            AppendHand("  右手", subsystem.rightHand);
+            AppendHand("  L", subsystem.leftHand);
+            AppendHand("  R", subsystem.rightHand);
         }
     }
 
@@ -132,7 +132,7 @@ public class DiagnosticsHud : MonoBehaviour
                 ++tracked;
         }
 
-        m_Builder.Append(" 有效关节=").Append(tracked)
+        m_Builder.Append(" joints=").Append(tracked)
             .Append('/').Append(XRHandJointID.EndMarker.ToIndex() - XRHandJointID.BeginMarker.ToIndex())
             .Append('\n');
     }
@@ -151,12 +151,12 @@ public class DiagnosticsHud : MonoBehaviour
             m_Builder.Append("  ").Append(action.name)
                 .Append(" = ").Append(ReadValueText(action))
                 .Append("  activeControl: ")
-                .Append(control == null ? "(无)" : control.path)
+                .Append(control == null ? "(none)" : control.path)
                 .Append('\n');
         }
 
         if (!any)
-            m_Builder.Append("  未指派。请在 Inspector 的 Watched Actions 里挂上手部交互 action。\n");
+            m_Builder.Append("  unassigned. Assign hand interaction actions to Watched Actions.\n");
     }
 
     static string ReadValueText(InputAction action)
@@ -178,12 +178,12 @@ public class DiagnosticsHud : MonoBehaviour
 
     void AppendPassthrough()
     {
-        m_Builder.Append("\n== 相机 / passthrough ==\n");
+        m_Builder.Append("\n== camera / passthrough ==\n");
 
         var cam = xrCamera != null ? xrCamera : Camera.main;
         if (cam == null)
         {
-            m_Builder.Append("  找不到相机。\n");
+            m_Builder.Append("  no camera found.\n");
             return;
         }
 
@@ -191,7 +191,7 @@ public class DiagnosticsHud : MonoBehaviour
         // Open Question），所以这里只报中立的、真正决定合成结果的两项：
         // clearFlags 与背景色 alpha。alpha 必须为 0，虚拟内容才能与 passthrough 正确混合。
         m_Builder.Append("  clearFlags=").Append(cam.clearFlags)
-            .Append("  背景色 alpha=").Append(cam.backgroundColor.a.ToString("F2"))
+            .Append("  bgAlpha=").Append(cam.backgroundColor.a.ToString("F2"))
             .Append('\n');
     }
 

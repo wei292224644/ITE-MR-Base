@@ -45,11 +45,13 @@
 ## 5. M0 Quest 真机验证（对照组）
 
 - [x] 5.1 经 `MRBase/Build/Quest` 出包成功（`Builds/Quest/MR_Base.apk` 89.6MB，未手动改任何 XR 设置）。过程中修掉两个阻塞（已写入 design 硬约束 #13/#14/#15）：① `androidApplicationEntry` 由 `GameActivity` 改为 `Activity`（PICO 的构建校验对所有 Android 构建生效）；② 构建期排除另一端的 Android native plugin（两家都带 `libopenxr_loader.so`）。APK 内已验证：`libopenxr_loader.so` 仅 1 个，含 Meta/Unity OpenXR 相关库，无任何 `libpxr*`/`libPico*`。**装机与真机运行仍待人工完成**
-- [ ] 5.2 确认 HUD 显示双手 tracked、关节数 26
-- [ ] 5.3 确认 `InputSystem.devices` 列表中出现 Meta 的手部 aim 设备
-- [ ] 5.4 捏合，确认 Select action 数值跳变且 `activeControl` 指向 Meta 设备
-- [ ] 5.5 场景内放一个世界空间 Canvas 按钮，确认远场射线可点中
-- [ ] 5.6 记录 Quest 端 fps 基线数值
+- [x] 5.2 确认 HUD 显示双手 tracked、关节数 26 —— `左手 isTracked=True 有效关节=26/26`、`右手 isTracked=True 有效关节=26/26`
+- [x] 5.3 确认 `InputSystem.devices` 列表中出现 Meta 的手部 aim 设备 —— 出现 `MetaAimHand` / `MetaAimHand1`（左右各一）
+- [x] 5.4 捏合，确认 Select action 数值跳变且 `activeControl` 指向 Meta 设备 —— `Select Value = 0.6356577  activeControl: /MetaAimHand1/pinchStrengthIndex`。所用绑定是 XRI Default Input Actions 里既有的 `<MetaAimHand>{RightHand}/pinchStrengthIndex`，与 design 的多绑定方案同构（PicoAimHand 将作为同一 action 的兄弟绑定接入）
+- [ ] 5.5 场景内放一个世界空间 Canvas 按钮，确认远场射线可点中 —— 场景已建好 `RayTargetCanvas/RayTargetButton`（含 `TrackedDeviceGraphicRaycaster` + `EventSystem`/`XRUIInputModule`），点中后按钮文案由 `NOT CLICKED` 变 `CLICKED`。**待戴头显实点确认**
+- [x] 5.6 记录 Quest 端 fps 基线数值 —— 71.9 FPS @ 72Hz 目标刷新率（Diagnostics 场景，几乎无渲染负载）
+- [x] 5.7 passthrough 打通：Diagnostics 场景原本没有任何 AR Foundation 组件，`Meta.ARCameraFeature` 虽已启用但无人驱动。补 `AR Session` + 相机上的 `ARCameraManager` 后，logcat 报 `PassthroughApiManager: PT is: ON numLayers: 1`
+- [x] 5.8 修 XR Hands 1.8.1 的 manifest 注入缺陷（见 design 硬约束 #16），否则 Quest 在无手柄时直接拦截启动
 
 ## 6. M0 PICO 真机验证（真正的未知）
 
