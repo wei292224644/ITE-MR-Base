@@ -5,7 +5,8 @@
         "Unity.XR.Hands",
         "Unity.InputSystem",
         "Unity.TextMeshPro",
-        "Unity.XR.CoreUtils"
+        "Unity.XR.CoreUtils",
+        "Unity.XR.PICO"
     ],
     "includePlatforms": [],
     "excludePlatforms": [],
@@ -14,6 +15,12 @@
     "precompiledReferences": [],
     "autoReferenced": true,
     "defineConstraints": [],
-    "versionDefines": [],
+    "versionDefines": [
+        {
+            "name": "com.unity.xr.picoxr",
+            "expression": "",
+            "define": "MRBASE_HAS_PICO_SDK"
+        }
+    ],
     "noEngineReferences": false
 }
