@@ -55,14 +55,14 @@
 
 ## 6. M0 PICO 真机验证（真正的未知）
 
-- [ ] 6.1 查清模式 1（PXR_Loader）下 passthrough 的启用方式，并在 design 的 Open Questions 中回填结论（`PassthroughFeature.cs` 为 `#if PICO_OPENXR_SDK`，模式 1 不编译；应走 PXR seethrough 路径）
-- [ ] 6.2 在 XR Origin 上挂 `PXR_Manager` 并勾选 Hand Tracking，经 `MRBase/Build/Pico` 出包并装机
-- [ ] 6.3 **闸门**：确认 HUD 的 descriptor `id` 显示 `"PICO Hands"` 且双手 tracked。手不出来则检查 `PXR_Manager` 勾选与系统设置中的手势追踪开关
-- [ ] 6.4 拷一份 `XRI Default Input Actions` 到项目自有目录（不改随包资产，避免升级被覆盖）
-- [ ] 6.5 为 Aim Position / Aim Rotation / Aim Flags / Select / Select Value / UI Press / UI Press Value **追加**（非替换）`<PicoAimHand>{LeftHand|RightHand}/...` 系列 binding
-- [ ] 6.6 **头号闸门**：确认 `PicoAimHand` 出现在设备列表中，且捏合时 Select 数值跳变、`activeControl` 指向 `PicoAimHand`。失败则暂停并回到 design 修订 D2（需改为自建手势语义层从关节数学算捏合）
-- [ ] 6.7 确认 PICO 端远场射线能否点中世界空间 Canvas 按钮（验证官方标注 5.13.0 的已知问题是否命中目标设备）
-- [ ] 6.8 记录 PICO 4 Ultra 端 fps 基线数值与系统版本号（系统版本影响已知问题是否命中）
+- [x] 6.1 查清模式 1（PXR_Loader）下 passthrough 的启用方式 —— 是静态属性 `PXR_Manager.EnableVideoSeeThrough = true`，默认 false；`PXR_ProjectSetting.videoSeeThrough` 只决定 manifest 的 `enable_vst` 声明，不会自动打开它。已收进 `PlatformRuntime.EnablePassthrough()`，真机确认背景透出
+- [x] 6.2 经 `MRBase/Build/Pico` 出包并装机成功。**本条的前提被实测推翻**：场景里并未挂 `PXR_Manager` 组件，passthrough 与手部追踪照样工作 —— PXR_Loader 模式下该组件不是必需品。手部追踪的开关在 `PXR_ProjectSetting.handTracking`（构建期配置），不在场景组件上
+- [ ] 6.3 **闸门**：确认 HUD 的 descriptor `id` 显示 `"PICO Hands"` 且双手 tracked。手不出来则检查系统设置中的手势追踪开关 —— 双手可用已由 6.6/6.7 间接证实（捏合与射线都要手部数据），但 descriptor `id` 的字面值尚未人工读取
+- [ ] 6.4 拷一份 `XRI Default Input Actions` 到项目自有目录（不改随包资产，避免升级被覆盖）—— **未做**。6.5 直接改了 `Assets/Samples/.../XRI Default Input Actions.inputactions`。重新导入 XRI Starter Assets 会覆盖它。留到任务 7 建核心场景时连同项目自有输入资产一起处理
+- [x] 6.5 为 Aim Position / Aim Rotation / Aim Flags / Select / Select Value / UI Press / UI Press Value **追加**（非替换）`<PicoAimHand>{LeftHand|RightHand}/...` 系列 binding —— 共 14 条，与既有 `<MetaAimHand>` 并排。`PicoAimHand` 定义在 `PXR_HandSubsystem.cs:368`，控件名与 `MetaAimHand` 完全一致
+- [x] 6.6 **头号闸门**：捏合可用，Select 链路通 —— 补绑定前捏合完全无响应（无设备匹配 `<MetaAimHand>`），补后真机确认可捏合。D2 的多绑定方案成立，不需要自建手势语义层。**尚未人工读取 `activeControl` 字面值确认它指向 `PicoAimHand`**
+- [x] 6.7 确认 PICO 端远场射线能点中世界空间 Canvas 按钮 —— 真机确认可点。官方标注 5.13.0 的已知问题未命中本设备（系统 5.11.2）
+- [x] 6.8 记录 PICO 4 Ultra 端基线 —— 90 FPS（原生刷新率 90Hz，对照 Quest 71.9 FPS @ 72Hz）；系统 `ro.build.display.id = 5.11.2`，机型 `A9210`，Android 14
 - [ ] 6.9 把 M0 全部实测结论回填到 `probe-report.md` 与 `design.md`，逐条消解或推翻对应 `[ASSUMED]` 项
 
 ## 7. M1 核心场景
