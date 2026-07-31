@@ -25,9 +25,10 @@ targets=("${@:-Quest Pico}")
 targets=(${targets[*]})
 
 for target in "${targets[@]}"; do
-  log="$PROJECT/Builds/build-$target.log"
+  log="$PROJECT/Builds/build-${target}.log"
   mkdir -p "$PROJECT/Builds"
-  echo "==> 构建 $target（日志：$log）"
+  # 花括号必须留着：紧跟其后的全角字符会被 bash 当成变量名的一部分。
+  echo "==> 构建 ${target}（日志：${log}）"
 
   if "$UNITY" -batchmode -quit -nographics \
       -projectPath "$PROJECT" \
@@ -36,7 +37,7 @@ for target in "${targets[@]}"; do
     echo "==> $target 成功"
   else
     code=$?
-    echo "==> $target 失败（退出码 $code），日志尾部：" >&2
+    echo "==> ${target} 失败（退出码 ${code}），日志尾部：" >&2
     tail -40 "$log" >&2
     exit $code
   fi
