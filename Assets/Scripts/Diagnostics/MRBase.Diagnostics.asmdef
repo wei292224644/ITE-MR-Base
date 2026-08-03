@@ -2,6 +2,7 @@
     "name": "MRBase.Diagnostics",
     "rootNamespace": "",
     "references": [
+        "MRBase.Core",
         "Unity.XR.Hands",
         "Unity.InputSystem",
         "Unity.TextMeshPro",

@@ -67,11 +67,32 @@ public class DiagnosticsHud : MonoBehaviour
 
         AppendFrameRate();
         AppendHandSubsystems();
+        AppendPalmsTogether();
         AppendActions();
         AppendInputDevices();
         AppendPassthrough();
 
         return m_Builder.ToString();
+    }
+
+    void AppendPalmsTogether()
+    {
+        m_Builder.Append("\n== PalmsTogether ==\n");
+
+        var gesture = Object.FindFirstObjectByType<PalmsTogetherGesture>();
+        if (gesture == null)
+        {
+            m_Builder.Append("  (no PalmsTogetherGesture in scene)\n");
+            return;
+        }
+
+        m_Builder.Append("  A held=").Append(gesture.IsHeldA)
+            .Append(" raw=").Append(gesture.RawMatchA)
+            .Append("  B held=").Append(gesture.IsHeldB)
+            .Append(" raw=").Append(gesture.RawMatchB)
+            .Append("  Active=").Append(gesture.ActiveSource)
+            .Append("  IsHeld=").Append(gesture.IsHeld)
+            .Append('\n');
     }
 
     void AppendFrameRate()
