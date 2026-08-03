@@ -1,0 +1,653 @@
+{
+  "narrative": "decay_shell",
+  "narrativeSummary": "Decay shell (mud, grime, lichen, weathered crust) peels away; inscription core remains and restores.",
+  "source": "Sketchfab_model",
+  "heightAxis": "z",
+  "reorient": {
+    "width_from": 0,
+    "height_from": 1,
+    "depth_from": 2,
+    "size_in": [
+      6.5939,
+      16.1182,
+      2.6768
+    ],
+    "size_out": [
+      6.5939,
+      2.6768,
+      16.1182
+    ],
+    "handedness_sign": -1
+  },
+  "scaleApplied": 1.0,
+  "width": 6.59387,
+  "height": 16.11823,
+  "thickness": 2.67684,
+  "crust": 0.04,
+  "outerWidth": 6.67387,
+  "outerHeight": 16.19823,
+  "cellCount": 38,
+  "seed": 20260728,
+  "cleanedEmptyMeshes": [],
+  "bodyParts": [
+    "Object_10",
+    "Object_11",
+    "Object_6",
+    "Object_8",
+    "Object_9"
+  ],
+  "pieces": [
+    {
+      "name": "Shell_Piece_000",
+      "centroid": [
+        -0.131,
+        -1.35541,
+        8.08307
+      ],
+      "seed2D": [
+        0.0,
+        0.0
+      ],
+      "radial": 0.0,
+      "arrive": 0.47526,
+      "detach": 0.60271,
+      "tris": 1828
+    },
+    {
+      "name": "Shell_Piece_001",
+      "centroid": [
+        0.50538,
+        -1.35541,
+        9.1082
+      ],
+      "seed2D": [
+        0.4925,
+        1.02745
+      ],
+      "radial": 0.13007,
+      "arrive": 0.42188,
+      "detach": 0.5585,
+      "tris": 1960
+    },
+    {
+      "name": "Shell_Piece_002",
+      "centroid": [
+        1.28776,
+        -1.35541,
+        7.52309
+      ],
+      "seed2D": [
+        1.08226,
+        -0.51846
+      ],
+      "radial": 0.137,
+      "arrive": 0.53121,
+      "detach": 0.6612,
+      "tris": 2088
+    },
+    {
+      "name": "Shell_Piece_003",
+      "centroid": [
+        2.669,
+        -1.35541,
+        8.29872
+      ],
+      "seed2D": [
+        3.30527,
+        0.3146
+      ],
+      "radial": 0.37904,
+      "arrive": 0.56214,
+      "detach": 0.64063,
+      "tris": 1092
+    },
+    {
+      "name": "Shell_Piece_004",
+      "centroid": [
+        2.207,
+        -1.35541,
+        9.46769
+      ],
+      "seed2D": [
+        2.33939,
+        1.3687
+      ],
+      "radial": 0.30942,
+      "arrive": 0.43855,
+      "detach": 0.64063,
+      "tris": 2000
+    },
+    {
+      "name": "Shell_Piece_005",
+      "centroid": [
+        -1.19447,
+        -1.35541,
+        7.1192
+      ],
+      "seed2D": [
+        -1.00301,
+        -0.92943
+      ],
+      "radial": 0.15611,
+      "arrive": 0.51835,
+      "detach": 0.64874,
+      "tris": 2088
+    },
+    {
+      "name": "Shell_Piece_006",
+      "centroid": [
+        0.12158,
+        -1.35541,
+        6.01764
+      ],
+      "seed2D": [
+        0.13072,
+        -1.84135
+      ],
+      "radial": 0.21074,
+      "arrive": 0.58305,
+      "detach": 0.73643,
+      "tris": 2200
+    },
+    {
+      "name": "Shell_Piece_007",
+      "centroid": [
+        1.04272,
+        -1.35541,
+        10.42229
+      ],
+      "seed2D": [
+        0.91439,
+        2.27857
+      ],
+      "radial": 0.28029,
+      "arrive": 0.35363,
+      "detach": 0.4977,
+      "tris": 2064
+    },
+    {
+      "name": "Shell_Piece_008",
+      "centroid": [
+        -1.01517,
+        -1.35541,
+        10.04974
+      ],
+      "seed2D": [
+        -0.98658,
+        2.03332
+      ],
+      "radial": 0.25801,
+      "arrive": 0.35733,
+      "detach": 0.48827,
+      "tris": 2056
+    },
+    {
+      "name": "Shell_Piece_009",
+      "centroid": [
+        -1.70904,
+        -1.35541,
+        8.82923
+      ],
+      "seed2D": [
+        -1.76839,
+        0.78175
+      ],
+      "radial": 0.22073,
+      "arrive": 0.42025,
+      "detach": 0.55251,
+      "tris": 2092
+    },
+    {
+      "name": "Shell_Piece_010",
+      "centroid": [
+        2.44242,
+        -1.35541,
+        6.84361
+      ],
+      "seed2D": [
+        2.90494,
+        -1.26775
+      ],
+      "radial": 0.36183,
+      "arrive": 0.58364,
+      "detach": 0.72978,
+      "tris": 1420
+    },
+    {
+      "name": "Shell_Piece_011",
+      "centroid": [
+        -2.70698,
+        -1.35542,
+        9.75675
+      ],
+      "seed2D": [
+        -3.32114,
+        1.63012
+      ],
+      "radial": 0.42235,
+      "arrive": 0.42235,
+      "detach": 0.49996,
+      "tris": 1016
+    },
+    {
+      "name": "Shell_Piece_012",
+      "centroid": [
+        -2.55012,
+        -1.35541,
+        8.05406
+      ],
+      "seed2D": [
+        -3.00049,
+        0.20396
+      ],
+      "radial": 0.34333,
+      "arrive": 0.46668,
+      "detach": 0.61385,
+      "tris": 1296
+    },
+    {
+      "name": "Shell_Piece_013",
+      "centroid": [
+        2.5097,
+        -1.35541,
+        11.45193
+      ],
+      "seed2D": [
+        3.23663,
+        3.40235
+      ],
+      "radial": 0.53609,
+      "arrive": 0.38737,
+      "detach": 0.49821,
+      "tris": 1360
+    },
+    {
+      "name": "Shell_Piece_014",
+      "centroid": [
+        1.68338,
+        -1.35541,
+        5.38383
+      ],
+      "seed2D": [
+        1.72292,
+        -2.55423
+      ],
+      "radial": 0.35173,
+      "arrive": 0.64178,
+      "detach": 0.79496,
+      "tris": 2324
+    },
+    {
+      "name": "Shell_Piece_015",
+      "centroid": [
+        -2.54327,
+        -1.35541,
+        6.34922
+      ],
+      "seed2D": [
+        -3.06585,
+        -1.86541
+      ],
+      "radial": 0.40969,
+      "arrive": 0.56474,
+      "detach": 0.69533,
+      "tris": 1288
+    },
+    {
+      "name": "Shell_Piece_016",
+      "centroid": [
+        -0.37269,
+        -1.35541,
+        11.4111
+      ],
+      "seed2D": [
+        -0.36497,
+        3.26019
+      ],
+      "radial": 0.37451,
+      "arrive": 0.27309,
+      "detach": 0.41332,
+      "tris": 2008
+    },
+    {
+      "name": "Shell_Piece_017",
+      "centroid": [
+        -1.54171,
+        -1.35541,
+        5.30869
+      ],
+      "seed2D": [
+        -1.7199,
+        -2.61614
+      ],
+      "radial": 0.35742,
+      "arrive": 0.59811,
+      "detach": 0.75677,
+      "tris": 2332
+    },
+    {
+      "name": "Shell_Piece_018",
+      "centroid": [
+        1.19036,
+        -1.35541,
+        12.15948
+      ],
+      "seed2D": [
+        1.06346,
+        3.93385
+      ],
+      "radial": 0.46521,
+      "arrive": 0.28896,
+      "detach": 0.43475,
+      "tris": 2432
+    },
+    {
+      "name": "Shell_Piece_019",
+      "centroid": [
+        2.6645,
+        -1.35541,
+        4.94813
+      ],
+      "seed2D": [
+        3.2995,
+        -2.99652
+      ],
+      "radial": 0.50883,
+      "arrive": 0.69768,
+      "detach": 0.82621,
+      "tris": 1152
+    },
+    {
+      "name": "Shell_Piece_020",
+      "centroid": [
+        -2.25884,
+        -1.35541,
+        11.00037
+      ],
+      "seed2D": [
+        -2.4137,
+        3.01277
+      ],
+      "radial": 0.4407,
+      "arrive": 0.29598,
+      "detach": 0.48657,
+      "tris": 1780
+    },
+    {
+      "name": "Shell_Piece_021",
+      "centroid": [
+        0.55064,
+        -1.35541,
+        3.76067
+      ],
+      "seed2D": [
+        0.54326,
+        -4.19931
+      ],
+      "radial": 0.48339,
+      "arrive": 0.70449,
+      "detach": 0.88172,
+      "tris": 2852
+    },
+    {
+      "name": "Shell_Piece_022",
+      "centroid": [
+        -1.51481,
+        -1.35541,
+        12.48749
+      ],
+      "seed2D": [
+        -1.51702,
+        4.31244
+      ],
+      "radial": 0.52188,
+      "arrive": 0.19825,
+      "detach": 0.3479,
+      "tris": 2144
+    },
+    {
+      "name": "Shell_Piece_023",
+      "centroid": [
+        -2.49166,
+        -1.35541,
+        4.23394
+      ],
+      "seed2D": [
+        -3.03693,
+        -3.67897
+      ],
+      "radial": 0.5446,
+      "arrive": 0.66504,
+      "detach": 0.82325,
+      "tris": 1352
+    },
+    {
+      "name": "Shell_Piece_024",
+      "centroid": [
+        -2.66087,
+        -1.35541,
+        12.66984
+      ],
+      "seed2D": [
+        -3.2091,
+        4.44268
+      ],
+      "radial": 0.62565,
+      "arrive": 0.23579,
+      "detach": 0.34604,
+      "tris": 1172
+    },
+    {
+      "name": "Shell_Piece_025",
+      "centroid": [
+        2.44474,
+        -1.35541,
+        3.20922
+      ],
+      "seed2D": [
+        3.25529,
+        -4.69619
+      ],
+      "radial": 0.65233,
+      "arrive": 0.77423,
+      "detach": 0.93147,
+      "tris": 1500
+    },
+    {
+      "name": "Shell_Piece_026",
+      "centroid": [
+        -1.2328,
+        -1.35541,
+        2.93408
+      ],
+      "seed2D": [
+        -1.40232,
+        -5.03027
+      ],
+      "radial": 0.59615,
+      "arrive": 0.73006,
+      "detach": 0.90548,
+      "tris": 2804
+    },
+    {
+      "name": "Shell_Piece_027",
+      "centroid": [
+        -0.08386,
+        -1.35541,
+        13.73124
+      ],
+      "seed2D": [
+        -0.32472,
+        5.55723
+      ],
+      "radial": 0.6355,
+      "arrive": 0.15219,
+      "detach": 0.33722,
+      "tris": 2648
+    },
+    {
+      "name": "Shell_Piece_028",
+      "centroid": [
+        2.01861,
+        -1.35541,
+        13.66589
+      ],
+      "seed2D": [
+        2.64095,
+        5.56649
+      ],
+      "radial": 0.70336,
+      "arrive": 0.26391,
+      "detach": 0.43699,
+      "tris": 1968
+    },
+    {
+      "name": "Shell_Piece_029",
+      "centroid": [
+        1.7079,
+        -1.35541,
+        14.92645
+      ],
+      "seed2D": [
+        2.51149,
+        7.5776
+      ],
+      "radial": 0.91134,
+      "arrive": 0.25138,
+      "detach": 0.36547,
+      "tris": 1288
+    },
+    {
+      "name": "Shell_Piece_030",
+      "centroid": [
+        0.31643,
+        -1.35541,
+        0.90761
+      ],
+      "seed2D": [
+        0.3964,
+        -7.96799
+      ],
+      "radial": 0.91075,
+      "arrive": 0.86717,
+      "detach": 0.9929,
+      "tris": 1540
+    },
+    {
+      "name": "Shell_Piece_031",
+      "centroid": [
+        1.55026,
+        -1.35541,
+        1.76467
+      ],
+      "seed2D": [
+        1.5952,
+        -6.4182
+      ],
+      "radial": 0.755,
+      "arrive": 0.83368,
+      "detach": 1.0,
+      "tris": 2972
+    },
+    {
+      "name": "Shell_Piece_032",
+      "centroid": [
+        2.37488,
+        -1.35542,
+        0.9021
+      ],
+      "seed2D": [
+        2.92784,
+        -8.01313
+      ],
+      "radial": 0.97393,
+      "arrive": 0.92823,
+      "detach": 1.0,
+      "tris": 852
+    },
+    {
+      "name": "Shell_Piece_033",
+      "centroid": [
+        -0.32698,
+        -1.35541,
+        15.08105
+      ],
+      "seed2D": [
+        -0.57466,
+        7.46306
+      ],
+      "radial": 0.85451,
+      "arrive": 0.07703,
+      "detach": 0.31641,
+      "tris": 1816
+    },
+    {
+      "name": "Shell_Piece_034",
+      "centroid": [
+        -2.56809,
+        -1.35541,
+        1.95685
+      ],
+      "seed2D": [
+        -3.18638,
+        -5.98237
+      ],
+      "radial": 0.77378,
+      "arrive": 0.7907,
+      "detach": 0.95663,
+      "tris": 1424
+    },
+    {
+      "name": "Shell_Piece_035",
+      "centroid": [
+        -1.4775,
+        -1.35541,
+        1.21934
+      ],
+      "seed2D": [
+        -1.63464,
+        -7.43651
+      ],
+      "radial": 0.86922,
+      "arrive": 0.86087,
+      "detach": 0.95663,
+      "tris": 1848
+    },
+    {
+      "name": "Shell_Piece_036",
+      "centroid": [
+        -2.07852,
+        -1.35541,
+        14.54372
+      ],
+      "seed2D": [
+        -2.29134,
+        6.47049
+      ],
+      "radial": 0.78362,
+      "arrive": 0.0,
+      "detach": 0.28888,
+      "tris": 2072
+    },
+    {
+      "name": "Shell_Piece_037",
+      "centroid": [
+        -2.53081,
+        -1.35542,
+        15.53726
+      ],
+      "seed2D": [
+        -3.30116,
+        8.09749
+      ],
+      "radial": 0.99828,
+      "arrive": 0.0,
+      "detach": 0.09027,
+      "tris": 652
+    }
+  ],
+  "crackSegments": 9717,
+  "coreTris": 97728,
+  "shellTris": 68780,
+  "crackOrigin": "top-left"
+}

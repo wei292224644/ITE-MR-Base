@@ -150,6 +150,7 @@ Material:
     - _DoubleSidedGIMode: 0
     - _DoubleSidedNormalMode: 2
     - _DstBlend: 0
+    - _DstBlendAlpha: 0
     - _EdgeWidth: 0.0051
     - _Ember_Hardness: 0.83
     - _Ember_Offset: 1
@@ -195,6 +196,7 @@ Material:
     - _Smoothness_1: 4.22
     - _SpecularHighlights: 1
     - _SrcBlend: 1
+    - _SrcBlendAlpha: 1
     - _StencilRef: 0
     - _StencilRefDepth: 8
     - _StencilRefDistortionVec: 4
@@ -226,6 +228,7 @@ Material:
     - _Use_Metallic_Texture: 1
     - _Width: 2.02
     - _WorkflowMode: 1
+    - _XRMotionVectorsPass: 1
     - _ZTest: 4
     - _ZTestDepthEqualForOpaque: 3
     - _ZTestGBuffer: 3

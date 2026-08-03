@@ -1,0 +1,32 @@
+{
+    "name": "MRBase.Localization.Native",
+    "rootNamespace": "",
+    "references": [
+        "MRBase.Localization",
+        "MRBase.Common",
+        "meta.xr.mrutilitykit",
+        "Oculus.VR",
+        "Unity.XR.PICO",
+        "PICO.TobSupport"
+    ],
+    "includePlatforms": [],
+    "excludePlatforms": [],
+    "allowUnsafeCode": false,
+    "overrideReferences": false,
+    "precompiledReferences": [],
+    "autoReferenced": true,
+    "defineConstraints": [],
+    "versionDefines": [
+        {
+            "name": "com.meta.xr.mrutilitykit",
+            "expression": "",
+            "define": "MRBASE_HAS_MRUK"
+        },
+        {
+            "name": "com.unity.xr.picoxr",
+            "expression": "",
+            "define": "MRBASE_HAS_PICO_SDK"
+        }
+    ],
+    "noEngineReferences": false
+}

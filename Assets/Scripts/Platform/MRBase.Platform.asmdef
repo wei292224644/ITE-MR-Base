@@ -1,0 +1,23 @@
+{
+    "name": "MRBase.Platform",
+    "rootNamespace": "",
+    "references": [
+        "Unity.XR.ARFoundation",
+        "Unity.XR.PICO"
+    ],
+    "includePlatforms": [],
+    "excludePlatforms": [],
+    "allowUnsafeCode": false,
+    "overrideReferences": false,
+    "precompiledReferences": [],
+    "autoReferenced": true,
+    "defineConstraints": [],
+    "versionDefines": [
+        {
+            "name": "com.unity.xr.picoxr",
+            "expression": "",
+            "define": "MRBASE_HAS_PICO_SDK"
+        }
+    ],
+    "noEngineReferences": false
+}

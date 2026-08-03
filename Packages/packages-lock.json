@@ -17,6 +17,42 @@
       },
       "hash": "c14de1e6dc01ab42d2bb358730cff954bce0ce6b"
     },
+    "com.meta.xr.mrutilitykit": {
+      "version": "205.0.0",
+      "depth": 0,
+      "source": "registry",
+      "dependencies": {
+        "com.unity.ai.navigation": "1.1.4",
+        "com.unity.nuget.newtonsoft-json": "3.0.2",
+        "com.meta.xr.sdk.core": "205.0.0",
+        "com.unity.textmeshpro": "3.0.6"
+      },
+      "url": "https://npm.developer.oculus.com"
+    },
+    "com.meta.xr.sdk.core": {
+      "version": "205.0.0",
+      "depth": 0,
+      "source": "registry",
+      "dependencies": {
+        "com.unity.modules.audio": "1.0.0",
+        "com.unity.modules.imageconversion": "1.0.0",
+        "com.unity.modules.imgui": "1.0.0",
+        "com.unity.modules.ui": "1.0.0",
+        "com.unity.modules.unitywebrequest": "1.0.0",
+        "com.unity.modules.unitywebrequestaudio": "1.0.0",
+        "com.unity.xr.hands": "1.7.2"
+      },
+      "url": "https://npm.developer.oculus.com"
+    },
+    "com.unity.ai.navigation": {
+      "version": "2.0.12",
+      "depth": 1,
+      "source": "registry",
+      "dependencies": {
+        "com.unity.modules.ai": "1.0.0"
+      },
+      "url": "https://packages.unity.com"
+    },
     "com.unity.burst": {
       "version": "1.8.29",
       "depth": 2,
@@ -229,6 +265,14 @@
       },
       "url": "https://packages.unity.com"
     },
+    "com.unity.textmeshpro": {
+      "version": "5.0.0",
+      "depth": 1,
+      "source": "builtin",
+      "dependencies": {
+        "com.unity.ugui": "2.0.0"
+      }
+    },
     "com.unity.ugui": {
       "version": "2.0.0",
       "depth": 1,
@@ -236,6 +280,15 @@
       "dependencies": {
         "com.unity.modules.ui": "1.0.0",
         "com.unity.modules.imgui": "1.0.0"
+      }
+    },
+    "com.unity.visualeffectgraph": {
+      "version": "17.4.0",
+      "depth": 0,
+      "source": "builtin",
+      "dependencies": {
+        "com.unity.shadergraph": "17.4.0",
+        "com.unity.render-pipelines.core": "17.4.0"
       }
     },
     "com.unity.xr.androidxr-openxr": {
@@ -270,7 +323,7 @@
       "url": "https://packages.unity.com"
     },
     "com.unity.xr.compositionlayers": {
-      "version": "2.4.0",
+      "version": "2.5.0",
       "depth": 0,
       "source": "registry",
       "dependencies": {
@@ -290,7 +343,7 @@
       "url": "https://packages.unity.com"
     },
     "com.unity.xr.hands": {
-      "version": "1.7.3",
+      "version": "1.8.1",
       "depth": 0,
       "source": "registry",
       "dependencies": {
@@ -303,11 +356,11 @@
       "url": "https://packages.unity.com"
     },
     "com.unity.xr.interaction.toolkit": {
-      "version": "3.4.1",
+      "version": "3.5.1",
       "depth": 0,
       "source": "registry",
       "dependencies": {
-        "com.unity.ugui": "1.0.0",
+        "com.unity.ugui": "2.0.0",
         "com.unity.modules.xr": "1.0.0",
         "com.unity.inputsystem": "1.8.1",
         "com.unity.mathematics": "1.2.6",
@@ -340,7 +393,7 @@
       "url": "https://packages.unity.com"
     },
     "com.unity.xr.meta-openxr": {
-      "version": "2.5.0",
+      "version": "2.5.1",
       "depth": 0,
       "source": "registry",
       "dependencies": {
@@ -364,6 +417,17 @@
         "com.unity.xr.legacyinputhelpers": "2.1.2"
       },
       "url": "https://packages.unity.com"
+    },
+    "com.unity.xr.picoxr": {
+      "version": "https://github.com/Pico-Developer/PICO-Unity-Integration-SDK.git#release_3.4.0",
+      "depth": 0,
+      "source": "git",
+      "dependencies": {
+        "com.unity.xr.management": "4.0.0",
+        "com.unity.xr.interaction.toolkit": "2.0.0",
+        "com.unity.xr.core-utils": "2.3.0"
+      },
+      "hash": "e0740bf309b26a0b9adae33c506514569bfe5d38"
     },
     "com.unity.modules.accessibility": {
       "version": "1.0.0",
