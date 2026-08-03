@@ -53,21 +53,28 @@ namespace MRBase.SacredRelic
             [HideInInspector] public float manifestDetach;
             [HideInInspector] public bool manifestCached;
             [HideInInspector] public bool restCached;
-            [HideInInspector] public Vector3 restPosition;
-            [HideInInspector] public Quaternion restRotation;
-            /// <summary>World-space mesh centre at rest. Transforms may share an origin when
+
+            // Everything below is in the relic's own local space, never world space. That is
+            // the whole reason the shell follows the stele: move, turn or scale the relic and
+            // the parent matrix carries these along for free. Cache a world pose here instead
+            // and it silently detaches the moment anything moves — which is exactly what used
+            // to strand the crust at the origin while the core rode away.
+            [HideInInspector] public Vector3 restLocalPosition;
+            [HideInInspector] public Quaternion restLocalRotation;
+            /// <summary>Mesh centre at rest, in relic space. Transforms may share an origin when
             /// pieces are authored with baked vertex offsets (Sketchfab stele).</summary>
-            [HideInInspector] public Vector3 restCentroid;
+            [HideInInspector] public Vector3 restLocalCentroid;
             /// <summary>Object-space bounds, so the dissolve noise can be sized per shard
             /// instead of per metre — these meshes carry baked world offsets.</summary>
             [HideInInspector] public Vector3 boundsCentreOS;
             [HideInInspector] public Vector3 boundsSizeOS;
             [HideInInspector] public Vector3 burstDirection;
+            /// <summary>Travel in relic units, so relic scale applies to it via the parent.</summary>
             [HideInInspector] public float burstDistance;
             /// <summary>Horizontal axis in the face plane the flake hinges around as it peels.</summary>
             [HideInInspector] public Vector3 hingeAxis;
             /// <summary>Lower edge of the flake — the last part still gripping the stone.</summary>
-            [HideInInspector] public Vector3 hingePivot;
+            [HideInInspector] public Vector3 hingeLocalPivot;
             [HideInInspector] public Vector3 spinAxis;
             [HideInInspector] public float spinSpeed;
             [HideInInspector] public float dustDelay;
@@ -220,8 +227,11 @@ namespace MRBase.SacredRelic
         float _elapsed;
         bool _playing;
         int _coreRestoreId;
-        Vector3 _spreadStartWS;
-        Vector3 _spreadEndWS;
+        // Relic-space, like everything else cached here. Push() converts them on the way to the
+        // shader, which wants world positions — doing that per frame rather than per re-cache is
+        // what keeps them right when the relic is moved while the sequence is playing.
+        Vector3 _spreadStartLocal;
+        Vector3 _spreadEndLocal;
 
         public Phase CurrentPhase => _phase;
         public SpreadMode CurrentSpreadMode => spreadMode;
@@ -258,14 +268,16 @@ namespace MRBase.SacredRelic
 
         void CacheRest()
         {
-            Vector3 centre = relicCentre != null ? relicCentre.position : transform.position;
+            Vector3 centre = LocalCentre;
             CaptureRestPoses();
             ApplySpreadTimings();
-            ResolveSpreadWorldAxis(out _spreadStartWS, out _spreadEndWS);
+            ResolveSpreadLocalAxis(out _spreadStartLocal, out _spreadEndLocal);
 
-            Vector3 face = FaceNormal;
-            // Face basis as the camera sees the inscription, matching ResolveSpreadWorldAxis:
-            // +faceRight is screen-right, +faceUp is screen-up.
+            Vector3 face = FaceLocal;
+            // Face basis as the camera sees the inscription, matching ResolveSpreadLocalAxis:
+            // +faceRight is screen-right, +faceUp is screen-up. Up is the relic's own up now
+            // that this runs in relic space — for an upright tablet that is the same axis, and
+            // for a tilted one the face coordinates follow the stone, which is what they mean.
             Vector3 faceRight = Vector3.Cross(face, Vector3.up);
             if (faceRight.sqrMagnitude < 1e-6f) faceRight = Vector3.Cross(face, Vector3.right);
             faceRight.Normalize();
@@ -282,7 +294,7 @@ namespace MRBase.SacredRelic
                 Shard s = shards[i];
                 if (s.transform == null) continue;
 
-                Vector3 offset = s.restCentroid - centre;
+                Vector3 offset = s.restLocalCentroid - centre;
                 // Strip the face component so the sideways fan stays in the plane of the
                 // tablet no matter how the relic is rotated in the scene.
                 Vector3 sideways = offset - Vector3.Project(offset, face);
@@ -317,6 +329,8 @@ namespace MRBase.SacredRelic
                 // reads clearly in whatever direction the crack is running.
                 float lead = 1f - Mathf.Clamp01(s.detach);
                 s.burstDirection = dir;
+                // burstReach is authored in metres at relic scale 1, which is exactly what a
+                // relic-space distance is — parent scale applies itself on the way out.
                 s.burstDistance = burstReach * Mathf.Lerp(rimReach, 1f, lead);
 
                 s.hingeAxis = hinge;
@@ -324,7 +338,7 @@ namespace MRBase.SacredRelic
                 // the last bit still gripping the stone. Support point of the bounds in -peelDir.
                 if (s.renderer != null)
                 {
-                    Bounds b = s.renderer.bounds;
+                    Bounds b = LocalBounds(s.renderer);
                     Vector3 e = b.extents;
                     float reach = Mathf.Abs(peelDir.x) * e.x
                                   + Mathf.Abs(peelDir.y) * e.y
@@ -334,11 +348,11 @@ namespace MRBase.SacredRelic
                     float depth = Mathf.Abs(face.x) * e.x
                                   + Mathf.Abs(face.y) * e.y
                                   + Mathf.Abs(face.z) * e.z;
-                    s.hingePivot = b.center - peelDir * reach - face * depth;
+                    s.hingeLocalPivot = b.center - peelDir * reach - face * depth;
                 }
                 else
                 {
-                    s.hingePivot = s.restCentroid;
+                    s.hingeLocalPivot = s.restLocalCentroid;
                 }
 
                 // Mostly a free random axis so no two flakes turn alike, pulled part-way back
@@ -374,11 +388,11 @@ namespace MRBase.SacredRelic
                 // wherever the scrub left it, permanently.
                 if (!s.restCached || (!Application.isPlaying && !preview))
                 {
-                    s.restPosition = s.transform.position;
-                    s.restRotation = s.transform.rotation;
-                    s.restCentroid = s.renderer != null
-                        ? s.renderer.bounds.center
-                        : s.restPosition;
+                    s.restLocalPosition = transform.InverseTransformPoint(s.transform.position);
+                    s.restLocalRotation = Quaternion.Inverse(transform.rotation) * s.transform.rotation;
+                    s.restLocalCentroid = s.renderer != null
+                        ? transform.InverseTransformPoint(s.renderer.bounds.center)
+                        : s.restLocalPosition;
                     s.restCached = true;
                 }
 
@@ -392,6 +406,22 @@ namespace MRBase.SacredRelic
                     s.boundsSizeOS = Vector3.one * Mathf.Max(1e-4f, span);
                 }
             }
+        }
+
+        /// <summary>
+        /// A renderer's bounds expressed in relic space. Standard AABB transform: the absolute
+        /// matrix maps the extents, since a rotated box needs the enclosing axis-aligned one.
+        /// </summary>
+        Bounds LocalBounds(Renderer renderer)
+        {
+            Bounds local = renderer.localBounds;
+            Matrix4x4 m = transform.worldToLocalMatrix * renderer.localToWorldMatrix;
+            Vector3 e = local.extents;
+            var extents = new Vector3(
+                Mathf.Abs(m.m00) * e.x + Mathf.Abs(m.m01) * e.y + Mathf.Abs(m.m02) * e.z,
+                Mathf.Abs(m.m10) * e.x + Mathf.Abs(m.m11) * e.y + Mathf.Abs(m.m12) * e.z,
+                Mathf.Abs(m.m20) * e.x + Mathf.Abs(m.m21) * e.y + Mathf.Abs(m.m22) * e.z);
+            return new Bounds(m.MultiplyPoint3x4(local.center), extents * 2f);
         }
 
         /// <summary>
@@ -422,7 +452,7 @@ namespace MRBase.SacredRelic
                 return;
             }
 
-            if (!ResolveSpreadWorldAxis(out Vector3 start, out Vector3 end))
+            if (!ResolveSpreadLocalAxis(out Vector3 start, out Vector3 end))
                 return;
 
             Vector3 axis = end - start;
@@ -434,18 +464,18 @@ namespace MRBase.SacredRelic
             {
                 if (s.transform == null) continue;
                 // Projection onto from→to, 0 at start corner and 1 at end corner.
-                float t = Mathf.Clamp01(Vector3.Dot(s.restCentroid - start, axis) / axisLenSq);
+                float t = Mathf.Clamp01(Vector3.Dot(s.restLocalCentroid - start, axis) / axisLenSq);
                 s.arrive = Mathf.Clamp01(t - half);
                 s.detach = Mathf.Clamp01(t + half);
             }
         }
 
-        bool ResolveSpreadWorldAxis(out Vector3 start, out Vector3 end)
+        bool ResolveSpreadLocalAxis(out Vector3 start, out Vector3 end)
         {
             start = end = Vector3.zero;
             if (shards == null || shards.Count == 0) return false;
 
-            Vector3 face = FaceNormal;
+            Vector3 face = FaceLocal;
             // Face-aligned axes as the camera sees the inscription: +right = screen-right,
             // +up = screen-up. Cross(face, worldUp) matches that when face points at the camera.
             Vector3 right = Vector3.Cross(face, Vector3.up);
@@ -455,12 +485,12 @@ namespace MRBase.SacredRelic
 
             float minR = float.PositiveInfinity, maxR = float.NegativeInfinity;
             float minU = float.PositiveInfinity, maxU = float.NegativeInfinity;
-            Vector3 origin = relicCentre != null ? relicCentre.position : transform.position;
+            Vector3 origin = LocalCentre;
             bool any = false;
             foreach (Shard s in shards)
             {
                 if (s.transform == null) continue;
-                Vector3 p = s.restCentroid;
+                Vector3 p = s.restLocalCentroid;
                 float r = Vector3.Dot(p - origin, right);
                 float u = Vector3.Dot(p - origin, up);
                 minR = Mathf.Min(minR, r); maxR = Mathf.Max(maxR, r);
@@ -477,14 +507,14 @@ namespace MRBase.SacredRelic
             end = origin
                   + right * Mathf.Lerp(minR, maxR, to.x)
                   + up * Mathf.Lerp(minU, maxU, to.y);
-            _spreadStartWS = start;
-            _spreadEndWS = end;
+            _spreadStartLocal = start;
+            _spreadEndLocal = end;
             return true;
         }
 
         static float Frac(float v) => v - Mathf.Floor(v);
 
-        /// <summary>Where the tablet's face points, in world space.</summary>
+        /// <summary>Where the tablet's face points, in world space. For callers outside.</summary>
         public Vector3 FaceNormal
         {
             get
@@ -493,6 +523,18 @@ namespace MRBase.SacredRelic
                 return world.sqrMagnitude > 1e-6f ? world.normalized : Vector3.back;
             }
         }
+
+        /// <summary>The same normal in relic space — what all the internal maths runs on.</summary>
+        Vector3 FaceLocal =>
+            faceNormalLocal.sqrMagnitude > 1e-6f ? faceNormalLocal.normalized : Vector3.back;
+
+        /// <summary>
+        /// The point the sideways fan spreads out from, in relic space. Falls back to the relic's
+        /// own origin, which in relic space is simply zero.
+        /// </summary>
+        Vector3 LocalCentre => relicCentre != null
+            ? transform.InverseTransformPoint(relicCentre.position)
+            : Vector3.zero;
 
         public void Trigger()
         {
@@ -529,11 +571,23 @@ namespace MRBase.SacredRelic
             foreach (Shard s in shards)
             {
                 if (s.transform == null) continue;
-                s.transform.SetPositionAndRotation(s.restPosition, s.restRotation);
+                SetShardPose(s, s.restLocalPosition, s.restLocalRotation);
                 if (s.renderer != null) s.renderer.enabled = true;
                 Push(s, 0f, 0f, 0f);
             }
             SetCoreGlow(0f);
+        }
+
+        /// <summary>
+        /// The single place relic space becomes world space. Reading the parent matrix here,
+        /// every time, is what makes moving/turning/scaling the relic free — nothing cached
+        /// has to be told about it.
+        /// </summary>
+        void SetShardPose(Shard shard, Vector3 localPosition, Quaternion localRotation)
+        {
+            shard.transform.SetPositionAndRotation(
+                transform.TransformPoint(localPosition),
+                transform.rotation * localRotation);
         }
 
         /// <summary>Places the whole relic at an absolute time, so it can be scrubbed.</summary>
@@ -543,7 +597,7 @@ namespace MRBase.SacredRelic
                 : time < crackDuration + goldHold + dustLead ? Phase.Bursting
                 : Phase.Dusting;
 
-            Vector3 face = FaceNormal;
+            Vector3 face = FaceLocal;
 
             // Where the wave has reached across the whole face. The mask's arrival channel is
             // baked in these same global units, so FromManifest has to be handed this rather
@@ -582,14 +636,14 @@ namespace MRBase.SacredRelic
                 float dust = Mathf.Clamp01(
                     (flight - (dustLead + s.dustDelay * dustStagger)) / dustDuration);
 
-                Vector3 position = s.restPosition;
-                Quaternion rotation = s.restRotation;
+                Vector3 position = s.restLocalPosition;
+                Quaternion rotation = s.restLocalRotation;
                 // Tracked alongside the pose because every rotation below has to turn the flake
                 // about its own geometry. These pieces are authored with baked vertex offsets,
                 // so all their transforms sit on the stele's origin down at the base — spinning
                 // `rotation` without re-pivoting swings a shard twelve metres up the face around
                 // that origin, which is what made them arc away and then sink.
-                Vector3 centroid = s.restCentroid;
+                Vector3 centroid = s.restLocalCentroid;
 
                 // The peel deliberately runs past goldHold and eases out rather than finishing
                 // exactly at the hand-off. Clamping it the instant the shard let go froze a
@@ -612,8 +666,8 @@ namespace MRBase.SacredRelic
                     // The gust gets under the leading lip first: the flake hinges up off its
                     // trailing edge while that edge still grips the stone.
                     Quaternion lift = Quaternion.AngleAxis(peelAngle * peelT, s.hingeAxis);
-                    position = s.hingePivot + lift * (position - s.hingePivot);
-                    centroid = s.hingePivot + lift * (centroid - s.hingePivot);
+                    position = s.hingeLocalPivot + lift * (position - s.hingeLocalPivot);
+                    centroid = s.hingeLocalPivot + lift * (centroid - s.hingeLocalPivot);
                     rotation = lift * rotation;
 
                     Vector3 seam = face * (seamOpening * seep);
@@ -650,7 +704,7 @@ namespace MRBase.SacredRelic
                     position += (outward * ease + across * easePlane) * s.burstDistance;
                 }
 
-                s.transform.SetPositionAndRotation(position, rotation);
+                SetShardPose(s, position, rotation);
 
                 if (s.renderer != null) s.renderer.enabled = dust < 1f;
                 // FromManifest grows the network per pixel out of the mask, so it wants the
@@ -681,8 +735,10 @@ namespace MRBase.SacredRelic
             Block.SetVector(ShardCentreId, shard.boundsCentreOS);
             Block.SetVector(ShardSizeId, shard.boundsSizeOS);
             Block.SetFloat(SpreadModeId, spreadMode == SpreadMode.Directional ? 1f : 0f);
-            Block.SetVector(SpreadStartId, _spreadStartWS);
-            Block.SetVector(SpreadEndId, _spreadEndWS);
+            // The shader compares against world positions, so convert here rather than at
+            // cache time — that way a relic moved mid-sequence still lines up with its mask.
+            Block.SetVector(SpreadStartId, transform.TransformPoint(_spreadStartLocal));
+            Block.SetVector(SpreadEndId, transform.TransformPoint(_spreadEndLocal));
             target.SetPropertyBlock(Block);
         }
 

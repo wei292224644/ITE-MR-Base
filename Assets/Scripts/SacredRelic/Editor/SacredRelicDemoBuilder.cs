@@ -15,11 +15,11 @@ namespace MRBase.SacredRelic.EditorTools
     /// </summary>
     public static class SacredRelicDemoBuilder
     {
-        const string Generated = "Assets/SacredRelicDemo/Generated";
+        const string Generated = "Assets/Assets/SacredRelicDemo/Generated";
         const string FbxPath = Generated + "/Models/SacredRelic_Fractured.fbx";
         const string ManifestPath = Generated + "/Models/SacredRelic_Fractured.json";
         const string MaskPath = Generated + "/Textures/T_SacredRelic_CrackMask.png";
-        const string DemoFolder = "Assets/SacredRelicDemo";
+        const string DemoFolder = "Assets/Assets/SacredRelicDemo";
         const string ScenePath = DemoFolder + "/SacredRelicAwakenDemo.unity";
         const string ShellShader = "MRBase/Sacred Relic Shell";
 
@@ -395,13 +395,13 @@ namespace MRBase.SacredRelic.EditorTools
                     slots[i] = i == 0 ? outer : inner;
                 renderer.sharedMaterials = slots;
 
+                // No rest pose here on purpose: Bind() clears restCached and lets CacheRest read
+                // the poses itself, in relic space. Seeding a world pose from this side is what
+                // used to leave the crust anchored wherever the relic happened to be built.
                 var shard = new SacredRelicFracture.Shard
                 {
                     transform = renderer.transform,
                     renderer = renderer,
-                    restCached = true,
-                    restPosition = renderer.transform.position,
-                    restRotation = renderer.transform.rotation,
                 };
                 if (timings.TryGetValue(renderer.name, out PieceEntry entry))
                 {

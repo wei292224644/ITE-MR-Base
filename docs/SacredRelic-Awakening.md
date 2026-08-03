@@ -40,7 +40,7 @@ Assets/Scripts/SacredRelic/
   Editor/SacredRelicSteleBinder.cs  一键接线（菜单 Tools/Sacred Relic/Bind Scene Stele）
   Editor/SacredRelicDemoBuilder.cs  程序化生成 Demo 场景（老管线，长方体外壳）
 
-Assets/SacredRelicDemo/
+Assets/Assets/SacredRelicDemo/
   SacredRelicAwakenDemo.unity     Demo 场景（当前调好的那个）
   M_Relic_Shell_Outer.mat         外壳风化面，_CrackStrength = 1
   M_Relic_Shell_Inner.mat         断裂面，_CrackStrength = 0
@@ -115,13 +115,13 @@ InputSystem 是 `SacredRelicTrigger` 的键鼠分支要的，VFX Graph 是备选
 **③ 资产路径在 Binder 里是硬编码的**，文件夹改名或移动必须同步改 `SacredRelicSteleBinder.cs`：
 
 ```
-Assets/SacredRelicDemo/Generated/Models/SacredRelic_Fractured.json   ManifestPath
-Assets/SacredRelicDemo/Generated/Models/SacredRelic_Stele.fbx        EnsureSteleMeshesReadable
-Assets/SacredRelicDemo/Generated/Textures/T_SacredRelic_CrackMask.png MaskPath
-Assets/SacredRelicDemo/Generated/Textures/Image_0.png                AlbedoPath
-Assets/SacredRelicDemo/Generated/Textures/T_RelicDustGrain.png       LoadOrCreateDustMaterial
-Assets/SacredRelicDemo/M_Relic_Shell_Outer.mat / _Inner.mat          BindSceneStele
-Assets/SacredRelicDemo/M_Relic_Core.mat / M_Relic_Dust.mat           EnsureCore/DustMaterial
+Assets/Assets/SacredRelicDemo/Generated/Models/SacredRelic_Fractured.json   ManifestPath
+Assets/Assets/SacredRelicDemo/Generated/Models/SacredRelic_Stele.fbx        EnsureSteleMeshesReadable
+Assets/Assets/SacredRelicDemo/Generated/Textures/T_SacredRelic_CrackMask.png MaskPath
+Assets/Assets/SacredRelicDemo/Generated/Textures/Image_0.png                AlbedoPath
+Assets/Assets/SacredRelicDemo/Generated/Textures/T_RelicDustGrain.png       LoadOrCreateDustMaterial
+Assets/Assets/SacredRelicDemo/M_Relic_Shell_Outer.mat / _Inner.mat          BindSceneStele
+Assets/Assets/SacredRelicDemo/M_Relic_Core.mat / M_Relic_Dust.mat           EnsureCore/DustMaterial
 ```
 
 shader 是按**名字**找的：`Shader.Find("MRBase/Sacred Relic Shell")` —— 文件可以挪，
@@ -440,6 +440,37 @@ if (material.HasProperty("_NoiseScale")) s.scale = material.GetFloat("_NoiseScal
 验证方法：照 HLSL 原文另写一份 fp32 参考实现，跟 C# 逐点比。当前 64 个采样点
 最大偏差 **2.3e-3**、平均 1.8e-4 —— 只是浮点舍入次序的差别；如果是转录写错了，
 这种混沌 hash 会直接给出完全无关的数（偏差 0.1 以上）。
+
+### 坑 12 · 碎片姿态必须存**碑体局部坐标**，不能存世界坐标
+
+**症状**：把碑挪个位置或缩放一下，外壳留在原地/原尺寸，只有碑芯跟着走 —— 看上去像「一块深色扁板单独杵在那儿」。
+
+原来 `restPosition` / `restRotation` / `restCentroid` 存的是 `s.transform.position` 这种**世界坐标快照**，一旦拍下就和父物体脱钩。`ApplySealed()` 再原样写回，等于每次都把外壳摁回烘焙时的那个绝对位置。
+
+试过「事后按位移差搬运」（`RebaseRestPosesToRoot`），**不要走这条路**：它要求每一条读取路径都先调它，而路径有三条（`Awake`、`OnValidate`、`Evaluate`），漏一条就错位。更阴的是 `OnValidate` 里 `ApplySealed()` 排在 `CacheRest()` **前面**，先用旧值把碎片摁歪，紧接着的重读又把歪的当成新静止姿态**固化**下来。拖动 Transform 不触发 `OnValidate`，所以这个顺序问题只在「拖完之后的下一次事件」才爆。
+
+现在全部改成局部坐标，只在写 Transform 的那一个地方换算：
+
+```csharp
+void SetShardPose(Shard shard, Vector3 localPosition, Quaternion localRotation)
+{
+    shard.transform.SetPositionAndRotation(
+        transform.TransformPoint(localPosition),
+        transform.rotation * localRotation);
+}
+```
+
+连带影响：
+
+- `burstReach` / `seamOpening` 现在是**局部单位**，不要再手动乘缩放 —— 父矩阵会带上
+- `_SpreadStartWS` / `_SpreadEndWS` 是喂 shader 的世界坐标，在 `Push()` 里逐帧换算，不在缓存时算（否则播放中挪碑会错位）
+- `hingePivot` 用 `LocalBounds(renderer)`，不能用 `renderer.bounds`（那是世界的）
+- 加碎片的地方（`SacredRelicDemoBuilder`、`SacredRelicSteleBinder`）**不要**自己填 `restPosition`，`Bind()` 会清掉 `restCached` 让 `CacheRest` 自己按局部坐标读
+
+回归由三个测试盯着，全都**不调用任何重新缓存**，这正是要保证的：
+`Sealed_Shards_Follow_A_Moved_Stele_Without_Re_Caching`、
+`Sealed_Shards_Follow_A_Scaled_And_Turned_Stele`、
+`Flight_Distance_Scales_With_The_Stele`。
 
 ### 坑 11 · 不要重新导出 `SacredRelic_Stele.fbx`
 这个 FBX 里的 `Relic_Core` 法线是**手工修过**的（扫描件是非流形、多个不相连的壳，

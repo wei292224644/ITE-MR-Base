@@ -13,9 +13,9 @@ namespace MRBase.SacredRelic.EditorTools
     /// </summary>
     public static class SacredRelicSteleBinder
     {
-        const string ManifestPath = "Assets/SacredRelicDemo/Generated/Models/SacredRelic_Fractured.json";
-        const string MaskPath = "Assets/SacredRelicDemo/Generated/Textures/T_SacredRelic_CrackMask.png";
-        const string AlbedoPath = "Assets/SacredRelicDemo/Generated/Textures/Image_0.png";
+        const string ManifestPath = "Assets/Assets/SacredRelicDemo/Generated/Models/SacredRelic_Fractured.json";
+        const string MaskPath = "Assets/Assets/SacredRelicDemo/Generated/Textures/T_SacredRelic_CrackMask.png";
+        const string AlbedoPath = "Assets/Assets/SacredRelicDemo/Generated/Textures/Image_0.png";
         const string ShellShader = "MRBase/Sacred Relic Shell";
 
         [Serializable]
@@ -59,9 +59,9 @@ namespace MRBase.SacredRelic.EditorTools
 
             Texture2D mask = AssetDatabase.LoadAssetAtPath<Texture2D>(MaskPath);
             Texture2D albedo = AssetDatabase.LoadAssetAtPath<Texture2D>(AlbedoPath);
-            Material outer = EnsureShellMaterial("Assets/SacredRelicDemo/M_Relic_Shell_Outer.mat",
+            Material outer = EnsureShellMaterial("Assets/Assets/SacredRelicDemo/M_Relic_Shell_Outer.mat",
                 mask, new Color(0.145f, 0.118f, 0.090f), 1f);
-            Material inner = EnsureShellMaterial("Assets/SacredRelicDemo/M_Relic_Shell_Inner.mat",
+            Material inner = EnsureShellMaterial("Assets/Assets/SacredRelicDemo/M_Relic_Shell_Inner.mat",
                 mask, new Color(0.470f, 0.430f, 0.365f), 0f);
             Material coreMat = EnsureCoreMaterial(albedo);
 
@@ -170,7 +170,7 @@ namespace MRBase.SacredRelic.EditorTools
 
         static void EnsureSteleMeshesReadable()
         {
-            const string fbx = "Assets/SacredRelicDemo/Generated/Models/SacredRelic_Stele.fbx";
+            const string fbx = "Assets/Assets/SacredRelicDemo/Generated/Models/SacredRelic_Stele.fbx";
             var importer = AssetImporter.GetAtPath(fbx) as ModelImporter;
             if (importer == null) return;
             if (importer.isReadable) return;
@@ -254,7 +254,7 @@ namespace MRBase.SacredRelic.EditorTools
 
         static Material LoadOrCreateDustMaterial()
         {
-            const string path = "Assets/SacredRelicDemo/M_Relic_Dust.mat";
+            const string path = "Assets/Assets/SacredRelicDemo/M_Relic_Dust.mat";
             var existing = AssetDatabase.LoadAssetAtPath<Material>(path);
             if (existing != null) return existing;
 
@@ -264,7 +264,7 @@ namespace MRBase.SacredRelic.EditorTools
             var material = new Material(shader) { name = "M_Relic_Dust" };
             material.SetColor("_BaseColor", new Color(0.82f, 0.72f, 0.55f, 1f));
             var grain = AssetDatabase.LoadAssetAtPath<Texture2D>(
-                "Assets/SacredRelicDemo/Generated/Textures/T_RelicDustGrain.png");
+                "Assets/Assets/SacredRelicDemo/Generated/Textures/T_RelicDustGrain.png");
             if (grain != null) material.SetTexture("_BaseMap", grain);
             if (material.HasProperty("_Surface")) material.SetFloat("_Surface", 1f);
             material.SetOverrideTag("RenderType", "Transparent");
@@ -319,7 +319,7 @@ namespace MRBase.SacredRelic.EditorTools
 
         static Material EnsureCoreMaterial(Texture2D albedo)
         {
-            const string path = "Assets/SacredRelicDemo/M_Relic_Core.mat";
+            const string path = "Assets/Assets/SacredRelicDemo/M_Relic_Core.mat";
             Shader lit = Shader.Find("Universal Render Pipeline/Lit");
             var material = AssetDatabase.LoadAssetAtPath<Material>(path);
             if (material == null)

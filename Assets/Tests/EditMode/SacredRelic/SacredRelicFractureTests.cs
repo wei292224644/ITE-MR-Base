@@ -26,23 +26,24 @@ namespace MRBase.SacredRelic.Tests
             _rimShard.SetParent(_root.transform);
             _rimShard.position = new Vector3(0.28f, 0.42f, 0f);
 
+            // Bind clears restCached and captures the poses itself, in relic space.
             _shards = new List<SacredRelicFracture.Shard>
             {
                 new SacredRelicFracture.Shard
                 {
                     transform = _centreShard, detach = 0f, arrive = 0f,
-                    restCached = true, restPosition = _centreShard.position,
-                    restRotation = _centreShard.rotation,
                 },
                 new SacredRelicFracture.Shard
                 {
                     transform = _rimShard, detach = 1f, arrive = 0.7f,
-                    restCached = true, restPosition = _rimShard.position,
-                    restRotation = _rimShard.rotation,
                 },
             };
             _relic.Bind(_root.transform, null, _shards, null, Vector3.back);
         }
+
+        /// <summary>Cached poses are relic-space; the assertions below are about world space.</summary>
+        Vector3 RestWorld(int shard) =>
+            _root.transform.TransformPoint(_shards[shard].restLocalPosition);
 
         [TearDown]
         public void TearDown() => Object.DestroyImmediate(_root);
@@ -58,7 +59,7 @@ namespace MRBase.SacredRelic.Tests
         {
             _relic.Evaluate(0.2f);
             Assert.AreEqual(SacredRelicFracture.Phase.Cracking, _relic.CurrentPhase);
-            Assert.That(Vector3.Distance(_centreShard.position, _shards[0].restPosition),
+            Assert.That(Vector3.Distance(_centreShard.position, RestWorld(0)),
                         Is.LessThan(0.0005f), "nothing should move before the gold seeps");
         }
 
@@ -75,8 +76,8 @@ namespace MRBase.SacredRelic.Tests
             // the last piece the crack reaches has not moved yet.
             _relic.Evaluate(_relic.TotalDuration * 0.5f);
 
-            float centreTravel = Vector3.Distance(_centreShard.position, _shards[0].restPosition);
-            float rimTravel = Vector3.Distance(_rimShard.position, _shards[1].restPosition);
+            float centreTravel = Vector3.Distance(_centreShard.position, RestWorld(0));
+            float rimTravel = Vector3.Distance(_rimShard.position, RestWorld(1));
 
             Assert.That(centreTravel, Is.GreaterThan(rimTravel),
                         "burst order must follow the crack, centre first");
@@ -86,10 +87,11 @@ namespace MRBase.SacredRelic.Tests
         public void Every_Shard_Has_Flown_By_The_End()
         {
             _relic.Evaluate(_relic.TotalDuration);
-            foreach (SacredRelicFracture.Shard shard in _shards)
+            for (int i = 0; i < _shards.Count; i++)
             {
-                float travel = Vector3.Distance(shard.transform.position, shard.restPosition);
-                Assert.That(travel, Is.GreaterThan(0.05f), shard.transform.name + " never left");
+                float travel = Vector3.Distance(_shards[i].transform.position, RestWorld(i));
+                Assert.That(travel, Is.GreaterThan(0.05f),
+                            _shards[i].transform.name + " never left");
             }
         }
 
@@ -99,11 +101,60 @@ namespace MRBase.SacredRelic.Tests
             _relic.Evaluate(_relic.TotalDuration);
             _relic.ResetToSealed();
             Assert.AreEqual(SacredRelicFracture.Phase.Sealed, _relic.CurrentPhase);
-            foreach (SacredRelicFracture.Shard shard in _shards)
+            for (int i = 0; i < _shards.Count; i++)
             {
-                Assert.That(Vector3.Distance(shard.transform.position, shard.restPosition),
+                Assert.That(Vector3.Distance(_shards[i].transform.position, RestWorld(i)),
                             Is.LessThan(0.0005f));
             }
+        }
+
+        // The regression these three guard: rest poses used to be cached in world space, so the
+        // relic could be moved and the shell would stay behind at the spot it was authored at.
+        // Nothing here re-caches — that is the point. Posing must read the parent matrix live.
+
+        [Test]
+        public void Sealed_Shards_Follow_A_Moved_Stele_Without_Re_Caching()
+        {
+            _root.transform.position += new Vector3(3f, -1f, 20f);
+            _relic.ResetToSealed();
+
+            for (int i = 0; i < _shards.Count; i++)
+                Assert.That(Vector3.Distance(_shards[i].transform.position, RestWorld(i)),
+                            Is.LessThan(0.0005f),
+                            _shards[i].transform.name + " did not come along");
+        }
+
+        [Test]
+        public void Sealed_Shards_Follow_A_Scaled_And_Turned_Stele()
+        {
+            _root.transform.position = new Vector3(-2f, 0.5f, 4f);
+            _root.transform.rotation = Quaternion.Euler(0f, 143f, 12f);
+            _root.transform.localScale = Vector3.one * 0.25f;
+            _relic.ResetToSealed();
+
+            for (int i = 0; i < _shards.Count; i++)
+            {
+                Assert.That(Vector3.Distance(_shards[i].transform.position, RestWorld(i)),
+                            Is.LessThan(0.0005f), _shards[i].transform.name + " lost its place");
+                Assert.That(Quaternion.Angle(_shards[i].transform.rotation,
+                                             _root.transform.rotation * _shards[i].restLocalRotation),
+                            Is.LessThan(0.05f), _shards[i].transform.name + " lost its facing");
+            }
+        }
+
+        [Test]
+        public void Flight_Distance_Scales_With_The_Stele()
+        {
+            _relic.Evaluate(_relic.TotalDuration);
+            float fullSize = Vector3.Distance(_centreShard.position, RestWorld(0));
+
+            _root.transform.localScale = Vector3.one * 0.25f;
+            _relic.Evaluate(_relic.TotalDuration);
+            float quarterSize = Vector3.Distance(_centreShard.position, RestWorld(0));
+
+            // A quarter-size relic must not fling its flakes full-size distances across the room.
+            Assert.That(quarterSize, Is.EqualTo(fullSize * 0.25f).Within(0.002f),
+                        "burst travel has to be in relic units, not metres");
         }
 
         [Test]
