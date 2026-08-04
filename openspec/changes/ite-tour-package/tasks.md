@@ -100,6 +100,9 @@
   - 多人共址（Colyseus）本次不迁，将来需补 `TryGetTourAnchor(out Pose, out string)`（design D6）
   - 空间场景 zip 无版本校验，联网每次冷启动重复下载（tour zip 有校验，两者不一致）
   - `SpinActionUnityComponent.Oestroy()` 拼写错误导致 `OnDestroy` 从未调用，事件与 `OnPreDisable` 未反注册
+  - **`ApproximateTrigger` 的近距离判定从未实现**：`Position`（且错用 `System.Numerics.Vector3` 而非 `UnityEngine.Vector3`）与 `Radius` 无任何消费方，组件只读 `Actions`，当前行为等同 `LoadTrigger`。**用户 2026-08-04 决定：先记录，后续单独改**
+  - `ComponentConverter` 未知组件类型返回 null → `Populate` 抛 `ArgumentNullException` → 整个 Tour 加载失败（前向兼容地雷，修法是一句 null 判断）。**用户 2026-08-04 决定：当前可接受，保持现状**；已由 `ConverterTests` 中的 `..._KnownForwardCompatibilityLandmine` 钉住，将来修改时该测试会变红
+  - 三个 Converter 的 `WriteJson` 与 `ReadJson` 键不对称（写 `"type"`，读 `"Type"` / `"Action"`）；`ComponentConverter.WriteJson` 只处理了 11 种中的 1 种。内容管线只做反序列化，这些路径当前无消费方
   - `MatchAndChangeTourCoroutine` 用 `OrderBy(Guid.NewGuid())` 在多个候选 regionalTrigger 中随机选取
   - 版本查询端点契约由外部约定，包只做配置化
   - `ItePropertiesUrl` 是否为死配置（任务 4.2 结论）
