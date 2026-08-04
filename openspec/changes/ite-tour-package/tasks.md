@@ -27,7 +27,7 @@
 ## 4. 配置与内容管线
 
 - [ ] 4.1 定义 `IteRuntimeConfig` ScriptableObject：空间场景地址、Tour 内容包地址模板、版本查询地址、场景名、3 个 element prefab 引用、Tour prefab 引用
-- [ ] 4.2 确认 `ItePropertiesUrl`（`projectDirectory.json`）在源工程 ITE 代码中是否有消费方；无则不迁入并记 TODO（design 待定项）
+- [x] 4.2 确认 `ItePropertiesUrl`（`projectDirectory.json`）的消费方。**结论：不是死配置**——`Assets/Scripts/UI/ItePropertiesDropdown.cs:21` 用它拉 `IteSpaces` 做「选择加载哪个空间场景」的下拉框。挑场景属宿主 UX，包的职责从「加载这个 sceneName」开始，因此该 URL **不进** `IteRuntimeConfig`，归宿主；`IteSpaces` 数据模型留在包内（它是 ITE 的线格式），宿主可直接复用
 - [ ] 4.3 包内实现下载与解压（`UnityWebRequest` + sharp-zip-lib），替代宿主 `FileUtils.DownloadAndExtractZip`
 - [ ] 4.4 包内实现资源加载：JSON 文本读取、Sprite（`Texture2D.LoadImage`）、AudioClip（`UnityWebRequestMultimedia`）、glb（gltfast）
 - [ ] 4.5 迁移 `IteSpaceManagerAssets` 的管线逻辑：场景包下载解压 → 场景描述解析 → 逐 Tour 版本校验 → 内容包下载解压 → Tour 描述反序列化 → 实例化
