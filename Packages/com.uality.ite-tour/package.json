@@ -1,0 +1,12 @@
+{
+  "name": "com.uality.ite-tour",
+  "version": "0.1.0",
+  "displayName": "ITE Tour",
+  "description": "ITE 空间导览业务的可移植封装。跨平台、零宿主依赖，标记扫描与头显佩戴状态由宿主推入，导览状态以事件广播。",
+  "unity": "6000.0",
+  "dependencies": {
+    "com.unity.nuget.newtonsoft-json": "3.2.2",
+    "com.unity.cloud.gltfast": "6.19.0",
+    "com.unity.sharp-zip-lib": "1.4.2"
+  }
+}
