@@ -7,14 +7,14 @@
 - [x] 1.2 确认 UPM 自动发现该 embedded 包并**传递解析**出 gltfast 与 sharp-zip-lib（体现在 `packages-lock.json`），Unity 6000.4.4f1 下无解析错误与编译错误。**不要**把本包或其依赖重复写进工程 `Packages/manifest.json` 的 `dependencies`——依赖声明的唯一来源是包自己的 `package.json`，这样移植时依赖才跟着走
 - [x] 1.3 创建 `Runtime/Uality.IteTour.asmdef`，references 只含官方包，确认**不含任何 `MRBase.*`**
 - [ ] 1.4 创建 `Tests/Uality.IteTour.Tests.asmdef`，并在工程 `manifest.json` 加 `"testables": ["com.uality.ite-tour"]`，确认 Test Runner 能发现包内测试
-- [ ] 1.5 建立目录骨架：`Runtime/{Config,Data,Convert,Core,Components,Internal,Prefabs}`、`Tests/`、`Documentation~/`
+- [x] 1.5 建立目录骨架：`Runtime/{Config,Data,Convert,Core,Components,Internal,Prefabs}`、`Tests/`。（`Documentation~/` 带波浪号不被 Unity 导入、无 `.meta`，git 也不跟踪空目录，随任务 11 的文档内容一并落地）
 
 ## 2. 内部工具迁移（下游依赖，先做）
 
-- [ ] 2.1 迁移 `EventEmitter`、`ComponentsUtils`、`Matrix4x4Extensions`、`HierarchyBoundsCalculator`、`BoxColliderWireframeDrawer` 至 `Runtime/Internal/`，收入 `Uality.IteTour.Internal` 命名空间
+- [x] 2.1 迁移 `EventEmitter`、`Matrix4x4Extensions`、`HierarchyBoundsCalculator`、`BoxColliderWireframeDrawer` 至 `Runtime/Internal/`，收入 `Uality.IteTour.Internal` 命名空间。（`ComponentsUtils` 原列于此，实施时发现其泛型约束与注册表都依赖组件层类型，无法在组件层之前独立编译，已移至 6.7）
 - [ ] 2.2 迁移 `LegacyAnimationController`、`AnimationAudioController`（含 `AudioData`）至 `Runtime/Internal/`
 - [ ] 2.3 自实现圆角 UI：`IMeshModifier` 把 `borderRadius` 写入 `uv1` + SDF shader 读取（design D8）。**不得**引用 Meta `com.meta.xr.sdk.interaction` 的 `RoundedBoxUIProperties` 及其 shader
-- [ ] 2.4 grep 确认包内无 `OVR` / `PXR_` / `Oculus` / `Meta.XR` / `MRBASE_` 字样
+- [ ] 2.4 EditMode 测试守卫包边界：断言 `Uality.IteTour` 程序集的引用集合中无 `MRBase.*` 与任何平台 SDK（Oculus / Meta.XR / PICO / PXR），并 grep 确认源码无 `OVR` / `PXR_` / `MRBASE_` 字样。（原计划只做 grep；改为测试是因为 Packages→Assets 的编译禁令拦不住"引用另一个平台**包**"这条路径——`com.meta.xr.sdk.core` 就是包，加进来能编译通过却会同时毁掉可移植性与 PICO 支持）
 
 ## 3. 数据层与转换器（可离机测）
 
@@ -53,7 +53,7 @@
 - [ ] 6.4 `RichTextElement` / `VideoPlaneElement` 改用包内自实现的圆角 UI 组件（任务 2.3）
 - [ ] 6.5 迁移 3 个 Trigger：`LoadTrigger`、`TapTrigger`、`ApproximateTrigger`。`VolumeTrigger` / `CustomGestureTrigger` 原为注释状态，不实现
 - [ ] 6.6 迁移 4 个 Action：`PlayAnimationAction`、`PlayAudioAction`、`SpinAction`、`ToggleVisibilityAction`
-- [ ] 6.7 迁移 `ComponentsUtils` 的类型注册表，确认 11 个组件类型键与源工程一致
+- [ ] 6.7 迁移 `ComponentsUtils`（注册表机制 + 类型表，从 2.1 移来），确认 11 个组件类型键与源工程一致
 - [ ] 6.8 `SpinActionUnityComponent.Oestroy()` 拼写错误：**原样保留**，记入 TODO（design D12）
 
 ## 7. 对外 API 面
