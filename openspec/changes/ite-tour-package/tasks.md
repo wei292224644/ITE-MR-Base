@@ -12,7 +12,7 @@
 ## 2. 内部工具迁移（下游依赖，先做）
 
 - [x] 2.1 迁移 `EventEmitter`、`Matrix4x4Extensions`、`HierarchyBoundsCalculator`、`BoxColliderWireframeDrawer` 至 `Runtime/Internal/`，收入 `Uality.IteTour.Internal` 命名空间。（`ComponentsUtils` 原列于此，实施时发现其泛型约束与注册表都依赖组件层类型，无法在组件层之前独立编译，已移至 6.7）
-- [ ] 2.2 迁移 `LegacyAnimationController`、`AnimationAudioController`（含 `AudioData`）至 `Runtime/Internal/`
+- [x] 2.2 迁移 `LegacyAnimationController`、`AnimationAudioController`（含 `AudioData`）至 `Runtime/Internal/`
 - [ ] 2.3 自实现圆角 UI：`IMeshModifier` 把 `borderRadius` 写入 `uv1` + SDF shader 读取（design D8）。**不得**引用 Meta `com.meta.xr.sdk.interaction` 的 `RoundedBoxUIProperties` 及其 shader
 - [ ] 2.4 EditMode 测试守卫包边界：断言 `Uality.IteTour` 程序集的引用集合中无 `MRBase.*` 与任何平台 SDK（Oculus / Meta.XR / PICO / PXR），并 grep 确认源码无 `OVR` / `PXR_` / `MRBASE_` 字样。（原计划只做 grep；改为测试是因为 Packages→Assets 的编译禁令拦不住"引用另一个平台**包**"这条路径——`com.meta.xr.sdk.core` 就是包，加进来能编译通过却会同时毁掉可移植性与 PICO 支持）
 
