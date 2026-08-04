@@ -19,6 +19,7 @@
 ## 3. 数据层与转换器（可离机测）
 
 - [x] 3.1 迁移 `Datas/IteTourObject.cs`（`IteSpaces` / `IteSpaceScene` / `Tour` / `TriggerVolume` / `DisplayType`）与 `Datas/IteTourScene.cs`（`IteTour` / `Scene` / `Entity` / `Asset` / `Component` / `ComponentAction`）
+- [x] 3.1b 迁移 11 个组件的**可序列化数据类**与 3 个资源子类至 `Runtime/Data/Components/`（`ElementData` / `TriggerData` / `ActionData`），含各自的 `ComponentType` / `ComponentActionName` partial 常量。（实施时发现：转换器的多态分派表引用 18 个具体类型，源工程把数据类与 MonoBehaviour 混在同一文件内，属阶段 6；包只有一个程序集，无编译顺序约束，纯粹是任务切分问题。按数据/行为切开后，阶段 3 自足且可离机全测）
 - [ ] 3.2 迁移 3 个 JsonConverter（Asset / Component / ComponentAction），保持多态分派表完整
 - [ ] 3.3 EditMode 测试：3 个 Converter 对每种子类型的反序列化分派正确，未知类型走默认分支不抛异常
 - [x] 3.4 EditMode 测试：`Tour.Matrix4X4`（列式 4x4 + `ConvertToLeftHanded`）与 `Entity.Matrix4X4`（TRS + `ConvertToLeftHanded` + `FlipRotY`）的输出快照。**锁定当前行为，不"修正"两处调用组合的不一致**（design 风险表）
@@ -48,11 +49,11 @@
 ## 6. 组件层
 
 - [ ] 6.1 迁移 `BaseComponent` / `BaseElementComponent` / `BaseTriggerComponent` / `BaseActionComponent<T>`
-- [ ] 6.2 迁移 4 个 Element：`EMWModelRender`(+Element)、`RichText`(+Element)、`VideoPlane`(+Element)、`PrimitiveModelRender`
+- [ ] 6.2 迁移 4 个 Element 的 **MonoBehaviour 部分**（数据类已在 3.1b 落地）：`EMWModelRender`(+Element)、`RichText`(+Element)、`VideoPlane`(+Element)、`PrimitiveModelRender`
 - [ ] 6.3 `EMWModelRenderElement` 中 gltfast 类型写全限定名 `GLTFast.ComponentType.Camera` / `.Light`，消除与 `ITETourComponent.ComponentType` 的 CS0104 二义性（design D9）
 - [ ] 6.4 `RichTextElement` / `VideoPlaneElement` 改用包内自实现的圆角 UI 组件（任务 2.3）
-- [ ] 6.5 迁移 3 个 Trigger：`LoadTrigger`、`TapTrigger`、`ApproximateTrigger`。`VolumeTrigger` / `CustomGestureTrigger` 原为注释状态，不实现
-- [ ] 6.6 迁移 4 个 Action：`PlayAnimationAction`、`PlayAudioAction`、`SpinAction`、`ToggleVisibilityAction`
+- [ ] 6.5 迁移 3 个 Trigger 的 **MonoBehaviour 部分**（数据类已在 3.1b 落地）：`LoadTrigger`、`TapTrigger`、`ApproximateTrigger`。`VolumeTrigger` / `CustomGestureTrigger` 原为注释状态，不实现
+- [ ] 6.6 迁移 4 个 Action 的 **MonoBehaviour 部分**（数据类与参数类已在 3.1b 落地）：`PlayAnimationAction`、`PlayAudioAction`、`SpinAction`、`ToggleVisibilityAction`
 - [ ] 6.7 迁移 `ComponentsUtils`（注册表机制 + 类型表，从 2.1 移来），确认 11 个组件类型键与源工程一致
 - [ ] 6.8 `SpinActionUnityComponent.Oestroy()` 拼写错误：**原样保留**，记入 TODO（design D12）
 
