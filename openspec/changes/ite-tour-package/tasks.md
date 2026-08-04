@@ -21,7 +21,7 @@
 - [x] 3.1 迁移 `Datas/IteTourObject.cs`（`IteSpaces` / `IteSpaceScene` / `Tour` / `TriggerVolume` / `DisplayType`）与 `Datas/IteTourScene.cs`（`IteTour` / `Scene` / `Entity` / `Asset` / `Component` / `ComponentAction`）
 - [x] 3.1b 迁移 11 个组件的**可序列化数据类**与 3 个资源子类至 `Runtime/Data/Components/`（`ElementData` / `TriggerData` / `ActionData`），含各自的 `ComponentType` / `ComponentActionName` partial 常量。（实施时发现：转换器的多态分派表引用 18 个具体类型，源工程把数据类与 MonoBehaviour 混在同一文件内，属阶段 6；包只有一个程序集，无编译顺序约束，纯粹是任务切分问题。按数据/行为切开后，阶段 3 自足且可离机全测）
 - [x] 3.2 迁移 3 个 JsonConverter（Asset / Component / ComponentAction），保持多态分派表完整
-- [ ] 3.3 EditMode 测试：3 个 Converter 对每种子类型的反序列化分派正确，未知类型走默认分支不抛异常
+- [x] 3.3 EditMode 测试：3 个 Converter 对每种子类型的反序列化分派正确；未知类型的实际行为——`Asset` 与 `ComponentAction` 走默认分支不抛异常，`Component` 抛异常。（原任务文写的是"三者都不抛异常"，与源实现不符：`ComponentConverter` 未知类型返回 null 后 `Populate` 抛异常。测试按**实际行为**表征，把地雷钉住而不是假装它不存在）
 - [x] 3.4 EditMode 测试：`Tour.Matrix4X4`（列式 4x4 + `ConvertToLeftHanded`）与 `Entity.Matrix4X4`（TRS + `ConvertToLeftHanded` + `FlipRotY`）的输出快照。**锁定当前行为，不"修正"两处调用组合的不一致**（design 风险表）
 
 ## 4. 配置与内容管线
