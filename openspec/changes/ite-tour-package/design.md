@@ -235,11 +235,22 @@ Mask = ~ComponentType.Camera & ~ComponentType.Light   // 这是 GLTFast.Componen
 
 **理由**：`Samples~` 语义是「可选示例」，而 ITE 没有这些 prefab 就根本不能运行——它们是运行时资产，不是样例。放 `Samples~` 会让「装了包但没导入样例」变成一类运行时 null 故障。
 
-### D12：行为等价优先，历史缺陷记 TODO 不顺手修
+### D12：行为等价是默认，不是最高优先级（2026-08-04 修订）
 
-**决定**：迁移目标是语义等价。发现的既有缺陷写进 `Documentation~/TODO.md`，本次不改。
+**决定**：迁移的默认目标是语义等价，发现的既有缺陷写进 `Documentation~/TODO.md` 不顺手修。**但当既有结构本身是问题时，重构优先于照搬**——判据是结构是否正确，不是改动是否最小（见 `.claude/CLAUDE.md` 的决策原则）。
 
-**理由**：迁移与修 bug 混在一起，出问题时无法区分是搬错了还是改坏了。
+触发重构而非照搬的情形：
+
+- 行为依赖**隐式**因素：调用顺序、标志位被谁先清、`await` 会不会真的挂起
+- 同一份代码因数据不同走出**不同语义**（而非不同结果）
+- 跨平台会走出不同时序，且故障只能在真机上复现
+- 信任边界缺输入校验、缺防止数据丢失的错误处理
+
+**理由**：默认行为等价，是为了让迁移与修 bug 保持可分离——这本身是结构理由，不是省事。但当"等价"意味着把一处偶然行为固化成契约时，它就不再服务于结构，反而在掩盖问题。
+
+**本次已按此判据偏离的地方**：D8（切断 Meta SDK sample 依赖）、4.3（补 zip slip 防护）、D14（扫描决策抽为纯状态机）。每处都在本文件或 `tasks.md` 中单独记录。
+
+**原始理由（保留）**：迁移与修 bug 混在一起，出问题时无法区分是搬错了还是改坏了。
 
 已发现待记录项：
 
@@ -261,6 +272,35 @@ IMarkerTrackingProvider ──► MarkerStabilizer ──┬──► MarkerAnch
 ```
 
 两条并行消费链互不影响，既有 `MarkerAnchorService` 零改动——这也正是「与其它模块同时使用」的实证。
+
+### D14：扫描决策抽为纯状态机，不照搬三处理器 + async 竞态（2026-08-04）
+
+**决定**：`SubmitMarkerScan` 只做一件事——把当前状态与标记 ID 交给纯函数 `TourScanPolicy`，拿回一个显式决策，再由薄效果层执行。不保留源实现的「三个订阅者依次执行 + `_canAnchor` 在 `await` 之后赋值」结构。
+
+```
+源：  whenQrCodeScanned ──┬─► OnMustScanQrCodeScanned   （命中则 ChangeTour，并清 _mustScanQrCode）
+                          ├─► OnQrCodeScanned           （开头查 _mustScanQrCode —— 但刚被上一个清掉）
+                          └─► OnNetworkQrCodeScanned    （本次不迁）
+
+本次：SubmitMarkerScan(id, pose)
+        └─► TourScanPolicy.Decide(state, tours, id) → Ignore | Activate | Reanchor   ← 纯函数，可测
+        └─► Apply(decision, pose)                                                     ← 薄效果层
+```
+
+**被否决的替代方案（方案 A：照搬）**：包内保留三个私有处理器并依次调用。否决理由——
+
+1. **行为写在相互作用里，代码里没有一处说明意图**。第一个处理器清掉 `_mustScanQrCode`，导致第二个在**同一次扫码**里也会执行；第二个是否生效又取决于 `IteTourObject.Enable()` 中 `_canAnchor = true` 是否已在 `await CreateTourScene()` 之后跑到。
+2. **同一份代码因数据不同走出不同语义**。`CreateTourScene` 内的 `await` 只在实体/组件存在时真正挂起。有内容的 Tour → 第二个处理器空操作；**空 Tour 会同步走完** → 第二个处理器执行重锚并消耗二次锚定许可。这不是推测，是 C# async 的确定规则：没有真正挂起的 `await` 不让出控制流。
+3. **跨平台会走出不同时序**。Quest 走 MRUK QR Trackable 持续回调；PICO 按 `cross-platform-marker-tracking` 的结论是「扫一次 QR → 等同 ID 的 ArUco」。A 的行为依赖回调节奏与 async 完成时机的相对关系，换平台即换一套时序，而这类故障在真机上表现为「偶尔锚不上」。
+4. **A 把宿主事件总线的形状留在了包里**。三处理器是宿主 C# event 多播的产物，不是 ITE 的业务结构；包对外已经收敛成单一推入方法，内部再维持多订阅者形状是一个已不存在之物的影子。
+
+**所选语义**：采用源实现在**内容异步加载路径**下的行为作为规范——即强制扫码激活某 Tour 后，本次扫码**不**同时消耗其二次锚定许可。该路径是真机上的常规情况（Tour 总有内容、总要加载 glb）。空 Tour 在源实现中因同步完成而走出另一分支，本次统一为前者。
+
+**这不是改行为，是把偶然固化成契约。** 常规路径与源实现一致；边界情况从「碰巧」变成「明确规定」。
+
+**已知局限**：纯函数层可离机测死，但「决策 → 效果」的接线仍需真机确认（任务 10.2 / 10.4）。可测面从约 0 提到约七成，不是十成。
+
+**顺带**：`IteTourObject.Disable()` 中 `ResetSecondAnchor()`（置 `_canAnchor = true`）紧接着被 `_canAnchor = false` 覆盖，是死调用。迁移时不保留这行无效果的调用。
 
 ## Risks / Open Questions
 

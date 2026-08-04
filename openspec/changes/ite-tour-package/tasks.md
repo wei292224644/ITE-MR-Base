@@ -37,15 +37,19 @@
 
 ## 5. 运行时核心
 
+> **执行顺序：第 6 节先于本节其余部分。** 真实依赖是 `Data(3) → Components(6) → TourObject(5.2) → Manager(5.4)`——`IteTourObject.CreateTourScene` 要调 `ComponentsUtils.GetComponent`（6.7）与 `BaseComponent.Constructor`（6.1）。编号是标识符，不代表执行次序；本节只有 5.1、5.4、5.8 不依赖第 6 节。
+
 - [x] 5.1 迁移 `Entity`（Root 子对象 + `OnPreEnable` / `OnPreDisable`）
 - [ ] 5.2 迁移 `IteTourObject`：`CreateTourObject`、`LoadAssets`、`CreateTourScene`、`DestroyTourScene`、`Enable`/`Disable`、二次锚定许可、`GetAsset`
 - [ ] 5.2b 管线的**实例化半段**（从 4.5 移来）：逐 Tour 实例化 prefab、`CreateTourObject`、维护 liveTours、按 Tour 数推进进度、触发 `OnInitialized`
 - [ ] 5.3 `IteTourObject` 的锚点与偏移 Transform 改为由装配注入，移除 `FindGameObjectWithTag`
-- [ ] 5.4 迁移 `IteSpaceManagerScan` 的 Tour 匹配与切换状态机：强制扫码、normal 切换、regionalTrigger 二次锚定、待扫描集合增删、进出重选
+- [ ] 5.4a 实现 `TourScanPolicy` **纯决策函数**（design D14）：输入当前状态 + Tour 描述表 + 标记 ID，输出 `Ignore | Activate | Reanchor` 及是否消费 `mustScan`、是否标记二次锚定。覆盖强制扫码、normal 切换、regionalTrigger 二次锚定、待扫描集合过滤
+- [ ] 5.4b 实现区域进出决策：待扫描集合增删 + 进出后的激活重选（`MatchAndChangeTour` 的判定部分），同样是纯函数
+- [ ] 5.4c 薄效果层：把决策落到 `IteTourObject` 上（`Enable`/`Disable`/`ChangeTourObjectTransform`/`SecondAnchored`），并从单一入口 `SubmitMarkerScan` 驱动。**不保留**源实现的三订阅者结构与 `_canAnchor` 依赖 `await` 时机的写法
 - [ ] 5.5 把 `OnVolumeTriggerEnter/Exit` 的相机识别从 tag `ARCamera` 改为与注入的相机 Transform 比对
 - [ ] 5.6 把 `NeedsToShowAnchorPreviewUI` 协程的**决策**保留在包内，**渲染**改为广播 `OnScanPromptChanged`（design D5），删除对 `ScanPreviewUI` 的全部引用
 - [ ] 5.7 移除 `OnGUI` 调试输出与 `_uiDirector` 开场动画（`PlayableDirector` / `SignalEvents` 属宿主 UI，不迁入）
-- [ ] 5.8 EditMode 测试：Tour 匹配切换状态机的纯逻辑部分（强制扫码消费一次、暂停忽略推入、ID 无匹配、待扫描集合过滤、重复推入不去重）
+- [ ] 5.8 EditMode 测试：`TourScanPolicy` 的**完整决策面**（D14 使其可行）——暂停忽略推入、强制扫码消费一次、ID 无匹配、待扫描集合过滤、normal 切换、regionalTrigger 首次激活与二次锚定、已锚定后重复扫描不动、重复推入不去重、区域进出的集合增删与重选。**并单独钉住 D14 所选语义**：强制扫码激活 regionalTrigger 后，本次扫码不同时消耗其二次锚定许可
 
 ## 6. 组件层
 
