@@ -30,15 +30,16 @@
 - [x] 4.2 确认 `ItePropertiesUrl`（`projectDirectory.json`）的消费方。**结论：不是死配置**——`Assets/Scripts/UI/ItePropertiesDropdown.cs:21` 用它拉 `IteSpaces` 做「选择加载哪个空间场景」的下拉框。挑场景属宿主 UX，包的职责从「加载这个 sceneName」开始，因此该 URL **不进** `IteRuntimeConfig`，归宿主；`IteSpaces` 数据模型留在包内（它是 ITE 的线格式），宿主可直接复用
 - [x] 4.3 包内实现下载与解压（`UnityWebRequest` + sharp-zip-lib），替代宿主 `FileUtils.DownloadAndExtractZip`。**有意偏离 D12**：补上 zip slip 路径穿越防护（`ZipEntryPath.TryResolve`）——zip 来自远端服务器属信任边界，安全防护不在「行为等价优先」的豁免范围内；源实现直接 `Path.Combine(outputFolder, entry.Name)` 无任何校验
 - [x] 4.4 包内实现资源加载：JSON 文本读取、Sprite（`Texture2D.LoadImage`）、AudioClip（`UnityWebRequestMultimedia`）、glb（gltfast）
-- [ ] 4.5 迁移 `IteSpaceManagerAssets` 的管线逻辑：场景包下载解压 → 场景描述解析 → 逐 Tour 版本校验 → 内容包下载解压 → Tour 描述反序列化 → 实例化
+- [x] 4.5 迁移 `IteSpaceManagerAssets` 的管线**数据半段**：场景包下载解压 → 场景描述解析 → 逐 Tour 版本校验 → 内容包下载解压 → Tour 描述反序列化。（**实例化半段移至阶段 5**：源实现结尾要 `Instantiate(_tourObjectPrefab)` 再调 `IteTourObject.CreateTourObject`，而 `IteTourObject` 是 5.2；与 3.1b 同源的任务切分问题。切开后数据半段可离机全测）
 - [x] 4.6 版本缓存键改为 `ite.tour.{tourId}.version`（design D10），EditMode 测试锁定键名格式
-- [ ] 4.7 离线路径：网络不可用时跳过全部下载与版本查询，直接读本地缓存
+- [x] 4.7 离线路径：网络不可用时跳过全部下载与版本查询，直接读本地缓存
 - [ ] 4.8 迁移场景资源加载（logo、各 Tour 预览图），保持原有的 fire-and-forget 时序
 
 ## 5. 运行时核心
 
 - [ ] 5.1 迁移 `Entity`（Root 子对象 + `OnPreEnable` / `OnPreDisable`）
 - [ ] 5.2 迁移 `IteTourObject`：`CreateTourObject`、`LoadAssets`、`CreateTourScene`、`DestroyTourScene`、`Enable`/`Disable`、二次锚定许可、`GetAsset`
+- [ ] 5.2b 管线的**实例化半段**（从 4.5 移来）：逐 Tour 实例化 prefab、`CreateTourObject`、维护 liveTours、按 Tour 数推进进度、触发 `OnInitialized`
 - [ ] 5.3 `IteTourObject` 的锚点与偏移 Transform 改为由装配注入，移除 `FindGameObjectWithTag`
 - [ ] 5.4 迁移 `IteSpaceManagerScan` 的 Tour 匹配与切换状态机：强制扫码、normal 切换、regionalTrigger 二次锚定、待扫描集合增删、进出重选
 - [ ] 5.5 把 `OnVolumeTriggerEnter/Exit` 的相机识别从 tag `ARCamera` 改为与注入的相机 Transform 比对

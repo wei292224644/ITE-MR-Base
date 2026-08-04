@@ -159,6 +159,10 @@ mcp__UnityMCP__get_test_job(job_id=..., wait_timeout=60)
 - 会话开始就存在的脏文件不碰。当前工作区里 `Assets/Scenes/MRCore.unity`、`Assets/Scripts/Core/PalmsTogetherGesture.cs`、`Assets/Scripts/Localization/Native/Probe/*`、`openspec/changes/palms-together-gesture-trigger/*`、`docs/*.md` 等均属**他人/并行工作**，与本 change 无关。
 - Unity 常在 stage 之后才生成 `.meta`，收尾时 `git status --porcelain Packages/com.uality.ite-tour/` 补一次。
 
+**命名空间坑：`IteTour` 既是命名空间段又是类型名**
+
+在 `Uality.IteTour.*` 之下写裸的 `IteTour` 会解析到**命名空间** `Uality.IteTour`，报 `CS0118: 'IteTour' is a namespace but is used like a type`。必须写 `Data.IteTour`。阶段 5–7 每次用到这个类型都会撞，已在 `IteContentPipeline` 的用例处留了注释。
+
 **asmdef 两个坑**：
 - 测试程序集 `overrideReferences: true` → 只有 `precompiledReferences` 里列出的 DLL 可见。已含 `nunit.framework.dll` + `Newtonsoft.Json.dll`，再用别的 DLL 要补。
 - Runtime 程序集 `overrideReferences: false`，Newtonsoft 以自动引用 DLL 提供（`isExplicitlyReferenced: 0`），无需显式声明。
