@@ -28,7 +28,7 @@
 
 - [x] 4.1 定义 `IteRuntimeConfig` ScriptableObject：空间场景地址、Tour 内容包地址模板、版本查询地址、场景名、3 个 element prefab 引用、Tour prefab 引用
 - [x] 4.2 确认 `ItePropertiesUrl`（`projectDirectory.json`）的消费方。**结论：不是死配置**——`Assets/Scripts/UI/ItePropertiesDropdown.cs:21` 用它拉 `IteSpaces` 做「选择加载哪个空间场景」的下拉框。挑场景属宿主 UX，包的职责从「加载这个 sceneName」开始，因此该 URL **不进** `IteRuntimeConfig`，归宿主；`IteSpaces` 数据模型留在包内（它是 ITE 的线格式），宿主可直接复用
-- [ ] 4.3 包内实现下载与解压（`UnityWebRequest` + sharp-zip-lib），替代宿主 `FileUtils.DownloadAndExtractZip`
+- [x] 4.3 包内实现下载与解压（`UnityWebRequest` + sharp-zip-lib），替代宿主 `FileUtils.DownloadAndExtractZip`。**有意偏离 D12**：补上 zip slip 路径穿越防护（`ZipEntryPath.TryResolve`）——zip 来自远端服务器属信任边界，安全防护不在「行为等价优先」的豁免范围内；源实现直接 `Path.Combine(outputFolder, entry.Name)` 无任何校验
 - [ ] 4.4 包内实现资源加载：JSON 文本读取、Sprite（`Texture2D.LoadImage`）、AudioClip（`UnityWebRequestMultimedia`）、glb（gltfast）
 - [ ] 4.5 迁移 `IteSpaceManagerAssets` 的管线逻辑：场景包下载解压 → 场景描述解析 → 逐 Tour 版本校验 → 内容包下载解压 → Tour 描述反序列化 → 实例化
 - [ ] 4.6 版本缓存键改为 `ite.tour.{tourId}.version`（design D10），EditMode 测试锁定键名格式
