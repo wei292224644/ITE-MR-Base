@@ -4,7 +4,7 @@
 ## 1. 包骨架与依赖
 
 - [x] 1.1 创建 `Packages/com.uality.ite-tour/` 与 `package.json`（name / version / displayName / unity / dependencies: newtonsoft-json 3.2.2 + gltfast 6.19.0 + sharp-zip-lib 1.4.2）
-- [ ] 1.2 确认 UPM 自动发现该 embedded 包并**传递解析**出 gltfast 与 sharp-zip-lib（体现在 `packages-lock.json`），Unity 6000.4.4f1 下无解析错误与编译错误。**不要**把本包或其依赖重复写进工程 `Packages/manifest.json` 的 `dependencies`——依赖声明的唯一来源是包自己的 `package.json`，这样移植时依赖才跟着走
+- [x] 1.2 确认 UPM 自动发现该 embedded 包并**传递解析**出 gltfast 与 sharp-zip-lib（体现在 `packages-lock.json`），Unity 6000.4.4f1 下无解析错误与编译错误。**不要**把本包或其依赖重复写进工程 `Packages/manifest.json` 的 `dependencies`——依赖声明的唯一来源是包自己的 `package.json`，这样移植时依赖才跟着走
 - [ ] 1.3 创建 `Runtime/Uality.IteTour.asmdef`，references 只含官方包，确认**不含任何 `MRBase.*`**
 - [ ] 1.4 创建 `Tests/Uality.IteTour.Tests.asmdef`，并在工程 `manifest.json` 加 `"testables": ["com.uality.ite-tour"]`，确认 Test Runner 能发现包内测试
 - [ ] 1.5 建立目录骨架：`Runtime/{Config,Data,Convert,Core,Components,Internal,Prefabs}`、`Tests/`、`Documentation~/`
