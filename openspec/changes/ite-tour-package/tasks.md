@@ -31,7 +31,7 @@
 - [x] 4.3 包内实现下载与解压（`UnityWebRequest` + sharp-zip-lib），替代宿主 `FileUtils.DownloadAndExtractZip`。**有意偏离 D12**：补上 zip slip 路径穿越防护（`ZipEntryPath.TryResolve`）——zip 来自远端服务器属信任边界，安全防护不在「行为等价优先」的豁免范围内；源实现直接 `Path.Combine(outputFolder, entry.Name)` 无任何校验
 - [x] 4.4 包内实现资源加载：JSON 文本读取、Sprite（`Texture2D.LoadImage`）、AudioClip（`UnityWebRequestMultimedia`）、glb（gltfast）
 - [ ] 4.5 迁移 `IteSpaceManagerAssets` 的管线逻辑：场景包下载解压 → 场景描述解析 → 逐 Tour 版本校验 → 内容包下载解压 → Tour 描述反序列化 → 实例化
-- [ ] 4.6 版本缓存键改为 `ite.tour.{tourId}.version`（design D10），EditMode 测试锁定键名格式
+- [x] 4.6 版本缓存键改为 `ite.tour.{tourId}.version`（design D10），EditMode 测试锁定键名格式
 - [ ] 4.7 离线路径：网络不可用时跳过全部下载与版本查询，直接读本地缓存
 - [ ] 4.8 迁移场景资源加载（logo、各 Tour 预览图），保持原有的 fire-and-forget 时序
 
