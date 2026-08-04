@@ -1,3 +1,4 @@
+using System;
 using System.Collections.Generic;
 using System.Linq;
 
@@ -12,13 +13,18 @@ namespace Uality.IteTour.Tests
     {
         private static readonly string[] ForbiddenFragments =
         {
-            "MRBase",
+            "MRBase",   // 宿主程序集
+            "Oculus",   // Meta / Quest
+            "Meta.XR",
+            "PICO",
+            "PXR",
         };
 
         public static IReadOnlyList<string> FindViolations(IEnumerable<string> referencedAssemblyNames)
         {
             return referencedAssemblyNames
-                .Where(name => ForbiddenFragments.Any(fragment => name.Contains(fragment)))
+                .Where(name => ForbiddenFragments.Any(
+                    fragment => name.IndexOf(fragment, StringComparison.OrdinalIgnoreCase) >= 0))
                 .ToList();
         }
     }

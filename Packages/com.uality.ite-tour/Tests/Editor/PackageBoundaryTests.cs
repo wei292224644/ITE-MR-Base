@@ -1,3 +1,4 @@
+using System.Linq;
 using NUnit.Framework;
 
 namespace Uality.IteTour.Tests
@@ -18,6 +19,47 @@ namespace Uality.IteTour.Tests
             var violations = AssemblyBoundaryPolicy.FindViolations(new[] { "UnityEngine", "MRBase.Common" });
 
             Assert.That(violations, Is.EquivalentTo(new[] { "MRBase.Common" }));
+        }
+
+        [Test]
+        public void FindViolations_FlagsPlatformSdkReferences()
+        {
+            var violations = AssemblyBoundaryPolicy.FindViolations(new[]
+            {
+                "UnityEngine", "Oculus.VR", "Unity.XR.PICO", "Meta.XR.Sdk", "PXR.TobSupport"
+            });
+
+            Assert.That(violations, Is.EquivalentTo(new[]
+            {
+                "Oculus.VR", "Unity.XR.PICO", "Meta.XR.Sdk", "PXR.TobSupport"
+            }));
+        }
+
+        // 大小写敏感的守卫等于没有守卫：程序集名的大小写写法不受约束，
+        // 漏判时测试照样是绿的，而可移植性已经没了。
+        [Test]
+        public void FindViolations_IsCaseInsensitiveAndLeavesCleanNamesAlone()
+        {
+            var violations = AssemblyBoundaryPolicy.FindViolations(new[]
+            {
+                "Unity.XR.Pico", "oculus.vr",
+                "glTFast", "Unity.SharpZipLib.Utils", "UnityEngine.UI", "UnityEngine.CoreModule"
+            });
+
+            Assert.That(violations, Is.EquivalentTo(new[] { "Unity.XR.Pico", "oculus.vr" }));
+        }
+
+        // 上面三个测试证明了检测器有效，这个才是真正的守卫：把它用在真实程序集上。
+        [Test]
+        public void RuntimeAssembly_ReferencesNoHostOrPlatformAssemblies()
+        {
+            var runtimeAssembly = typeof(Uality.IteTour.Internal.EventEmitter).Assembly;
+            var referencedNames = runtimeAssembly.GetReferencedAssemblies().Select(a => a.Name);
+
+            var violations = AssemblyBoundaryPolicy.FindViolations(referencedNames);
+
+            Assert.That(violations, Is.Empty,
+                "Uality.IteTour 引用了会破坏可移植性的程序集: " + string.Join(", ", violations));
         }
     }
 }
