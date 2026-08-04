@@ -66,5 +66,8 @@
         "com.meta.xr"
       ]
     }
+  ],
+  "testables": [
+    "com.uality.ite-tour"
   ]
 }
