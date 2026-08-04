@@ -1,26 +1,27 @@
 ## Why
 
-现有 Marker 接口只能报告一次识别结果和一次丢失，无法向外部提供统一、持续、可诊断的跨平台 6DOF 追踪生命周期；Quest 直接追踪 QR，而 PICO 还需要把 QR 身份与 ArUco Pose 配对，两端语义目前不一致。
-
-本变更建立一个与业务内容无关的基础能力：外部只订阅统一 Hook，即可获知 Marker 首次追踪、持续追踪、丢失、能力状态和诊断信息，并在 Quest 与 PICO 上获得以 QR 为逻辑原点的 Unity 世界坐标 Pose。
+Quest 直接从 QR Trackable 获得身份和 Pose，而 PICO 需要先扫描 QR，再从独立的 ArUco Marker 回调取得 ID 与 Pose；目前缺少真机证据证明这两条原生路径能够支撑同一套后续扫描业务。现在应先用最小探针和可追溯日志验证架构可行性，避免在平台行为尚未确认前设计完整生产生命周期。
 
 ## What Changes
 
-- 新增统一 Marker Tracking 服务契约，提供 `Tracked`、`Tracking`、`Lost`、`Diagnostic` 和 `StateChanged` Hook。
-- 新增完整生命周期语义、主线程派发、可配置更新频率、丢失宽限期、全局启停和会话隔离。
-- 将 QR 原文视为不透明数据；通过初始化时注入的解析器提取 MarkerID，不校验 UUID、URL 或 JSON 格式。
-- Quest Provider 基于 MRUK QR Trackable 持续输出 Pose，丢失后由平台重新识别直接建立新会话。
-- PICO Provider 实现外部触发的 QR→ArUco 配对状态机、超时与诊断、多目标独立追踪，以及 Lost 后的手动重新配对。
-- 统一 Pose 为以 QR 中心和朝向为原点的 Unity World Space Pose；PICO 通过全局可配置的 `ArUcoToQrOffset` 校正并排码图的物理偏移。
-- 将 PICO 企业服务 Init/Bind/Unbind 从 Marker Tracking 生命周期中解耦，追踪服务只消费已就绪的平台企业能力。
-- 只接入 Quest 与 PICO 平台原生 SDK；不新增 OpenCV、自定义相机帧识别、自定义 ArUco 字典或软件视觉降级。
-- **BREAKING**：现有只包含 `MarkerResolved(string, Pose)` / `MarkerLost(string)` 的 Provider 契约不足以表达新生命周期；现有下游需要迁移到统一事件数据与状态模型。
+- 为 Quest 增加最小真机探针，记录 MRUK QR Trackable 的原始内容、解析后的 MarkerID、6DOF Pose、追踪状态和回调节奏。
+- 为 PICO 增加最小真机探针：由外部触发 QR 扫描，解析 MarkerID，再观察相同整数 ID 的 ArUco Pose；顺序路径稳定即可证明本次架构可行。
+- 分别验证 PICO 官方静态 ID 0 与动态 ID 250，记录两类 Marker 的真实回调、移动和静默行为，不从文件命名推断运行时语义。
+- 使用平台原生 SDK；不接入相机帧、OpenCV 运行时识别、自定义视觉算法或软件降级。
+- 持久化详细 JSONL 日志，覆盖会话/平台/系统/SDK/权限/授权、状态、错误码、线程、原生与本地时间、回调间隔、MarkerID、Pose、夹具格式、实测尺寸、平整度和夹具文件哈希。
+- 默认只保存 QR RawPayload 的长度和 SHA-256；开发构建可显式记录原文。入库代表日志必须脱敏，并把世界 Pose 转成相对首帧坐标。
+- 纳入版本化打印夹具：A3 横版单页为首选，双 A4 为备用；QR 外框与 ArUco 外框均为 160 mm，QR 在左、ArUco 在右，物理中心距为 210 mm。打印后 ArUco 边长与 QR→ArUco 中心距**均需实测**并记录实测值——中心距是将来的 `ArUcoToQrOffset`，在双 A4 上由手工拼页决定，量边长推不出来。
+- 记录 PICO Marker 回调的注册参数（`trackingMode`、`cameraYOffset`、返回值），它们经 SDK 的原点高度补偿直接改变每个样本的 posY。
+- Probe 独占 PICO Marker 回调槽：`setMarkerInfoCallback` 是单槽 set 语义且无反注册 API，Probe 与生产 Provider 不得同时注册，Probe 停止时不解绑企业服务。
+- Quest 与 PICO 各连续执行 10 次获取；验证正确 MarkerID、6DOF Pose、PICO QR→同 ID ArUco 配对、日志字段完整，并用相对 Pose 评估 5 cm / 5° 对齐目标。
+- 将 PICO QR 扫描与 Marker 回调能否并行、Marker 局部坐标映射、权限/TOB 授权和回调节奏作为真机观测结果；并发失败不否决稳定的顺序架构。
+- 明确不在本 change 实现生产级生命周期、多目标管理、业务对象创建、一次性触发模式、重复扫描辅助定位模式或最终公共 API 迁移；这些都基于本次证据后续单独设计。
 
 ## Capabilities
 
 ### New Capabilities
 
-- `cross-platform-marker-tracking`: 业务无关的 Quest QR 与 PICO QR→ArUco 多目标 6DOF 追踪契约、生命周期、诊断、配置和跨平台 Pose 统一规则。
+- `cross-platform-marker-tracking`: Quest QR 与 PICO QR→ArUco 原生扫描架构的真机可行性探针、持久化诊断证据、打印夹具和通过标准。
 
 ### Modified Capabilities
 
@@ -28,15 +29,8 @@
 
 ## Impact
 
-- 公共 API：新增统一服务接口、事件数据、状态/诊断/丢失原因模型、MarkerID 解析器接口和 PICO 扫码入口。
-- 现有代码：重构 `IMarkerTrackingProvider`、`QuestMarkerProvider`、`PicoMarkerProvider`、`MarkerTrackingBootstrapper`；将 `MarkerAnchorService` 迁移为统一 Hook 的下游消费者。
-- 平台依赖：Quest 继续依赖 Meta MRUK；PICO 继续依赖 `Unity.XR.PICO.TOBSupport`，但企业服务所有权移交平台 Bootstrap 或共享服务。
-- 配置：新增 `trackingUpdateRateHz`（默认 30 Hz）、`lostGraceSeconds`（默认 0.5 秒）、PICO 配对超时（默认 15 秒）和全局 `ArUcoToQrOffset`。
-- 测试：新增平台无关 EditMode 生命周期测试、Provider 适配测试，以及 Quest/PICO 真机并发、配对、多目标、权限和 Pose 校准闸门。
-- 下游：业务代码不再从平台 Provider 获取内容；只通过统一 Hook 接收 Marker 数据并自行决定加载、创建或销毁行为。
-
-## Open Assumptions
-
-- [ ] `[ASSUMED]` PICO 4 Ultra Enterprise 真机上 `ScanQRCode` 与 `SetMarkerInfoCallback` 是否能并行尚无官方保证；实现必须通过真机闸门选择“并行”或已确认的暂停 Tracking 降级路径。— affects: design, tasks, device acceptance tests
-- [ ] `[ASSUMED]` `ArUcoToQrOffset` 的精确位置与旋转数值尚未给出，将由最终组合码的实际尺寸、间距和朝向通过系统配置提供。— affects: configuration schema, test fixture, pose acceptance
-- [ ] `[ASSUMED]` 目标 Quest/PICO 系统版本、运行时权限和 PICO TOB 企业授权在部署环境中可用；代码只能检测并报告 `Unavailable/Error`，实际开通仍需真机与企业后台确认。— affects: deployment notes, integration tests, rollout
+- 实现范围：只允许为真机探针、结构化日志和必要的平台适配做最小改动；不重构现有生产接口或迁移 `MarkerAnchorService`。
+- 平台依赖：Quest 使用现有 Meta MRUK；PICO 使用现有 `Unity.XR.PICO.TOBSupport` 与目标设备已提供的企业能力。
+- 测试资产：新增可复现的夹具生成器、静态/动态 A3 PDF、双 A4 备用 PDF、300 DPI 预览和打印/校验说明。
+- 测试产物：设备本地保留完整 JSONL；仓库只收录脱敏代表日志、环境记录和结论摘要。
+- 后续影响：本 change 的结论将决定生产 Provider、公共事件模型、单次触发、重复扫描定位和并发策略是否值得另立 change 实现。

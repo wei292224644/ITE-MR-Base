@@ -7,7 +7,10 @@
         "meta.xr.mrutilitykit",
         "Oculus.VR",
         "Unity.XR.PICO",
-        "PICO.TobSupport"
+        "PICO.TobSupport",
+        "Unity.XR.CoreUtils",
+        "Unity.UGUI",
+        "Unity.TextMeshPro"
     ],
     "includePlatforms": [],
     "excludePlatforms": [],

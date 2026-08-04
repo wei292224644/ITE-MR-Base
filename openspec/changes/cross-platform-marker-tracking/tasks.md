@@ -1,101 +1,102 @@
-## 1. 公共契约与配置
+## 1. 测试夹具与证据基线
 
-- [ ] 1.1 记录现有 `IMarkerTrackingProvider`、Quest/PICO Provider、Bootstrapper 与 `MarkerAnchorService` 的测试基线，确认本 change 不吸收业务内容创建职责
-- [ ] 1.2 新增统一平台、服务状态、LostReason、诊断代码与 PICO 获取状态枚举，并为公开枚举写契约测试
-- [ ] 1.3 新增不可变的 Tracked/Tracking、Lost、Diagnostic、StateChanged 事件数据类型，覆盖 MarkerID、RawPayload、世界 Pose、平台、时间戳和终止上下文
-- [ ] 1.4 定义 `IMarkerTrackingService` 的 `Tracked`、`Tracking`、`Lost`、`Diagnostic`、`StateChanged` 事件以及幂等 Enable/Disable、PICO BeginQrScan 入口
-- [ ] 1.5 定义初始化只读的 `IMarkerIdParser`，提供测试用解析器与一个不假定 UUID/URL/JSON 的默认透传/委托实现
-- [ ] 1.6 新增 Tracking 配置模型：30 Hz 默认更新频率、0.5 秒默认 Lost 宽限、15 秒默认 PICO 配对超时、完整 `ArUcoToQrOffset` 和 PICO 并发策略
-- [ ] 1.7 为配置添加边界校验，并确保更新频率和 Lost 宽限可运行时生效、Provider 与 Offset 只能在关闭状态配置
+- [x] 1.1 从 PICO 官方 static/dynamic PDF 逐位确认 ID 0 与 ID 250 对应 OpenCV `DICT_4X4_1000` 码字，并记录来源文件 SHA-256
+- [x] 1.2 实现可复现 Swift 生成器，输出 static 0、dynamic 250 的 A3 横版单页 PDF、双 A4 备用 PDF 和 300 DPI 预览
+- [x] 1.3 将 QR 外框与 ArUco 外框设为 160 mm、QR 左/ArUco 右、中心距 210 mm，并记录 A3/A4 打印与安装方法
+- [x] 1.4 用纯软件二维码解码器验证生成预览分别得到 `0` 和 `250`，记录 PDF 页面尺寸、页数和文件哈希
+- [x] 1.5 将夹具、生成器和验证说明纳入 `docs/test-fixtures/cross-platform-marker-tracking/` 与 `Tools/MarkerFixtures/`
 
-## 2. 平台无关追踪内核
+## 2. Probe 隔离入口与会话模型
 
-- [ ] 2.1 定义内部 Provider 原始观察契约，区分能力状态、目标可见/不可见、Pose 样本、QR 扫描结果和不可恢复错误
-- [ ] 2.2 实现 SDK 回调到 Unity 主线程的线程安全观察队列，确保公开事件不在锁内触发
-- [ ] 2.3 实现服务代次与目标会话代次，关闭、Lost 或错误后丢弃旧的异步 QR/Provider 回调
-- [ ] 2.4 实现按区分大小写 MarkerID 索引的活动目标表和 `Tracked → Tracking* → Lost` 状态机
-- [ ] 2.5 实现首次样本同帧只发 Tracked、下一有效更新开始 Tracking 的事件顺序
-- [ ] 2.6 实现基于 `Update` 与单调时间的 Tracking 调度器，静止目标也按配置频率持续派发且不绑定 `FixedUpdate`
-- [ ] 2.7 实现不可见时立即停发 Tracking、0.5 秒默认宽限、宽限恢复延续会话和超时 `Lost(OutOfView)`
-- [ ] 2.8 实现默认 Disabled、幂等 Enable/Disable、Initializing/Ready/Unavailable/Error 状态与手动重试
-- [ ] 2.9 实现 Disable 时逐目标 `Lost(TrackingDisabled)`、运行时不可恢复错误时逐目标 `Lost(ProviderError)` 后进入 Error
-- [ ] 2.10 隔离公开事件订阅者异常，确保一个 Hook 抛错不阻止其他订阅者或破坏内部状态
-- [ ] 2.11 实现重复 MarkerID 的首个目标保留、冲突观察忽略与 DuplicateMarkerId 诊断，防止 Pose 在物理位置间跳动
+- [x] 2.1 用 CodeGraph 复核现有 `IMarkerTrackingProvider`、Quest/PICO Provider、Bootstrapper、程序集与平台 define 的最新边界，记录本次最小接入点
+- [x] 2.2 新增仅在开发/诊断构建启用的 Marker Probe 入口，确保默认关闭且不替换现有生产 Provider 或 `MarkerAnchorService`
+- [x] 2.2b 在入口处强制「PICO Marker 回调单槽独占」：Probe 场景不挂 `MarkerTrackingBootstrapper`；启动时检测到生产 Provider 已运行则拒绝启动并报明原因，不静默覆盖注册（`setMarkerInfoCallback` 是 set 语义且无反注册 API）
+- [x] 2.3 定义 Probe 会话、测试轮次、平台、状态、结束原因、夹具元数据和环境快照的数据模型
+- [x] 2.4 定义最小 MarkerID 解析边界，本次默认支持规范十进制 `0`/`250`，同时保存 RawPayload 摘要和解析失败原因
+- [x] 2.5 提供手动开始/结束会话、选择 static/dynamic 夹具、开始下一轮及显示当前状态/日志路径的诊断控制入口
+- [x] 2.6 验证探针关闭、场景卸载和应用退出后不会继续消费平台回调或影响现有业务路径
 
-## 3. 平台无关自动化测试
+## 3. 持久化 JSONL 与实时监控
 
-- [ ] 3.1 用可控时钟和 Fake Provider 测试首次 Tracked、持续 Tracking、静止持续派发及严格事件顺序
-- [ ] 3.2 测试 Lost 宽限内恢复、超时 Lost、Lost 后旧代次样本丢弃及同一码新会话
-- [ ] 3.3 测试默认关闭、重复 Enable/Disable、关闭活动目标、初始化失败和运行时 ProviderError 收敛
-- [ ] 3.4 测试 30 Hz 默认调度、运行时降频、不同渲染帧率下的派发上限及宽限期内不重复旧 Pose
-- [ ] 3.5 测试 MarkerID 精确区分大小写、非 UUID RawPayload、解析失败诊断和运行时无解析器替换入口
-- [ ] 3.6 测试至少三个不同 MarkerID 的独立会话、单目标 Lost 隔离、重复 ID 冲突和订阅者异常隔离
-- [ ] 3.7 测试所有公开 Hook 均由 Unity 主线程派发，并覆盖关闭与回调并发的竞态
+- [x] 3.1 实现 `Application.persistentDataPath/MarkerProbe/<utc-session-id>.jsonl` 记录器，每行单个 JSON 对象并维护单调递增 sequence
+- [x] 3.2 实现会话头：schema/session/file/platform、设备/系统/应用/Unity/SDK 版本、能力、权限、授权和夹具元数据（含实测 ArUco 边长与实测 QR→ArUco 中心距）
+- [x] 3.2b 会话头额外记录 PICO Marker 回调注册参数：实际传入的 `trackingMode`、它是探测到的还是回退的、`cameraYOffset`、`SetMarkerInfoCallback` 返回值，以及探测时可见的 XRInputSubsystem 及其 TrackingOriginMode。这两个参数经 `MarkerInfoCallback` 的 `OriginHeight`/`YOffset` 直接改变每个样本的 posY，缺失则该会话 Pose 不可用于验收
+- [x] 3.3 实现通用事件字段：runId、eventType、UTC/单调/原生时间、回调间隔、Unity 帧号、线程 ID、Probe 状态和错误上下文
+- [x] 3.4 实现 Marker/Pose 字段：MarkerID、RawPayload 长度与 SHA-256、有效标志、原生 Pose、Unity Pose、XR Origin、候选 Offset 和 SDK 返回值
+- [x] 3.5 实现周期 flush，并在错误、测试轮结束、应用暂停、会话结束时强制 flush；会话尾写入事件/丢弃计数、最大静默间隔和结束原因
+- [x] 3.6 以 `[MarkerProbe]` 前缀把会话 ID、文件路径、关键状态、错误和节流后的 Pose 摘要镜像到 Unity Console，完整高频样本只写 JSONL
+- [x] 3.7 默认禁止记录 RawPayload 原文；仅开发构建显式配置可开启，并在日志头和诊断 UI 中显示敏感数据警告
+- [x] 3.8 为设备日志提取实现脱敏步骤：删除设备/账户/网络标识和业务原文，将世界 Pose 转为相对本轮首帧后再生成可入库代表日志
 
-## 4. Quest Provider
+## 4. Quest 原生 QR Probe
 
-- [ ] 4.1 重构 `QuestMarkerProvider`，只接收 MRUK QRCode Trackable，保存活动 Trackable 引用和 RawPayload
-- [ ] 4.2 在主线程持续读取活动 Trackable 的当前有效状态与 Transform，而不是只在 TrackableAdded 时复制一次 Pose
-- [ ] 4.3 把 Added、持续 Pose、Removed/失效转换为统一原始观察，交由服务内核处理解析和 Lost 宽限
-- [ ] 4.4 处理空 Payload、解析失败、同一 Payload 多 Trackable 和 Stop 后 MRUK 在途事件
-- [ ] 4.5 添加 Quest Provider 适配测试，覆盖 QR 类型过滤、持续 Transform 更新、移除、重新 Added 和单位 Pose 校正
+- [x] 4.1 接入 MRUK QR Trackable 的 Added/Updated/Removed 或当前版本等价事件，只观察 QR 类型并保留 Trackable 实例身份
+- [x] 4.2 逐次读取 RawPayload、当前 Trackable 状态和当前 Transform，记录真实事件时间与回调间隔，不重复首次 Pose 副本
+- [x] 4.3 校验 Quest Pose 位置有限且旋转可归一化，并记录其已经是 QR 参考点 Unity World Pose，不应用 PICO Offset
+- [x] 4.4 记录空 Payload、解析失败、无效 Pose、移除、重新出现、能力/权限失败和 SDK 异常，不推导生产 Lost/恢复语义
+- [x] 4.5 验证 Probe Stop 或场景卸载后的迟到 MRUK 事件被当前会话代次隔离且不会写入已关闭会话
 
-## 5. PICO 企业服务边界
+## 5. PICO QR 到 ArUco Probe
 
-- [ ] 5.1 定义由平台 Bootstrap/共享层拥有的 PICO 企业服务门面，暴露已绑定状态、QR 扫描与 Marker 回调能力
-- [ ] 5.2 将企业服务 Init/Bind/Unbind 从 `PicoMarkerProvider` 移出，确保 Marker Enable/Disable 不调用全局 Unbind
-- [ ] 5.3 在 PICO 企业服务未就绪、设备不支持、权限/授权缺失和 SDK 返回失败时映射为 Unavailable/Error 与结构化诊断
-- [ ] 5.4 对没有 Marker 回调反注册 API 的路径实现逻辑停用与代次过滤，验证停用后在途回调不会进入公开生命周期
-- [ ] 5.5 与 `mr-core-scene-cross-platform` 的平台 Bootstrap/程序集拆分任务对齐所有权，避免重复创建第二套企业服务或跨平台工厂
+- [x] 5.1 由 Probe 自行 `InitEnterpriseService` + `BindEnterpriseService` 并记录二者结果、TOB 授权、设备支持和 Marker 回调注册返回值；Probe Stop **不**调用 `UnBindEnterpriseService`，只用会话代次吞掉后续回调。本 change 不建立共享企业服务门面
+- [x] 5.2 实现手动 `Idle → QrScanRequested → QrResultReceived → AwaitingMatchingMarker → MatchingMarkerObserved/RunEnded` 诊断流程
+- [x] 5.3 调用 `ScanQRCode` 并记录请求、回调线程、RawPayload 摘要、解析结果、耗时、空结果和 SDK 异常
+- [x] 5.4 添加仅用于结束测试轮的扫码 watchdog 和会话代次，记录取消、无回调及迟到回调事实，不实现生产自动重试策略
+- [x] 5.5 接收 Marker 全量回调并逐条记录 `iMarkerId`、`validFlag`、原始 Pose、原生时间戳、回调间隔和静默区间
+- [x] 5.6 只把 `iMarkerId.ToString()` 与当前 MarkerID 精确相等的有效样本标为匹配；完整记录不同 ID、重复条目和无效样本
+- [x] 5.7 保存 PICO 原始 Pose、当前 XR Origin、Unity Pose 及任何候选空间转换/Offset 的输入输出，禁止只保留最终派生 Pose
+- [x] 5.8 支持选择 static ID 0 与 dynamic ID 250 测试轮，并确保两类使用相同动作与日志字段
+- [x] 5.8b 实现双码采样轮：两次配对完成后从同一份 Marker 快照同时读取 A(ID 0) 与 B(ID 250) 的 Pose；只有同一快照/同一帧内两码均有效的样本参与 A→B 计算，跨时刻拼配的样本丢弃并记录原因。Quest 侧同理，从同时持有的两个 Trackable 取同一帧样本
+- [x] 5.9 验证 Probe Stop、watchdog、下一轮开始和应用暂停之间的迟到 QR/Marker 回调不会串入错误 runId
 
-## 6. PICO QR→ArUco 获取与多目标
+## 6. Editor 与自动化验证
 
-- [ ] 6.1 实现单一获取通道 `AwaitingQr → ScanningQr → AwaitingArUco`，Ready/AwaitingQr 时只发 QrScanRequired 而不自动扫码
-- [ ] 6.2 实现外部 `BeginQrScan()`、同一时刻单请求约束、失败/取消/空内容 QrScanFailed 和无自动重试
-- [ ] 6.3 把 QR RawPayload 交给初始化解析器；解析成功后保存 MarkerID/RawPayload，失败时只发 MarkerIdParseFailed 并回到 AwaitingQr
-- [ ] 6.4 实现 ArUco `iMarkerId.ToString()` 精确匹配、PairingMismatch 诊断和继续等待原目标
-- [ ] 6.5 实现 15 秒默认 AwaitingArUco 超时、PairingTimedOut、清除待配对 QR 与回到 AwaitingQr
-- [ ] 6.6 将 PICO Marker 全量快照转换为每个活动 ID 的可见状态和最新 Pose，不让单目标缺失影响其他目标
-- [ ] 6.7 配对成功后创建活动会话并立即释放获取通道，使外部可继续添加其他 MarkerID
-- [ ] 6.8 实现 PICO Lost 后只清除该活动会话、不自动扫码；后续外部重新完成 QR→ArUco 时创建新会话
-- [ ] 6.9 实现至少三个活动目标的独立 Tracking/Lost，并对平台明确容量错误发出结构化诊断而不设置 70、10 等业务上限
-- [ ] 6.10 为 QR 回调、配对超时、Marker 快照和全局关闭之间的竞态添加代次测试
+- [x] 6.1 测试默认 MarkerID 解析器对 `0`、`250`、前导零、空值和非数字原文的确定结果
+- [x] 6.2 测试 JSONL 每行可独立解析、sequence 严格递增、公共字段完整且事件顺序可重放
+- [x] 6.3 测试默认日志不含 RawPayload 原文，显式开发配置会写入原文并标记 `rawPayloadCaptured=true`
+- [x] 6.4 测试周期/强制 flush、异常结束和会话尾计数，确保已关闭会话不再接收事件
+- [x] 6.5 用 Fake Quest 观察测试 Added/Updated/Removed、当前 Transform、无效 Pose和迟到事件隔离
+- [x] 6.6 用 Fake PICO 能力测试扫码成功/空结果/无回调 watchdog/迟到回调、ID 匹配/不匹配及 Marker 无效样本
+- [x] 6.7 测试 Pose 序列化完整保留原生、Unity、XR Origin 与 Offset 前后值，并能计算相对首帧和 A→B 相对变换
+- [x] 6.8 测试 Console 镜像被节流而 JSONL 不丢完整样本，错误与会话 ID 可相互关联
+- [x] 6.9 运行现有 Marker 相关测试，确认启用或移除 Probe 不改变 `MarkerAnchorService` 和现有 Provider 的生产行为
 
-## 7. Pose 统一与组合码校准
+## 7. 分平台构建与预检
 
-- [ ] 7.1 实现 `Compose(arucoWorldPose, arucoToQrOffset)`，按 ArUco 局部位置与旋转偏移输出 QR 逻辑世界 Pose
-- [ ] 7.2 保持 Quest QR Pose 为单位校正，并避免把基础 `ArUcoToQrOffset` 与业务 `PlatformOffsetConfig` 混用
-- [ ] 7.3 添加 Pose 组合 EditMode 测试，覆盖平移、旋转、两者组合和坐标轴方向
-- [ ] 7.4 添加追踪启用期间拒绝修改 Offset、关闭后可重新配置的测试
-- [ ] 7.5 制作固定 QR 左/ArUco 右组合码校准记录模板，预留最终位置和旋转参数
+- [x] 7.1 验证 Editor/无设备环境编译，平台无关日志与模型不泄漏 MRUK/PICO SDK 类型
+- [ ] 7.2 构建 Quest 开发包，确认 QR 权限、MRUK 能力、诊断入口、Console 镜像和 persistentDataPath 日志文件可用
+- [ ] 7.3 构建 PICO 4 Ultra Enterprise 开发包，确认企业服务、TOB 授权、QR 扫描、Marker 回调、诊断入口和日志文件可用
+- [ ] 7.4 在两端执行一轮 smoke test，拉取 JSONL 并验证版本、权限、夹具、Marker、Pose、线程和会话尾字段完整
+- [ ] 7.5 对任何预检失败保存原始 SDK 返回值和环境快照；权限/授权受阻不得伪装成算法失败
 
-## 8. PICO 扫码与 Marker 并发闸门
+## 8. Quest 真机矩阵
 
-- [ ] 8.1 实现两种策略：已验证并发时继续活动 Tracking；未知/失败时启用安全暂停策略
-- [ ] 8.2 实现安全暂停期间停止 Tracking Hook但冻结 Lost 计时，扫码结束后再恢复观察
-- [ ] 8.3 实现恢复时不可见目标从恢复时刻开始新的 Lost 宽限，而不是立即 Lost
-- [ ] 8.4 用 Fake PICO 企业服务测试并发路径、暂停路径、扫码失败恢复、多目标暂停和关闭竞态
-- [ ] 8.5 **真机闸门**：在 PICO 4 Ultra Enterprise 上验证 `ScanQRCode` 与 `SetMarkerInfoCallback` 是否可并行，记录系统/SDK 版本和结果
-- [ ] 8.6 根据 8.5 结果明确目标部署配置使用并发或安全暂停策略，并回填 design/proposal 中对应 `[ASSUMED]`
+- [ ] 8.1 打印 A3 首选夹具并记录 PDF 哈希、打印机设置、ArUco 实测边长、纸面平整度和安装说明
+- [ ] 8.1b **实测 QR 中心到 ArUco 中心的距离**（标称 210 mm，容差 ±1 mm）并把实测值记入日志。双 A4 必测——该距离由手工拼页决定，量 ArUco 边长推不出来；A3 每批抽测。超差则用实测值参与 Pose 验收或该夹具不进入验收
+- [ ] 8.2 在 Quest 上对同一 QR 完成 10 轮独立获取，每轮确认 MarkerID、有限位置、可归一化旋转和闭合 JSONL。**「独立」= 目标先完全离开视野、平台报告不再追踪，再重新入镜重新建立追踪**；一直在视野里反复开始/结束不计入轮数，日志须留下离开与重新出现的事实
+- [ ] 8.3 至少一轮记录 QR 静止、缓慢平移、缓慢旋转、短暂遮挡、移除和重新出现的真实 MRUK 事件
+- [ ] 8.4 汇总 Quest 各轮首次获取耗时、回调间隔、最大静默区间、无效样本和失败原因
 
-## 9. 现有下游与 Bootstrap 迁移
+## 9. PICO 真机矩阵与设备闸门
 
-- [ ] 9.1 更新 `MarkerTrackingBootstrapper`，按平台创建 Provider 与统一服务，并在初始化时注入 MarkerID 解析器和配置
-- [ ] 9.2 将 `MarkerAnchorService` 迁移为 Tracked/Tracking/Lost Hook 的下游消费者，同时保持现有稳定化、注册表解析和内容创建行为属于业务层
-- [ ] 9.3 为旧 `MarkerResolved` 调用方提供短期适配器或一次性迁移，并在全部调用方切换后删除旧接口
-- [ ] 9.4 更新程序集引用和平台 define 边界，确保平台无关服务不引用 MRUK/PICO 类型，Quest/PICO 包缺失时对应实现可被条件排除
-- [ ] 9.5 更新 Demo/诊断入口，允许手动 Enable/Disable、PICO BeginQrScan，并显示 StateChanged 与 Diagnostic 结果但不引入业务判定
-- [ ] 9.6 运行现有 `MarkerAnchorServiceTests`、`MarkerStabilizerTests` 及新增 EditMode 测试，修复迁移回归
+- [ ] 9.1 在 PICO 上对 static ID 0 完成 10 轮独立 QR→ArUco 精确配对，每轮保存有效 6DOF Pose 和闭合 JSONL
+- [ ] 9.2 在 PICO 上对 dynamic ID 250 完成 10 轮独立 QR→ArUco 精确配对，每轮保存有效 6DOF Pose 和闭合 JSONL
+- [ ] 9.3 对 static/dynamic 分别执行静止、缓慢平移、缓慢旋转、短暂遮挡和重新入镜，比较实际有效标志、Pose、回调节奏与静默表现
+- [ ] 9.4 在等待目标 ID 时展示另一 ID，验证日志明确记录 expected/actual ID 且不会伪造配对成功
+- [ ] 9.5 记录系统扫码界面取消、空结果、无回调、watchdog 结束及下一轮恢复的实际行为
+- [ ] 9.6 在 Marker 回调活动时启动一次 QR 扫描，记录扫描期间回调是否继续、间隔/有效标志变化、扫描后恢复和是否需要重新注册
+- [ ] 9.7 通过已知方向的移动/旋转动作确认 PICO Marker Pose 的局部轴、符号和原点，并回填 210 mm 物理偏移的候选局部 Pose
+- [ ] 9.8 汇总 PICO 两类 Marker 的配对耗时、回调间隔、最大静默区间、无效样本、SDK 错误和权限/TOB 约束
 
-## 10. 编译、真机与验收
+## 10. Pose 验收、日志入库与结论
 
-- [ ] 10.1 分别验证 Editor/无平台实现、Quest define 和 PICO define 的程序集编译，确认平台无关代码不泄漏厂商 SDK 符号
-- [ ] 10.2 修改脚本后等待 Unity 完成编译并检查 Console，确保零新增编译错误
-- [ ] 10.3 在 Quest 目标设备验证权限/能力状态、QR Tracked、30 Hz 持续 Pose、短暂遮挡恢复、Lost 和同码重新识别新会话
-- [ ] 10.4 在 PICO 4 Ultra Enterprise 记录系统版本、TOB 授权、企业服务状态和运行模式，验证前置条件失败时正确报告 Unavailable/Error
-- [ ] 10.5 在 PICO 验证外部手动扫码、非 UUID RawPayload 解析、ID 匹配/不匹配、15 秒超时、扫码失败和 Lost 后手动重新配对
-- [ ] 10.6 在 Quest 与 PICO 分别验证至少三个不同 MarkerID 的独立生命周期和单目标 Lost 隔离
-- [ ] 10.7 测量最终固定版式并填写真实 `ArUcoToQrOffset`，记录组合码尺寸、QR/ArUco 朝向与测量方法
-- [ ] 10.8 使用同一块静止组合码对比两端逻辑 Pose，确认位置差异不超过 5 cm、角度差异不超过 5°并保存结果
-- [ ] 10.9 回填并消解系统版本、权限、PICO TOB 授权和 Offset 两项剩余 `[ASSUMED]`，若不满足则修订设计与部署说明
-- [ ] 10.10 运行 `openspec validate cross-platform-marker-tracking` 并完成 Quest/PICO 回归清单后，确认所有 Hook 顺序、错误原因和状态转换与 spec 一致
+- [ ] 10.1 固定放置两套组合夹具 A(ID 0)/B(ID 250)，用 5.8b 的双码轮在 Quest 与 PICO 分别记录并计算各端内部的 A→B 相对变换，不直接比较跨设备原始世界坐标
+- [ ] 10.1b 前提核验：A/B 在 Quest 测量与 PICO 测量之间**不得移动**（安装/测量/拆除时序记入日志）；每样本记 XR Origin，轮末确认整轮恒定且无非单位缩放，否则该轮作废
+- [ ] 10.2 在 PICO 局部轴已确认后应用记录明确的候选 `ArUcoToQrOffset`（用 8.1b 的实测中心距，不用标称 210 mm），验证 Quest/PICO 相对位置差目标 ≤ 5 cm、角度差目标 ≤ 5°
+- [ ] 10.2b 在结论摘要写明：A→B 对 XR Origin 的刚性变换不敏感，故 10.2 通过**不构成**对「追踪原点→世界坐标」转换的验证，后续 change 不得据此认为坐标管线已验证
+- [ ] 10.3 若轴向未确认，保留原始数据并将 Pose 验收标记为 `blocked_by_axis_mapping`，不得用手调 Offset 掩盖问题
+- [ ] 10.4 从 Quest/PICO 原始日志生成脱敏代表 JSONL，核对 sequence、计数、版本、夹具哈希、时序和 Pose 变化量仍可审计
+- [ ] 10.5 编写真机结果摘要，分别报告 Quest、PICO static、PICO dynamic、并发、权限授权、回调节奏和 Pose 对齐证据
+- [ ] 10.6 将结论归类为 `feasible`、`feasible_with_constraints` 或 `not_feasible`，说明对一次性触发与重复扫描定位后续业务的影响
+- [ ] 10.7 用真机事实回填 probe/design 中四项 deferred observations；未关闭项必须保留日志关联和阻塞原因
+- [ ] 10.8 运行全部相关自动化测试和 `openspec validate cross-platform-marker-tracking`，确认 proposal、design、spec、tasks 与最终证据一致

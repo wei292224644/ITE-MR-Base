@@ -1,330 +1,293 @@
 ## ADDED Requirements
 
-### Requirement: 业务无关的统一追踪契约
-
-系统 SHALL 提供平台无关的 Marker Tracking 服务，通过 `Tracked`、`Tracking`、`Lost`、`Diagnostic` 和 `StateChanged` Hook 向外部报告追踪事实。服务 MUST NOT 查询业务注册表、创建业务对象、验证内容类型或决定外部业务流程。
-
-#### Scenario: 外部订阅统一 Hook
-
-- **WHEN** 外部模块需要消费 Marker 追踪结果
-- **THEN** 它只依赖统一 Marker Tracking 服务及其事件数据
-- **THEN** 它不需要引用 Quest MRUK 或 PICO 企业 SDK 类型
-
-#### Scenario: 追踪服务不创建业务内容
-
-- **WHEN** 一个 Marker 成功进入 Tracked 状态
-- **THEN** 服务只派发追踪事件
-- **THEN** 服务不创建 GameObject、不加载网页或 JSON 内容、不查询业务 Anchor 注册表
-
-### Requirement: 统一事件数据
-
-`Tracked` 与 `Tracking` 数据 MUST 包含 MarkerID、QR 原始内容、Unity World Space 的逻辑 Pose、平台类型和时间戳。`Lost` 数据 MUST 另外包含最后一次有效逻辑 Pose 和明确的 LostReason。
-
-#### Scenario: Quest 事件数据完整
-
-- **WHEN** Quest 识别并持续追踪一个 QR
-- **THEN** Tracked 和 Tracking Hook 包含由 QR 原文解析出的 MarkerID、完整 RawPayload、QR 世界 Pose、Quest 平台标识和时间戳
-
-#### Scenario: PICO 事件保留 QR 原文
-
-- **WHEN** PICO 完成 QR 与 ArUco 配对并持续追踪
-- **THEN** 后续每个 Tracked、Tracking 和 Lost Hook 均携带配对时保存的 QR RawPayload
-
-#### Scenario: Lost 携带终止上下文
-
-- **WHEN** 一个活动目标结束追踪
-- **THEN** Lost Hook 包含该会话最后一次有效 Pose、MarkerID、RawPayload、时间戳和 LostReason
-
-### Requirement: 可注入的 MarkerID 解析
-
-系统 SHALL 在初始化时接收一个 MarkerID 解析器。解析器 MUST 从不透明 QR 原文中产生 MarkerID 或失败原因；基础服务 MUST NOT 假定原文是 UUID、URL、JSON 或任何固定格式，也 MUST NOT 对解析结果执行额外修剪、大小写转换或数字规范化。
-
-#### Scenario: 自定义格式解析成功
-
-- **WHEN** 初始化注入的解析器能够从 QR 原文提取 MarkerID
-- **THEN** 服务使用解析器返回的字符串作为区分大小写的精确身份
-
-#### Scenario: QR 内容不是 UUID
-
-- **WHEN** QR 原文是网址、JSON 或其他非 UUID 内容且解析器能提取 MarkerID
-- **THEN** 服务接受该结果并继续平台追踪流程
-
-#### Scenario: MarkerID 解析失败
-
-- **WHEN** 解析器无法从 QR 原文产生有效 MarkerID
-- **THEN** 服务触发包含 RawPayload 和失败原因的 MarkerIdParseFailed 诊断
-- **THEN** 服务不为该 QR 触发 Tracked、Tracking 或 Lost
-
-#### Scenario: 解析器生命周期
-
-- **WHEN** 服务已经完成初始化
-- **THEN** 服务不提供运行时替换解析器的操作
-
-### Requirement: 确定的目标生命周期
-
-每个合法目标会话 SHALL 遵循一次 `Tracked`、零次或多次 `Tracking`、一次 `Lost` 的顺序。首次有效身份与 Pose MUST 在同一主线程更新中只触发 `Tracked`；`Tracking` MUST 从下一次有效更新开始。
-
-#### Scenario: 首次识别
-
-- **WHEN** 一个尚无活动会话的 MarkerID 获得合法身份和有效 Pose
-- **THEN** 服务触发一次 Tracked
-- **THEN** 服务在同一更新中不再为该会话触发 Tracking
-
-#### Scenario: 静止目标持续追踪
-
-- **WHEN** Provider 持续确认活动目标有效但 Pose 数值未变化
-- **THEN** 服务仍按配置频率持续触发 Tracking
-
-#### Scenario: Lost 后拒绝旧更新
-
-- **WHEN** 一个会话已经触发 Lost
-- **THEN** 携带该旧会话代次的在途观察不得再触发 Tracking
-
-#### Scenario: 同一码重新建立会话
-
-- **WHEN** 一个已经 Lost 的 MarkerID 后续重新满足平台获取流程
-- **THEN** 服务创建新会话并再次触发 Tracked
-
-### Requirement: 丢失宽限与恢复
-
-Provider 暂时不再观察活动目标时，服务 SHALL 立即暂停 Tracking 并进入可配置的丢失宽限期，默认 0.5 秒。宽限期内恢复 MUST 延续同一会话；超过宽限期 MUST 触发一次 `Lost(OutOfView)`。
-
-#### Scenario: 宽限期内恢复
-
-- **WHEN** 目标暂时不可见后在 lostGraceSeconds 内恢复有效观察
-- **THEN** 服务恢复 Tracking
-- **THEN** 服务不触发 Lost，也不重复触发 Tracked
-
-#### Scenario: 超过宽限期
-
-- **WHEN** 目标持续不可见超过 lostGraceSeconds
-- **THEN** 服务触发一次 Lost，原因为 OutOfView
-- **THEN** 服务删除该活动会话
-
-#### Scenario: 宽限期内不派发旧 Pose
-
-- **WHEN** 目标处于丢失宽限期
-- **THEN** 服务不触发 Tracking，也不把最后已知 Pose 当作新样本重复派发
-
-### Requirement: 主线程与可配置派发频率
-
-所有公开 Hook MUST 在 Unity 主线程触发。服务 SHALL 使用独立于渲染帧率和 `FixedUpdate` 的时间调度派发 Tracking，默认 trackingUpdateRateHz 为 30，并允许运行时修改更新频率。
-
-#### Scenario: SDK 从非主线程回调
-
-- **WHEN** 平台 SDK 在非 Unity 主线程提交观察
-- **THEN** 服务先缓存观察，并在后续 Unity 主线程更新中派发公开 Hook
-
-#### Scenario: 渲染帧率高于更新频率
-
-- **WHEN** 渲染帧率高于 trackingUpdateRateHz
-- **THEN** Tracking Hook 不超过配置的目标频率
-
-#### Scenario: 运行时降低频率
-
-- **WHEN** 外部在追踪期间降低 trackingUpdateRateHz
-- **THEN** 新频率从后续调度周期生效，当前目标会话不重启
-
-### Requirement: 全局手动控制与能力状态
-
-Marker Tracking SHALL 默认关闭，并只在外部显式启用后初始化和接收追踪。服务 MUST 提供 `Disabled`、`Initializing`、`Ready`、`Unavailable` 和 `Error` 状态，且重复启用或关闭 MUST 是幂等操作。
-
-#### Scenario: 默认不自动启动
-
-- **WHEN** 应用创建 Marker Tracking 服务但尚未调用 EnableTracking
-- **THEN** 服务保持 Disabled
-- **THEN** 服务不申请追踪能力、不启动 QR 扫描、不派发 Marker 生命周期事件
-
-#### Scenario: 能力不可用
-
-- **WHEN** 设备不支持、权限缺失或平台依赖未就绪
-- **THEN** 服务进入 Unavailable 或 Error 并报告原因
-- **THEN** 服务不伪造任何 Lost 事件
-
-#### Scenario: 关闭活动追踪
-
-- **WHEN** 外部在存在活动目标时调用 DisableTracking
-- **THEN** 服务为每个活动目标触发一次 Lost，原因为 TrackingDisabled
-- **THEN** 服务清空目标与配对状态、使在途回调失效并进入 Disabled
-
-#### Scenario: 运行期间 Provider 失败
-
-- **WHEN** Provider 在存在活动目标时发生不可恢复错误
-- **THEN** 服务先为全部活动目标触发 Lost，原因为 ProviderError
-- **THEN** 服务进入 Error 并停止后续 Tracking 派发，直到外部手动重试
-
-### Requirement: Quest QR 连续追踪
-
-Quest Provider SHALL 使用 MRUK QR Trackable 的原文和当前 Transform 建立并持续更新目标。Trackable 移除或不再有效时 MUST 进入统一丢失宽限；后续重新识别同一码 MUST 建立新会话。
-
-#### Scenario: Quest 首次识别 QR
-
-- **WHEN** MRUK 添加一个类型为 QRCode、RawPayload 可解析且 Pose 有效的 Trackable
-- **THEN** 服务以该 QR 的世界 Pose 创建会话并触发 Tracked
-
-#### Scenario: Quest 持续更新
-
-- **WHEN** 活动 MRUK Trackable 的 Transform 在追踪期间变化
-- **THEN** 服务后续 Tracking Hook 使用最新 Transform，而不是首次 Added 时的 Pose 副本
-
-#### Scenario: Quest 重新识别
-
-- **WHEN** Quest QR 会话已经 Lost，MRUK 后续再次添加同一 QR
-- **THEN** 服务无需外部启动扫码即可建立新会话并触发新的 Tracked
-
-### Requirement: PICO QR 到 ArUco 配对
-
-PICO SHALL 先通过外部触发的 QR 扫描获得 RawPayload 和 MarkerID，再等待 `iMarkerId` 与待配对 MarkerID 区分大小写精确相等的有效 ArUco Pose。只有两者匹配时系统 MUST 建立会话并触发 Tracked。
-
-#### Scenario: 成功配对
-
-- **WHEN** QR 解析得到 MarkerID，且后续有效 ArUco 的 iMarkerId 与其精确相等
-- **THEN** 服务保存 QR RawPayload、校正 ArUco Pose、建立新会话并触发 Tracked
-
-#### Scenario: ID 不匹配
-
-- **WHEN** AwaitingArUco 期间观察到不同 MarkerID 的 ArUco
-- **THEN** 服务触发 PairingMismatch 诊断并继续等待原 MarkerID
-- **THEN** 服务不为不匹配观察触发 Tracked
-
-#### Scenario: 配对等待超时
-
-- **WHEN** QR 解析成功后 15 秒内没有出现匹配 ArUco
-- **THEN** 服务触发 PairingTimedOut 诊断、清除待配对 QR 并回到 AwaitingQr
-- **THEN** 服务不自动重新启动 QR 扫描
-
-### Requirement: PICO QR 扫描由外部启动
-
-PICO 服务进入 AwaitingQr 时 SHALL 通知外部需要扫码，但 MUST NOT 自动或强制打开扫码。外部 SHALL 通过 BeginQrScan 启动单个扫码请求。
-
-#### Scenario: 等待外部启动
-
-- **WHEN** PICO 服务已就绪并处于 AwaitingQr
-- **THEN** 服务触发 QrScanRequired 通知
-- **THEN** 在外部调用 BeginQrScan 前不打开扫码
-
-#### Scenario: 重复启动扫码
-
-- **WHEN** 一个 QR 扫描请求尚未结束且外部再次调用 BeginQrScan
-- **THEN** 服务拒绝第二个请求并触发诊断
-
-#### Scenario: 扫码失败或取消
-
-- **WHEN** QR 扫描失败、取消或返回空内容
-- **THEN** 服务触发 QrScanFailed 并回到 AwaitingQr
-- **THEN** 服务不自动重试，也不为未建立的目标触发 Lost
-
-#### Scenario: Lost 后不强制扫码
-
-- **WHEN** 一个活动 PICO 目标触发 Lost
-- **THEN** 服务删除该会话但不自动调用 QR 扫描
-- **THEN** 外部以后完成新的 QR→ArUco 配对时，服务建立新会话并触发 Tracked
-
-### Requirement: PICO 多目标独立追踪
-
-PICO 实现 SHALL 将单一新目标获取通道与活动目标集合分离。一个目标完成配对后，获取通道 MUST 能继续添加其他 MarkerID；一个目标的丢失或重新获取 MUST NOT 重置其他活动目标。
-
-#### Scenario: 连续添加多个目标
-
-- **WHEN** 外部依次完成三个不同 MarkerID 的 QR→ArUco 配对
-- **THEN** 三个目标均拥有独立活动会话并持续产生 Tracking
-
-#### Scenario: 单个目标丢失
-
-- **WHEN** 三个活动目标中的一个超过丢失宽限期
-- **THEN** 只有该目标触发 Lost 并被删除
-- **THEN** 其他两个目标继续其原会话
-
-#### Scenario: 不设置业务固定上限
-
-- **WHEN** 活动目标数量增加
-- **THEN** 基础服务不以固定 70、10 或其他业务常量拒绝目标
-- **THEN** 平台明确报告容量限制时服务通过诊断暴露
-
-### Requirement: 重复 MarkerID 冲突处理
-
-同一会话中若同时观察到两个相同 MarkerID，系统 MUST 保留最先建立的目标，忽略后出现的观察并触发 DuplicateMarkerId 诊断。系统 MUST NOT 在两个物理位置之间切换该 ID 的 Pose。
-
-#### Scenario: 同 ID 出现在两个位置
-
-- **WHEN** Provider 同时报告两个身份相同但 Pose 明显不同的观察
-- **THEN** 服务继续使用最早已建立目标的观察
-- **THEN** 服务忽略冲突观察并触发 DuplicateMarkerId
-
-### Requirement: 以 QR 为原点的跨平台世界 Pose
-
-公开 Pose SHALL 使用 Unity World Space，并以 QR 中心和朝向作为逻辑 Marker 原点。Quest SHALL 直接使用 QR World Pose；PICO SHALL 将 ArUco World Pose 与全局、可配置的完整 `ArUcoToQrOffset` Pose 组合后输出。
-
-#### Scenario: Quest 逻辑 Pose
-
-- **WHEN** Quest 报告 QR World Pose
-- **THEN** 公开逻辑 Marker Pose 与 QR World Pose 相同
-
-#### Scenario: PICO 并排码校正
-
-- **WHEN** PICO 报告右侧 ArUco World Pose，系统配置包含从 ArUco 到左侧 QR 的局部位置和旋转偏移
-- **THEN** 公开逻辑 Marker Pose 等于 ArUco World Pose 与该 Offset 的 Pose 组合
-
-#### Scenario: 活动期间修改 Offset
-
-- **WHEN** 追踪处于启用状态
-- **THEN** 系统拒绝修改 ArUcoToQrOffset，避免活动会话的 Pose 语义突变
-
-#### Scenario: 跨平台校准验收
-
-- **WHEN** Quest 与 PICO 追踪同一块静止组合码并应用实际 Offset
-- **THEN** 两端逻辑 Pose 的位置差异不超过 5 cm，角度差异不超过 5°
-- **THEN** 该阈值只用于验收，不作为运行时 Pose 过滤条件
-
-### Requirement: PICO 企业服务所有权隔离
-
-PICO Marker Tracking MUST 消费由平台 Bootstrap 或共享服务初始化并绑定的企业能力。Marker Tracking 的 EnableTracking 或 DisableTracking MUST NOT 调用全局企业服务 Init、Bind 或 Unbind。
-
-#### Scenario: 关闭 Marker Tracking
-
-- **WHEN** 外部关闭 PICO Marker Tracking
-- **THEN** Marker Tracking 停止处理自身回调并使在途回调失效
-- **THEN** 共享 PICO 企业服务保持绑定，其他 TOB 能力不受影响
-
-#### Scenario: 企业服务尚未就绪
-
-- **WHEN** 外部企业服务未绑定或授权不可用
-- **THEN** Marker Tracking 报告 Unavailable 或 Error
-- **THEN** Marker Tracking 不自行绑定或解绑企业服务
-
-### Requirement: PICO 扫码与追踪并发降级
-
-系统 MUST 将 `ScanQRCode` 与 Marker 回调能否并行作为 PICO 真机能力闸门。在并发能力未知或验证失败时，系统 SHALL 使用安全降级：扫码期间暂停活动 PICO 目标的 Tracking Hook但不触发 Lost，扫码结束后恢复观察，恢复后仍不可见才开始正常丢失宽限。
-
-#### Scenario: 并发能力验证通过
-
-- **WHEN** 目标 PICO 环境已验证 QR 扫描和 Marker 回调可并行
-- **THEN** 添加新 QR 期间现有活动目标继续产生 Tracking
-
-#### Scenario: 使用安全降级
-
-- **WHEN** 并发能力未知或验证失败且外部开始新的 QR 扫描
-- **THEN** 服务暂停现有 PICO 目标的 Tracking Hook
-- **THEN** 服务不因该暂停触发 Lost 或消耗 lostGraceSeconds
-
-#### Scenario: 扫码后恢复失败
-
-- **WHEN** 安全降级扫码结束后恢复 Marker 观察，但某活动目标仍不可见
-- **THEN** 该目标从恢复时刻开始正常丢失宽限
-- **THEN** 只有超过宽限期后才触发 Lost
-
-### Requirement: 多目标与跨平台真机验收
-
-实现 MUST 在 Quest 与 PICO 目标设备上完成真机能力验收。基础验收 SHALL 包含至少三个不同 MarkerID 的独立生命周期，以及静止、移动、短暂遮挡、超时丢失和重新建立会话。
-
-#### Scenario: 三目标验收
-
-- **WHEN** 同场放置并依次获取至少三个不同 MarkerID
-- **THEN** 每个目标均具有独立 Tracked、Tracking 和 Lost 顺序
-- **THEN** 操作其中一个目标不改变其他目标的会话
-
-#### Scenario: 能力前置条件不满足
-
-- **WHEN** 目标系统版本、权限或 PICO TOB 授权不满足平台 SDK 要求
-- **THEN** 验收记录具体环境与失败原因
-- **THEN** 服务报告 Unavailable 或 Error，而不是伪造成功追踪
+### Requirement: 隔离的架构可行性探针
+系统 SHALL 提供仅用于开发与真机诊断的跨平台 Marker Probe。探针 MUST 与现有业务对象创建、稳定化和生产 Marker 生命周期隔离，MUST NOT 要求迁移现有业务调用方。
+
+#### Scenario: 探针未启用
+- **WHEN** 应用未显式启用 Marker Probe
+- **THEN** 探针不启动 Quest QR 或 PICO 企业扫描能力
+- **THEN** 探针不改变现有 Marker Provider 和 `MarkerAnchorService` 的行为
+
+#### Scenario: 探针启用
+- **WHEN** 开发人员从独立诊断入口启用 Marker Probe
+- **THEN** 探针只执行平台原生观察、结构化日志和测试状态显示
+- **THEN** 探针不创建业务 GameObject、不查询业务注册表，也不执行一次性触发或重复定位业务
+
+#### Scenario: PICO Marker 回调单槽独占
+- **WHEN** 探针准备在 PICO 上注册 Marker 回调，而生产 Marker Provider 已经在运行
+- **THEN** 探针拒绝启动并报告冲突原因
+- **THEN** 探针不覆盖已有注册，因为 `setMarkerInfoCallback` 是单槽 set 语义且没有反注册 API
+
+#### Scenario: 探针停止不解绑企业服务
+- **WHEN** 探针会话结束或被停止
+- **THEN** 探针不调用 `UnBindEnterpriseService`
+- **THEN** 探针用会话代次丢弃后续到达的 Marker 与 QR 回调
+
+### Requirement: MarkerID 与 QR 原文分离记录
+探针 SHALL 将 QR 解码原文视为不透明 RawPayload，并独立记录解析后的 MarkerID。基础探针 MUST NOT 假定 RawPayload 是 UUID、URL 或 JSON；本次标准夹具的默认解析规则 SHALL 把规范十进制原文 `"0"` 和 `"250"` 分别解析为同值 MarkerID。
+
+#### Scenario: 标准夹具解析成功
+- **WHEN** 探针扫描标准夹具 QR 原文 `"0"` 或 `"250"`
+- **THEN** 探针分别得到 MarkerID `"0"` 或 `"250"`
+- **THEN** 探针在日志中分别保存 RawPayload 摘要和 MarkerID
+
+#### Scenario: 非标准内容无法解析
+- **WHEN** 当前探针解析边界无法从 QR 原文产生 MarkerID
+- **THEN** 探针记录解析失败、失败原因和 RawPayload 摘要
+- **THEN** 探针不把该原文伪造成有效 MarkerID
+
+### Requirement: Quest 原生 QR 证据采集
+Quest Probe SHALL 使用 MRUK QR Trackable 取得 QR RawPayload、Trackable 状态和当前 6DOF Transform，并逐次记录原生事件及 Pose。探针 MUST 记录真实回调节奏，不得用固定模拟频率代替平台事实。
+
+#### Scenario: Quest QR 首次出现
+- **WHEN** MRUK 报告一个可解析的 QR Trackable
+- **THEN** 探针记录 RawPayload 摘要、MarkerID、Trackable 身份、状态和当前 Unity World Pose
+- **THEN** Pose 的位置分量均有限且旋转四元数可归一化
+
+#### Scenario: Quest QR 持续观察
+- **WHEN** 同一 QR Trackable 持续存在、移动、旋转或状态变化
+- **THEN** 探针记录每次原生更新的单调时间、回调间隔、线程、状态和最新 Transform
+- **THEN** 探针不把首次 Pose 副本重复写成新的原生样本
+
+#### Scenario: Quest QR 移除或重新识别
+- **WHEN** MRUK 移除 QR Trackable，或之后重新报告同一 RawPayload
+- **THEN** 探针按实际顺序记录移除和重新出现事实
+- **THEN** 探针不在本 change 中推导生产级 Lost 宽限或自动恢复语义
+
+### Requirement: PICO 顺序 QR 到 ArUco 配对证据
+PICO Probe SHALL 由操作者显式启动 QR 扫描，解析 MarkerID，再等待 `MarkerInfo.iMarkerId.ToString()` 与 MarkerID 精确相等的有效 ArUco 样本。稳定的顺序路径 SHALL 是本 change 的基础架构判定路径。
+
+#### Scenario: PICO 成功配对
+- **WHEN** QR 解析得到 MarkerID，且后续有效 ArUco 的整数 ID 与其精确相等
+- **THEN** 探针记录 QR 结果、匹配 ArUco 的原始数据、Pose 和配对耗时
+- **THEN** 当前测试轮标记为成功配对
+
+#### Scenario: PICO ID 不匹配
+- **WHEN** 等待目标 ID 时收到不同 `iMarkerId` 的 ArUco 样本
+- **THEN** 探针记录期望 ID、实际 ID、Pose、有效标志和时间
+- **THEN** 探针不把不匹配样本标记为配对成功
+
+#### Scenario: PICO 扫码取消、空结果或无回调
+- **WHEN** QR 扫描被取消、返回空内容或在测试 watchdog 内没有回调
+- **THEN** 探针记录可观察到的 SDK 行为和当前测试轮结束原因
+- **THEN** watchdog 只终止诊断轮次，不形成生产超时或自动重试契约
+
+#### Scenario: PICO 下一轮由操作者启动
+- **WHEN** 一轮 PICO 测试成功或失败后需要再次测试
+- **THEN** 探针等待操作者显式开始下一轮
+- **THEN** 探针不自动弹出扫码界面或无限重试
+
+### Requirement: PICO 静态与动态 Marker 分别实测
+PICO Probe MUST 分别使用 `DICT_4X4_1000` 静态 ID 0 和动态 ID 250 夹具采集真机证据。系统 MUST NOT 根据 static/dynamic 文件名预设回调或移动语义。
+
+#### Scenario: 静态 ID 0 测试
+- **WHEN** 操作者使用 `QR 0 + ArUco 0` 夹具执行静止、平移、旋转、遮挡和重新入镜动作
+- **THEN** 探针记录 PICO 对 ID 0 实际返回的有效标志、Pose、回调间隔和静默区间
+
+#### Scenario: 动态 ID 250 测试
+- **WHEN** 操作者使用 `QR 250 + ArUco 250` 夹具执行相同动作
+- **THEN** 探针记录 PICO 对 ID 250 实际返回的有效标志、Pose、回调间隔和静默区间
+
+#### Scenario: 比较两类 Marker
+- **WHEN** 静态和动态测试均结束
+- **THEN** 结论依据日志比较两类 Marker 的实际行为
+- **THEN** 结论不把资源目录命名当作运行时证据
+
+### Requirement: 完整持久化 JSONL
+每次 Probe 会话 SHALL 在 `Application.persistentDataPath/MarkerProbe/` 创建独立 JSONL 文件。每个事件 MUST 是单行完整 JSON，并按单调递增 sequence 保持写入顺序。
+
+#### Scenario: 会话开始
+- **WHEN** Probe 创建新测试会话
+- **THEN** 首批日志记录 schemaVersion、sessionId、文件路径、平台、设备/系统/应用/Unity/SDK 版本、能力、权限和授权状态
+- **THEN** 日志记录所用夹具格式、fixtureId、文件 SHA-256、实测 ArUco 边长、实测 QR→ArUco 中心距和平整度/安装说明
+
+#### Scenario: 原生回调事件
+- **WHEN** Quest 或 PICO 产生扫描、状态或 Marker 回调
+- **THEN** 对应 JSONL 行包含 sequence、eventType、platform、runId、UTC 时间、单调时间、原生时间、回调间隔、Unity 帧号、线程 ID 和 Probe 状态
+- **THEN** 可用时同时包含 MarkerID、有效标志、原生 Pose、Unity Pose、XR Origin、候选 Offset、SDK 返回值和错误详情
+
+#### Scenario: 会话正常或异常结束
+- **WHEN** 会话结束、应用暂停或发生不可恢复错误
+- **THEN** 记录器强制 flush
+- **THEN** 会话尾记录事件计数、丢弃计数、最大静默间隔和结束原因
+
+#### Scenario: 日志可重放时序
+- **WHEN** 测试人员离线读取完整 JSONL
+- **THEN** 可按 sequence 还原每轮扫码、解析、配对、Pose 样本、错误和结束的先后关系
+
+### Requirement: 实时监控不替代完整日志
+探针 SHALL 使用统一 `[MarkerProbe]` 前缀把关键状态和节流后的 Pose 摘要镜像到 Unity Console，使测试可通过 Editor Console 或 `adb logcat` 实时监控。完整高频样本 MUST 以 JSONL 为准。
+
+#### Scenario: 实时查看测试
+- **WHEN** Probe 会话正在运行
+- **THEN** Console 显示会话 ID、日志路径、状态变化、配对结果、错误和节流后的 Pose 摘要
+- **THEN** 测试人员可将 Console 事件关联到同 sessionId 的 JSONL
+
+#### Scenario: Console 受到截断或轮转
+- **WHEN** 设备系统丢弃、截断或轮转 Console 日志
+- **THEN** JSONL 仍保留完整有序样本
+- **THEN** 验收不把 Console 输出当作唯一证据
+
+### Requirement: RawPayload 与入库日志隐私
+设备 JSONL 默认 MUST 只记录 RawPayload 的 UTF-8 字节长度和 SHA-256。只有开发构建显式启用时才可记录原文，且日志头 MUST 标明是否启用。提交仓库的代表日志 MUST 脱敏。
+
+#### Scenario: 默认记录 QR
+- **WHEN** Probe 使用默认日志配置扫描 QR
+- **THEN** JSONL 包含 RawPayload 长度和 SHA-256
+- **THEN** JSONL 不包含 RawPayload 原文
+
+#### Scenario: 开发构建显式记录原文
+- **WHEN** 开发人员在开发构建中显式启用 RawPayload 原文记录
+- **THEN** 日志头记录 `rawPayloadCaptured=true`
+- **THEN** 测试界面明确显示当前日志可能包含敏感数据
+
+#### Scenario: 代表日志入库
+- **WHEN** 从设备日志提取代表样本提交仓库
+- **THEN** 样本删除设备序列号、账户、网络标识和业务 QR 原文
+- **THEN** 世界 Pose 转为相对本轮首个有效样本，同时保留时序、变化量、版本、状态和错误码
+
+### Requirement: 版本化打印夹具
+本 change SHALL 提供 A3 横版首选夹具和双 A4 备用夹具。两种格式 MUST 使用相同的码、尺寸、朝向和中心关系，并 MUST 提供可复现生成器、预览、打印说明和文件哈希。
+
+#### Scenario: A3 首选夹具
+- **WHEN** 测试人员打印 A3 横版 PDF
+- **THEN** 页面尺寸为 420 × 297 mm，QR 在左、ArUco 在右
+- **THEN** QR 外框和 ArUco 外框均为 160 mm，两码朝向一致、垂直偏移为 0、中心距为 210 mm
+
+#### Scenario: 双 A4 备用夹具
+- **WHEN** 测试人员无法使用 A3 而打印双 A4 PDF
+- **THEN** QR 与 ArUco 分别位于两张 210 × 297 mm 竖版页面
+- **THEN** 两页上下对齐、内边贴合后复现 A3 的 210 mm 中心距
+- **THEN** 该中心距由人工拼接决定，因此必须实测，不能从页面尺寸推定
+
+#### Scenario: 打印比例检查
+- **WHEN** 夹具准备进入 Pose 测试
+- **THEN** 打印使用 100% / Actual Size 且关闭 Fit/Scale
+- **THEN** ArUco 外黑框实测为 160 mm，容差 ±1 mm
+- **THEN** 不满足尺寸或平整度要求的夹具不进入 Pose 验收
+
+#### Scenario: 中心距实测
+- **WHEN** 夹具准备进入 Pose 测试
+- **THEN** 实测 QR 外框中心到 ArUco 外框中心的距离为 210 mm，容差 ±1 mm
+- **THEN** 双 A4 夹具必测该距离；A3 夹具在每批打印中至少抽测一次
+- **THEN** 会话日志记录该实测值本身，而不是记录标称 210 mm
+- **THEN** 若实测值超出容差，Pose 验收使用实测值而不是标称值，或该夹具不进入 Pose 验收
+
+#### Scenario: QR 可机器解码
+- **WHEN** 生成静态与动态夹具预览
+- **THEN** 软件解码器分别得到 `"0"` 和 `"250"`
+- **THEN** 夹具说明记录验证方式与输出哈希
+
+### Requirement: Pose 事实与坐标转换可审计
+Probe MUST 保留平台原始 Pose、Unity Pose 和所有派生转换参数，使 PICO 坐标轴或 XR Origin 错误可从日志审计。系统 MUST NOT 在真机轴向未确认前把 210 mm 物理偏移硬编码成平台局部向量。
+
+#### Scenario: Quest Pose 记录
+- **WHEN** Quest 报告 QR Trackable Transform
+- **THEN** 探针将其记录为 QR 参考点的 Unity World Pose
+- **THEN** 日志说明未额外应用 PICO 式 ArUco Offset
+
+#### Scenario: PICO Pose 记录
+- **WHEN** PICO 报告 ArUco MarkerInfo
+- **THEN** 日志保留原始位置、旋转、有效标志、XR Origin 和转换后的 Unity Pose
+- **THEN** 若应用候选 ArUcoToQrOffset，日志同时保存应用前后 Pose 和 Offset 值
+
+#### Scenario: Marker 回调注册参数
+- **WHEN** 探针调用 `SetMarkerInfoCallback` 注册 PICO Marker 回调
+- **THEN** 会话头记录实际传入的 `trackingMode`、该值是探测到的还是回退的、`cameraYOffset` 和 SDK 返回值
+- **THEN** 会话头记录探测时可见的 XRInputSubsystem 及其各自的 TrackingOriginMode
+- **THEN** 这些字段被视为 Pose 的隐式输入，缺失时该会话的 Pose 数据不可用于 Pose 验收
+
+#### Scenario: PICO 坐标轴尚未确认
+- **WHEN** 210 mm 物理向量无法可靠映射到 PICO Marker 局部坐标
+- **THEN** Probe 保留原始样本并把 Pose 对齐结果标记为 `blocked_by_axis_mapping`
+- **THEN** Probe 不通过手调 Offset 隐藏坐标问题
+
+#### Scenario: 跨设备 Pose 比较
+- **WHEN** Quest 与 PICO 分别观察固定放置的组合码 A 和 B
+- **THEN** 验收比较每个平台内部计算的 A→B 相对变换
+- **THEN** 验收不直接相减两台设备的原始世界坐标
+
+#### Scenario: 双码同时采样
+- **WHEN** 探针执行 A→B 相对变换测量轮
+- **THEN** 探针同时记录 A 与 B 各自的 MarkerID、有效标志和 Pose
+- **THEN** 只有同一份快照或同一帧内两码均有效的样本用于计算 A→B
+- **THEN** 跨时刻拼配的样本被丢弃并记录原因
+
+#### Scenario: 双码轮的夹具与 XR Origin 前提
+- **WHEN** 执行并比较两端的 A→B 测量
+- **THEN** A/B 夹具在 Quest 测量与 PICO 测量之间保持不动，安装与测量时序记入日志
+- **THEN** 每个样本记录当前 XR Origin，轮末检查其在整轮内是否恒定
+- **THEN** 若 XR Origin 在轮内变动或带非单位缩放，该轮作废
+
+#### Scenario: A→B 验收的覆盖边界
+- **WHEN** A→B 相对变换达到位置与角度目标
+- **THEN** 结论摘要写明该结果对追踪原点到世界坐标的转换不敏感，因此不构成对该转换的验证
+- **THEN** 后续 change 不得据此认为坐标管线已验证
+
+### Requirement: 重复真机验收矩阵
+Probe 实现 MUST 完成 Quest、PICO static 和 PICO dynamic 的重复真机矩阵，并保存每轮日志。单次偶然成功 MUST NOT 作为架构可行证据。
+
+#### Scenario: Quest 重复获取
+- **WHEN** 在 Quest 上执行同一 QR 的 10 轮独立获取
+- **THEN** 每轮均得到正确 MarkerID、有限位置和可归一化旋转
+- **THEN** 每轮均产生字段完整且会话尾计数闭合的 JSONL
+
+#### Scenario: 一轮「独立获取」的定义
+- **WHEN** 判断某一轮是否算独立获取
+- **THEN** 该轮要求目标先完全离开视野、平台报告不再追踪，再重新入镜并重新建立追踪
+- **THEN** 目标始终留在视野中时反复开始/结束测试轮不计入独立获取轮数
+- **THEN** 日志记录该轮的离开与重新出现事实，使轮次可事后核验
+
+#### Scenario: PICO 静态重复配对
+- **WHEN** 在 PICO 上对 static ID 0 执行 10 轮独立 QR→ArUco 获取
+- **THEN** 每轮 QR MarkerID 与最终匹配 ArUco ID 均为 `0`
+- **THEN** 每轮保存有效 6DOF Pose、配对耗时和完整 JSONL
+
+#### Scenario: PICO 动态重复配对
+- **WHEN** 在 PICO 上对 dynamic ID 250 执行 10 轮独立 QR→ArUco 获取
+- **THEN** 每轮 QR MarkerID 与最终匹配 ArUco ID 均为 `250`
+- **THEN** 每轮保存有效 6DOF Pose、配对耗时和完整 JSONL
+
+#### Scenario: 相对 Pose 目标
+- **WHEN** 两个平台均完成固定 A/B 夹具的相对变换测量且 PICO 轴向已确认
+- **THEN** Quest 与 PICO 的 A→B 位置差目标不超过 5 cm
+- **THEN** Quest 与 PICO 的 A→B 角度差目标不超过 5°
+
+### Requirement: 真机未知量只记录事实
+Probe SHALL 观测但 MUST NOT 预设 PICO QR/Marker 并发、PICO Pose 轴向、设备权限/TOB 授权和 Marker 回调节奏。每项结论 MUST 关联系统、SDK、应用版本和原始日志。
+
+#### Scenario: PICO 并发观测
+- **WHEN** PICO 已有 Marker 回调时启动一次 QR 扫描
+- **THEN** 探针记录扫描期间 Marker 回调是否继续、间隔与有效标志如何变化，以及扫描结束后是否恢复
+- **THEN** 探针不预先实现生产暂停、并发开关或自动恢复策略
+
+#### Scenario: 权限或授权前置条件不足
+- **WHEN** Quest 权限、PICO TOB 授权或平台能力不可用
+- **THEN** 探针记录具体环境、能力状态、SDK 返回值和失败阶段
+- **THEN** 结论把该轮标记为环境受阻，而不是伪造扫描失败或成功
+
+#### Scenario: Marker 回调节奏
+- **WHEN** PICO Marker 回调持续、间歇或静默
+- **THEN** 日志保存所有回调间隔、最大静默区间、有效标志变化和会话计数
+- **THEN** 本 change 不根据猜测设置生产停滞阈值
+
+### Requirement: 可行性结论有明确证据等级
+最终报告 SHALL 将结果归类为 `feasible`、`feasible_with_constraints` 或 `not_feasible`，并引用对应环境记录、夹具哈希、测试轮次和代表日志。
+
+#### Scenario: 判定 feasible
+- **WHEN** Quest 与 PICO 的重复顺序路径全部稳定完成、PICO 两类 Marker 均成功配对、日志完整且 Pose 目标通过
+- **THEN** 报告将基础扫描架构判定为 `feasible`
+
+#### Scenario: 判定 feasible_with_constraints
+- **WHEN** 顺序身份与 Pose 路径稳定，但并发、特定系统版本、权限授权或 Pose 映射存在已记录限制
+- **THEN** 报告将架构判定为 `feasible_with_constraints`
+- **THEN** 报告列出限制对一次性触发和重复扫描定位业务的影响
+
+#### Scenario: 判定 not_feasible
+- **WHEN** 任一目标平台的原生顺序路径无法重复取得正确身份与有效 Pose，且日志证明原因不是权限、授权、打印或操作条件
+- **THEN** 报告将该路径判定为 `not_feasible` 并引用失败证据
+
+#### Scenario: PICO 并发失败但顺序路径稳定
+- **WHEN** PICO QR 扫描与 Marker 回调不能并行，但顺序 QR→ArUco 路径满足重复验收
+- **THEN** 报告不因并发失败单独判定基础架构不可行
+- **THEN** 报告把并发限制留给后续重复扫描业务设计

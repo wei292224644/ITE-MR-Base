@@ -2,6 +2,7 @@ using System;
 using System.Collections.Generic;
 using System.IO;
 using System.Linq;
+using System.Reflection;
 using UnityEditor;
 using UnityEditor.Build;
 using UnityEditor.Build.Profile;
@@ -23,6 +24,7 @@ public static class BuildScript
 {
     const string k_QuestProfilePath = "Assets/Settings/Build Profiles/Quest.asset";
     const string k_PicoProfilePath = "Assets/Settings/Build Profiles/PICO.asset";
+    const string k_MarkerProbeScene = "Assets/Scenes/MarkerProbe.unity";
 
     const string k_OpenXRLoader = "UnityEngine.XR.OpenXR.OpenXRLoader";
     const string k_PicoLoader = "Unity.XR.PXR.PXR_Loader";
@@ -51,6 +53,69 @@ public static class BuildScript
             excludePluginRoot: k_MetaPackageRoot);
     }
 
+    [MenuItem("MRBase/Build/Marker Probe/Quest Development")]
+    public static void BuildMarkerProbeQuest()
+    {
+        Build(
+            k_QuestProfilePath,
+            "MRBASE_QUEST",
+            k_OpenXRLoader,
+            "Builds/MarkerProbe/Quest/MarkerProbe-Quest.apk",
+            excludePluginRoot: k_PicoPackageRoot,
+            sceneOverride: new[] { k_MarkerProbeScene },
+            buildOptions: BuildOptions.Development | BuildOptions.AllowDebugging);
+    }
+
+    [MenuItem("MRBase/Build/Marker Probe/Queue Quest Development")]
+    public static void QueueMarkerProbeQuest()
+    {
+        QueueBuild(BuildMarkerProbeQuest, "Quest Marker Probe");
+    }
+
+    [MenuItem("MRBase/Build/Marker Probe/PICO Development")]
+    public static void BuildMarkerProbePico()
+    {
+        Build(
+            k_PicoProfilePath,
+            "MRBASE_PICO",
+            k_PicoLoader,
+            "Builds/MarkerProbe/PICO/MarkerProbe-PICO.apk",
+            excludePluginRoot: k_MetaPackageRoot,
+            sceneOverride: new[] { k_MarkerProbeScene },
+            buildOptions: BuildOptions.Development | BuildOptions.AllowDebugging);
+    }
+
+    [MenuItem("MRBase/Build/Marker Probe/Queue PICO Development")]
+    public static void QueueMarkerProbePico()
+    {
+        QueueBuild(BuildMarkerProbePico, "PICO Marker Probe");
+    }
+
+    static Action s_QueuedBuild;
+    static double s_QueuedBuildStartTime;
+
+    static void QueueBuild(Action build, string label)
+    {
+        if (s_QueuedBuild != null || BuildPipeline.isBuildingPlayer)
+            throw new BuildFailedException("[BuildScript] 已有构建正在排队或执行。");
+
+        s_QueuedBuild = build;
+        s_QueuedBuildStartTime = EditorApplication.timeSinceStartup + 1d;
+        EditorApplication.update += StartQueuedBuild;
+        Debug.Log($"[BuildScript] 已排队：{label}，将在菜单调用返回后启动。");
+    }
+
+    static void StartQueuedBuild()
+    {
+        if (EditorApplication.timeSinceStartup < s_QueuedBuildStartTime)
+            return;
+
+        EditorApplication.update -= StartQueuedBuild;
+        var build = s_QueuedBuild;
+        s_QueuedBuild = null;
+        build?.Invoke();
+    }
+
     /// <summary>
     /// 跑完校验与 loader 设置/还原，但不打包。用于秒级确认配置正确、
     /// 以及确认 loader 错配时脚本会自行纠正。
@@ -77,7 +142,9 @@ public static class BuildScript
         string loaderTypeName,
         string outputPath,
         string excludePluginRoot = null,
-        bool dryRun = false)
+        bool dryRun = false,
+        string[] sceneOverride = null,
+        BuildOptions buildOptions = BuildOptions.None)
     {
         var profile = AssetDatabase.LoadAssetAtPath<BuildProfile>(profilePath);
         if (profile == null)
@@ -92,6 +159,7 @@ public static class BuildScript
         var restoreLoaders = SnapshotAndroidLoaders();
         var previousProfile = BuildProfile.GetActiveBuildProfile();
         List<string> restorePlugins = null;
+        List<OpenXrVersionRestore> restoreOpenXrVersions = null;
 
         try
         {
@@ -102,16 +170,19 @@ public static class BuildScript
             // 这是构建正确的前提，但也意味着 Editor 的 define 集合被改动 —— 必须在 finally 还原。
             BuildProfile.SetActiveBuildProfile(profile);
 
+            if (loaderTypeName == k_OpenXRLoader)
+                restoreOpenXrVersions = PatchStaleOpenXrFeatureApiVersions();
+
             var options = new BuildPlayerOptions
             {
-                scenes = profile.GetScenesForBuild()
+                scenes = sceneOverride ?? profile.GetScenesForBuild()
                     .Where(scene => scene.enabled)
                     .Select(scene => scene.path)
                     .ToArray(),
                 locationPathName = Path.GetFullPath(outputPath),
                 target = BuildTarget.Android,
                 targetGroup = BuildTargetGroup.Android,
-                options = BuildOptions.None,
+                options = buildOptions,
             };
 
             if (options.scenes == null || options.scenes.Length == 0)
@@ -145,8 +216,104 @@ public static class BuildScript
             // 把 Editor 留在另一个平台的 define 集合下（会让另一端平台代码意外参与编译）。
             RestoreAndroidLoaders(manager, restoreLoaders);
             RestoreAndroidPlugins(restorePlugins);
+            RestoreOpenXrFeatureApiVersions(restoreOpenXrVersions);
             if (previousProfile != profile)
                 BuildProfile.SetActiveBuildProfile(previousProfile);
+        }
+    }
+
+    // ---- OpenXR package compatibility ----
+
+    readonly struct OpenXrVersionRestore
+    {
+        public readonly UnityEngine.Object Feature;
+        public readonly FieldInfo Field;
+        public readonly string Value;
+
+        public OpenXrVersionRestore(UnityEngine.Object feature, FieldInfo field, string value)
+        {
+            Feature = feature;
+            Field = field;
+            Value = value;
+        }
+    }
+
+    /// <summary>
+    /// Meta XR SDK 205 declares OpenXR 1.1.45 while the installed Unity OpenXR package is
+    /// built against 1.1.53. The latter rejects an enabled feature that requests an older
+    /// patch even though its own message says the request would be ignored. The source
+    /// attribute is package-owned and gets copied back on every import, so changing the
+    /// serialized asset is both ineffective and leaves misleading project state.
+    ///
+    /// Patch enabled Android feature instances in memory for the duration of the build.
+    /// This requests the exact API version already used by the installed OpenXR package;
+    /// the original values are restored in finally.
+    /// </summary>
+    static List<OpenXrVersionRestore> PatchStaleOpenXrFeatureApiVersions()
+    {
+        const string settingsPath = "Assets/XR/Settings/OpenXRPackageSettings.asset";
+        const string requiredVersion = "1.1.53";
+        var restore = new List<OpenXrVersionRestore>();
+
+        foreach (var feature in AssetDatabase.LoadAllAssetsAtPath(settingsPath))
+        {
+            if (feature == null || !feature.name.EndsWith(" Android", StringComparison.Ordinal))
+                continue;
+
+            var serialized = new SerializedObject(feature);
+            var enabled = serialized.FindProperty("m_enabled");
+            if (enabled == null || !enabled.boolValue)
+                continue;
+
+            var field = FindInstanceField(feature.GetType(), "targetOpenXRApiVersion");
+            if (field == null || field.FieldType != typeof(string))
+                continue;
+
+            var previous = field.GetValue(feature) as string;
+            if (string.IsNullOrEmpty(previous) || previous == requiredVersion)
+                continue;
+
+            if (!Version.TryParse(previous, out var previousVersion) ||
+                !Version.TryParse(requiredVersion, out var required) ||
+                previousVersion.Major != required.Major ||
+                previousVersion.Minor != required.Minor ||
+                previousVersion.Build >= required.Build)
+                continue;
+
+            restore.Add(new OpenXrVersionRestore(feature, field, previous));
+            field.SetValue(feature, requiredVersion);
+            Debug.Log(
+                $"[BuildScript] 构建期 OpenXR API 兼容：{feature.name} " +
+                $"{previous} -> {requiredVersion}（仅内存，构建后还原）。");
+        }
+
+        return restore;
+    }
+
+    static FieldInfo FindInstanceField(Type type, string fieldName)
+    {
+        while (type != null)
+        {
+            var field = type.GetField(
+                fieldName,
+                BindingFlags.Instance | BindingFlags.Public | BindingFlags.NonPublic | BindingFlags.DeclaredOnly);
+            if (field != null)
+                return field;
+            type = type.BaseType;
+        }
+
+        return null;
+    }
+
+    static void RestoreOpenXrFeatureApiVersions(List<OpenXrVersionRestore> restore)
+    {
+        if (restore == null)
+            return;
+
+        foreach (var item in restore)
+        {
+            if (item.Feature != null)
+                item.Field.SetValue(item.Feature, item.Value);
         }
     }
 

@@ -3,6 +3,7 @@
     "rootNamespace": "",
     "references": [
         "MRBase.Localization",
+        "MRBase.Localization.Native",
         "MRBase.Common",
         "UnityEngine.TestRunner",
         "UnityEditor.TestRunner"
