@@ -117,6 +117,57 @@ namespace Uality.IteTour.Core
             return data;
         }
 
+        /// <summary>
+        /// 加载空间场景的展示资源：场景 logo 与各 Tour 的预览图，就位后写回
+        /// <paramref name="scene"/> 上的 Sprite 字段。
+        ///
+        /// 源实现是 fire-and-forget（不 await，与场景解析并行），所以这些图会在
+        /// 场景描述已就绪之后才陆续出现。编排层决定要不要等、以及是否为此单独广播
+        /// 一个事件（见任务 7.4 的待决项）。
+        ///
+        /// 缺图是正常情况，不抛异常，对应字段保持为 null。
+        /// </summary>
+        public async Task LoadSceneSpritesAsync(IteSpaceScene scene)
+        {
+            if (scene == null)
+            {
+                return;
+            }
+
+            // 注意：这里用的是 scene.id，而场景描述文件用的是 sceneName，两者未必相同。
+            // 源实现即如此，保持原样。
+            string folder = SpaceSceneFolder(scene.id);
+
+            if (!string.IsNullOrEmpty(scene.logo))
+            {
+                var logoSprite = await ContentAssetLoader.LoadSpriteAsync(Path.Combine(folder, scene.logo));
+                if (logoSprite != null)
+                {
+                    scene.SpriteLogo = logoSprite;
+                }
+            }
+
+            if (scene.tours == null)
+            {
+                return;
+            }
+
+            foreach (var tour in scene.tours)
+            {
+                if (tour == null || string.IsNullOrEmpty(tour.tourID))
+                {
+                    continue;
+                }
+
+                var previewPath = Path.Combine(folder, "assets", tour.tourID + ".png");
+                var preview = await ContentAssetLoader.LoadSpriteAsync(previewPath);
+                if (preview != null)
+                {
+                    tour.SpritePreviewImage = preview;
+                }
+            }
+        }
+
         private async Task UpdateTourPackageIfStaleAsync(string tourId)
         {
             var serverVersion = await ContentAssetLoader.FetchJsonAsync<LatestVersionJsonResult>(

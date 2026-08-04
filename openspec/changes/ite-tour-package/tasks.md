@@ -33,7 +33,7 @@
 - [x] 4.5 迁移 `IteSpaceManagerAssets` 的管线**数据半段**：场景包下载解压 → 场景描述解析 → 逐 Tour 版本校验 → 内容包下载解压 → Tour 描述反序列化。（**实例化半段移至阶段 5**：源实现结尾要 `Instantiate(_tourObjectPrefab)` 再调 `IteTourObject.CreateTourObject`，而 `IteTourObject` 是 5.2；与 3.1b 同源的任务切分问题。切开后数据半段可离机全测）
 - [x] 4.6 版本缓存键改为 `ite.tour.{tourId}.version`（design D10），EditMode 测试锁定键名格式
 - [x] 4.7 离线路径：网络不可用时跳过全部下载与版本查询，直接读本地缓存
-- [ ] 4.8 迁移场景资源加载（logo、各 Tour 预览图），保持原有的 fire-and-forget 时序
+- [x] 4.8 迁移场景资源加载（logo、各 Tour 预览图），保持原有的 fire-and-forget 时序。（是否为此单独广播事件的决定挂在 7.4）
 
 ## 5. 运行时核心
 
@@ -63,7 +63,7 @@
 - [ ] 7.1 定义 `IteBootstrap`：`Config` / `AnchorRoot` / `TourRoot` / `Camera`（必需）+ `IsNetworkAvailable`（可选，默认 true）
 - [ ] 7.2 实现 `IteRuntime.Create` + `StartAsync`；必需项缺失时拒绝启动并记录具体缺失项，不抛空引用
 - [ ] 7.3 实现推入方法 ×2：`SubmitMarkerScan(string, Pose)`、`SetHeadsetMounted(bool)`
-- [ ] 7.4 实现广播事件 ×7：`OnLoadProgress` / `OnSpaceSceneLoaded` / `OnInitialized` / `OnTourActivated` / `OnTourDeactivated` / `OnTourSceneLoaded` / `OnScanPromptChanged`
+- [ ] 7.4 实现广播事件：`OnLoadProgress` / `OnSpaceSceneLoaded` / `OnInitialized` / `OnTourActivated` / `OnTourDeactivated` / `OnTourSceneLoaded` / `OnScanPromptChanged`。**待决**：源工程另有 `OnLoadedIteSpaceSceneAssets`，因为 logo 与 Tour 预览图是 fire-and-forget 加载的、在 `OnSpaceSceneLoaded` 之后才就绪；而 spec 写的是该事件发出时「供宿主展示标题、图标与预览」。二者对不上。要么加第 8 个事件 `OnSpaceSceneAssetsLoaded`，要么让 `OnSpaceSceneLoaded` 等 sprite 加载完（改变既有时序）。在此处决定并同步 design 与 spec
 - [ ] 7.5 确认公开 API 面**不含任何 `interface`**，且无必需的行为委托
 - [ ] 7.6 无订阅者时全流程无空引用异常（事件均以 `?.Invoke` 触发）
 

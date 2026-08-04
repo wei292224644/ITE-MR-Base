@@ -90,5 +90,41 @@ namespace Uality.IteTour.Tests
         {
             Assert.Throws<ArgumentNullException>(() => new IteContentPipeline(null));
         }
+
+        /// <summary>
+        /// 缺图是正常情况（不是每个空间都配了 logo 和预览图），
+        /// 加载失败不能把整个场景拖垮，字段保持 null 即可。
+        /// </summary>
+        [Test]
+        public void LoadSceneSpritesAsync_MissingFilesLeaveSpritesNullWithoutThrowing()
+        {
+            var pipeline = new IteContentPipeline(_config);
+            var scene = new IteSpaceScene
+            {
+                id = "ite-scene-never-cached",
+                logo = "logo.png",
+                tours = new[]
+                {
+                    new IteSpaceScene.Tour { tourID = "t1" },
+                    new IteSpaceScene.Tour { tourID = "t2" },
+                }
+            };
+
+            Assert.DoesNotThrowAsync(async () => await pipeline.LoadSceneSpritesAsync(scene));
+
+            Assert.That(scene.SpriteLogo, Is.Null);
+            Assert.That(scene.tours[0].SpritePreviewImage, Is.Null);
+            Assert.That(scene.tours[1].SpritePreviewImage, Is.Null);
+        }
+
+        [Test]
+        public void LoadSceneSpritesAsync_ToleratesNullSceneAndNullTours()
+        {
+            var pipeline = new IteContentPipeline(_config);
+
+            Assert.DoesNotThrowAsync(async () => await pipeline.LoadSceneSpritesAsync(null));
+            Assert.DoesNotThrowAsync(async () =>
+                await pipeline.LoadSceneSpritesAsync(new IteSpaceScene { id = "x", tours = null }));
+        }
     }
 }
