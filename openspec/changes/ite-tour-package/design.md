@@ -347,6 +347,16 @@ tour.SecondAnchored()          →  _canAnchor = false            ← 先执行
 
 **一处偏离**：`LoadEmwModelAsset` 对 `json == null` 与 `json.audio == null` 加了判空。源实现在这两处会 NRE，导致整个 Tour 加载失败。`ContentAssetLoader` 的契约明确写着「缺文件静默返回 null」，源实现没有兑现这个契约的消费端；补齐属于「信任边界缺防止数据丢失的错误处理」。
 
+### D17：动作派发抽成静态函数，非泛型 `BaseActionComponent` 收敛为泛型实例化（2026-08-05）
+
+**派发**：源实现的 `BaseTriggerComponent.EmitActions()` 是实例方法，靠 `Awake` 填的 `_iteTourObject.transform` 取 Tour 根节点。EditMode 不跑 `Awake`，整段路由逻辑（按 `EntityId` 在 `Group/` 下找实体、投递到它的 `EventEmitter`）因此无法离机验证。
+
+抽成 `static Dispatch(Transform tourRoot, IReadOnlyList<ComponentAction>)`，`EmitActions()` 退化成一行转发。三个触发器共用，规则本身可测。
+
+顺带补了两处判空：目标实体不存在、或实体上没有 `EventEmitter` 时跳过而非抛异常——Tour 描述引用已删除的实体是正常情况，不该让整个触发器炸掉。
+
+**非泛型基类**：源工程的 `BaseActionComponent` 与 `BaseActionComponent<T>` 是逐行重复的两个类。改为 `BaseActionComponent : BaseActionComponent<BaseElementComponent>`，行为一致而只有一份实现。
+
 ## Risks / Open Questions
 
 | 项 | 风险 | 缓解 |

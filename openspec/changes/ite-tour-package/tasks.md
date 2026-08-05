@@ -56,7 +56,7 @@
 
 ## 6. 组件层
 
-- [ ] 6.1 迁移 `BaseComponent` / `BaseElementComponent` / `BaseTriggerComponent` / `BaseActionComponent<T>`
+- [x] 6.1 迁移 `BaseComponent` / `BaseElementComponent` / `BaseTriggerComponent` / `BaseActionComponent<T>`。动作派发抽成静态 `BaseTriggerComponent.Dispatch` 以便离机测（design D17）
 - [ ] 6.2 迁移 4 个 Element 的 **MonoBehaviour 部分**（数据类已在 3.1b 落地）：`EMWModelRender`(+Element)、`RichText`(+Element)、`VideoPlane`(+Element)、`PrimitiveModelRender`
 - [ ] 6.3 `EMWModelRenderElement` 中 gltfast 类型写全限定名 `GLTFast.ComponentType.Camera` / `.Light`，消除与 `ITETourComponent.ComponentType` 的 CS0104 二义性（design D9）
 - [ ] 6.4 `RichTextElement` / `VideoPlaneElement` 改用包内自实现的圆角 UI 组件（任务 2.3）
