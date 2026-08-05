@@ -258,6 +258,7 @@ Mask = ~ComponentType.Camera & ~ComponentType.Light   // 这是 GLTFast.Componen
 - `SpinActionUnityComponent.Oestroy()` 拼写错误，`OnDestroy` 从未被调用 → 事件与 `OnPreDisable` 未反注册
 - `MatchAndChangeTourCoroutine` 用 `OrderBy(t => Guid.NewGuid())` 在多个候选 regionalTrigger 中随机选一个
 - 硬编码域名 `https://api.uality.cn/ITE/Tour/LatestVersion`（本次配置化，但端点契约仍是外部约定）
+- `PlayAudioAction` 的 `Repetition` / `Delay` / `AutoPlay` 解析出来但**无任何消费方**，触发时一律直接 `PlayAudio()`
 - `EMWModelRenderElement` 存下 `_onTap` 却**从不触发**（模型上没有 Button，也没有射线命中回调）→ EMW 模型上挂 `TapTrigger` 不生效
 - `PrimitiveModelRenderUnityComponent` 继承 `BaseComponent` 而非 `BaseElementComponent` → 几何体上挂 `TapTrigger` 会报错退出
 - 几何体挂在**组件自身的 transform** 下而不是 `Entity.Root` 下 → `Entity.SetActive(false)` 隐不掉它，`ToggleVisibilityAction` 对几何体无效
@@ -420,6 +421,21 @@ IteTourObject.prefab
 1080p 一张约 8MB 显存。Tour 每激活一次泄一张，头显上的显存预算撑不住几轮切换。这是「缺防止资源泄漏的清理」，属 CLAUDE.md 列明的重构触发条件。
 
 **选定**：`OnDisable` 里 `Release()` + `Destroy()`，字段置空。
+
+### D22：动作参数的合并规则抽成纯值类型（2026-08-05）
+
+四个动作各写各的 `ProcessData`，而它们的**口径并不一致**——这件事在源码里完全看不出来，却决定了「连续触发两次、第二次只带部分参数」时的结果：
+
+| 动作 | 缺省字段 | 效果 |
+|---|---|---|
+| `Spin` / `PlayAudio` | `?? 当前值` | 沿用上次，**状态跨次累积** |
+| `PlayAnimation` / `ToggleVisibility` | `?? 固定默认值` | 每次重置 |
+
+同一族组件对同一件事有两种语义，而两种都藏在 MonoBehaviour 的私有字段里，`Awake` 在 EditMode 不跑，一行都测不了。属于「同一份代码因数据不同走出不同语义」。
+
+**选定**：抽成四个纯值类型（`SpinSettings` / `PlayAudioSettings` / `PlayAnimationSettings` / `ToggleVisibilitySettings`），累积口径给 `Merge`（实例方法，从当前值出发），重置口径给 `From`（静态，从固定默认值出发）——**方法名本身就把两种语义区分开了**。16 个测试钉住，含跨次累积、`-1` 哨兵值、以及轴名/方向名/`ToggleCount` 的**大小写敏感**。
+
+行为与源实现逐点一致，一处未改。
 
 ## Risks / Open Questions
 
