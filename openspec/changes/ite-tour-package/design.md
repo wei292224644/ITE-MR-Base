@@ -357,6 +357,29 @@ tour.SecondAnchored()          →  _canAnchor = false            ← 先执行
 
 **非泛型基类**：源工程的 `BaseActionComponent` 与 `BaseActionComponent<T>` 是逐行重复的两个类。改为 `BaseActionComponent : BaseActionComponent<BaseElementComponent>`，行为一致而只有一份实现。
 
+### D18：动画配音映射越界跳过，不打死整个 Tour（2026-08-05）
+
+源实现在 `EMWModelRenderElement.Constructor` 里内联了一段双重下标：`clips[i]` 配 `json.audio[animationAudio[i].audio]`。两个下标**都直接取自服务端数据**，任一越界抛出 `IndexOutOfRangeException`，向上冒泡打死整个 Tour 的加载；`animationAudio` 为 null 则 NRE。
+
+**选定**：抽成纯函数 `AnimationAudioMap.Build`，越界与 null 条目跳过。一条配错的配音不该有「整个导览打不开」这么大的杀伤力。属于「信任边界缺输入校验」，是 CLAUDE.md 列明的重构触发条件。
+
+4 个 EditMode 测试钉住：正常配对、配音多于动画、音频下标越界、无配音配置。
+
+### D19：几何体的形状决策收敛成一处（2026-08-05）
+
+源实现把「是什么形状」查了两次，且两处口径不一致：
+
+| | 未知类型 |
+|---|---|
+| `GetPrimitiveType()` | 兜底成 `PrimitiveType.Cube` |
+| 设置缩放的 switch | 只打警告，**不设缩放** |
+
+合起来的实际行为是「Cube + 默认 (1,1,1)」——但这个行为是两处 switch 各说各话**碰巧**凑出来的，改任何一处都会悄悄改变另一半。
+
+**选定**：一次 `PrimitiveShapes.Resolve(string) → PrimitiveShape`，两个投影 `ToUnity`（未知→Cube）与 `TryGetLocalScale`（未知→false，调用方保持默认缩放）。行为与源实现逐点一致，但决策只有一处。11 个测试钉住，含大小写与 null。
+
+顺带修掉 `PrimitiveType` 为 null 时 `ToLower()` 的 NRE。
+
 ## Risks / Open Questions
 
 | 项 | 风险 | 缓解 |
