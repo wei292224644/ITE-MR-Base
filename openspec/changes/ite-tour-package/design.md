@@ -468,6 +468,16 @@ IteTourObject.prefab
 
 **选定**：抽出纯决策 `ShouldDownloadTourPackage(cachedVersion, serverVersion)`——服务端版本未知时返回 false（用缓存），相同时返回 false，其余返回 true。6 个测试钉住三种输入。
 
+### D26：相机识别从 tag 改为注入的 Transform（2026-08-05）
+
+源实现用 `other.CompareTag("ARCamera")` 判断谁进出了触发体积。**tag 是工程级全局配置**——包移植到别的工程时那边没有这个 tag，判定永远为假、区域触发整体失效，而且**不报任何错**。同类问题还有 `FindGameObjectWithTag("AnchorObject")`（已在 5.3 改为注入）。
+
+**选定**：`BindScene(anchor, offset, camera)` 注入相机 Transform，用纯函数 `SceneRoles.IsCamera` 判定。上下都认——碰撞体既可能挂在相机的子物体上，也可能挂在整个 rig 上。5 个测试。
+
+**顺带**：触发体积的物理回调改由包内的 `TourVolumeTrigger` 自己找父节点转发，替掉源实现「宿主 `TriggerEvents` + 预制体里连的 `UnityEvent`」。预制体少一处能连断的引用——`UnityEvent` 目标丢了不报错，只是区域触发不再工作。
+
+**区域进出的合并时机**：源实现用 `WaitForSeconds(0.01f)` 的协程合并同一物理步内的「退出 A + 进入 B」，避免中间空一帧。改为帧末结算（`FlushRegionTransitions`）——同样合并，但不必解释 0.01 秒是怎么来的。
+
 ## Risks / Open Questions
 
 | 项 | 风险 | 缓解 |

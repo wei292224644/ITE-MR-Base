@@ -20,6 +20,7 @@ namespace Uality.IteTour.Core
         private readonly GameObject _tourObjectPrefab;
         private readonly Transform _tourRoot;
         private readonly Transform _anchorRoot;
+        private readonly Transform _camera;
 
         private readonly List<IteTourObject> _liveTours = new List<IteTourObject>();
 
@@ -28,8 +29,12 @@ namespace Uality.IteTour.Core
         /// <param name="tourObjectPrefab">包内的 Tour 预制体。</param>
         /// <param name="tourRoot">Tour 实例的父节点（原 tag <c>AnchorOffsetObject</c>）。</param>
         /// <param name="anchorRoot">锚定目标（原 tag <c>AnchorObject</c>）。</param>
-        public IteTourAssembler(GameObject tourObjectPrefab, Transform tourRoot, Transform anchorRoot)
+        /// <param name="camera">用于识别谁进出触发体积（原 tag <c>ARCamera</c>）。</param>
+        public IteTourAssembler(
+            GameObject tourObjectPrefab, Transform tourRoot, Transform anchorRoot, Transform camera)
         {
+            _camera = camera != null ? camera : throw new ArgumentNullException(nameof(camera));
+
             _tourObjectPrefab = tourObjectPrefab != null
                 ? tourObjectPrefab
                 : throw new ArgumentNullException(nameof(tourObjectPrefab));
@@ -54,7 +59,7 @@ namespace Uality.IteTour.Core
                 return null;
             }
 
-            tourObject.BindAnchors(_anchorRoot, _tourRoot);
+            tourObject.BindScene(_anchorRoot, _tourRoot, _camera);
             await tourObject.CreateTourObject(tour, tourData);
 
             _liveTours.Add(tourObject);

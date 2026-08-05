@@ -48,11 +48,11 @@
 - [x] 5.3 `IteTourObject` 的锚点与偏移 Transform 改为由装配注入（`BindAnchors`），移除 `FindGameObjectWithTag`
 - [x] 5.4a 实现 `TourScanPolicy` **纯决策函数**（design D14）：输入当前状态 + Tour 描述表 + 标记 ID，输出 `Ignore | Activate | Reanchor` 及是否消费 `mustScan`、是否标记二次锚定。覆盖强制扫码、normal 切换、regionalTrigger 二次锚定、待扫描集合过滤
 - [x] 5.4b 实现区域进出决策：待扫描集合增删 + 进出后的激活重选（`MatchAndChangeTour` 的判定部分），同样是纯函数
-- [ ] 5.4c 薄效果层：把决策落到 `IteTourObject` 上（`Enable`/`Disable`/`ChangeTourObjectTransform`/`SecondAnchored`），并从单一入口 `SubmitMarkerScan` 驱动。**不保留**源实现的三订阅者结构与 `_canAnchor` 依赖 `await` 时机的写法
-- [ ] 5.5 把 `OnVolumeTriggerEnter/Exit` 的相机识别从 tag `ARCamera` 改为与注入的相机 Transform 比对
-- [ ] 5.6 把 `NeedsToShowAnchorPreviewUI` 协程的**决策**保留在包内，**渲染**改为广播 `OnScanPromptChanged`（design D5），删除对 `ScanPreviewUI` 的全部引用
-- [ ] 5.7 移除 `OnGUI` 调试输出与 `_uiDirector` 开场动画（`PlayableDirector` / `SignalEvents` 属宿主 UI，不迁入）
-- [ ] 5.8 EditMode 测试：`TourScanPolicy` 的**完整决策面**（D14 使其可行）——暂停忽略推入、强制扫码消费一次、ID 无匹配、待扫描集合过滤、normal 切换、regionalTrigger 首次激活与二次锚定、已锚定后重复扫描不动、重复推入不去重、区域进出的集合增删与重选。**并单独钉住 D14 所选语义**：强制扫码激活 regionalTrigger 后，本次扫码不同时消耗其二次锚定许可
+- [x] 5.4c 薄效果层：把决策落到 `IteTourObject` 上（`Enable`/`Disable`/`ChangeTourObjectTransform`/`SecondAnchored`），并从单一入口 `SubmitMarkerScan` 驱动。**不保留**源实现的三订阅者结构与 `_canAnchor` 依赖 `await` 时机的写法
+- [x] 5.5 把 `OnVolumeTriggerEnter/Exit` 的相机识别从 tag `ARCamera` 改为与注入的相机 Transform 比对
+- [x] 5.6 把 `NeedsToShowAnchorPreviewUI` 协程的**决策**保留在包内，**渲染**改为广播 `OnScanPromptChanged`（design D5），删除对 `ScanPreviewUI` 的全部引用
+- [x] 5.7 移除 `OnGUI` 调试输出与 `_uiDirector` 开场动画（`PlayableDirector` / `SignalEvents` 属宿主 UI，不迁入）
+- [x] 5.8 EditMode 测试：`TourScanPolicy` 的**完整决策面**（D14 使其可行）——暂停忽略推入、强制扫码消费一次、ID 无匹配、待扫描集合过滤、normal 切换、regionalTrigger 首次激活与二次锚定、已锚定后重复扫描不动、重复推入不去重、区域进出的集合增删与重选。**并单独钉住 D14 所选语义**：强制扫码激活 regionalTrigger 后，本次扫码不同时消耗其二次锚定许可
 
 ## 6. 组件层
 

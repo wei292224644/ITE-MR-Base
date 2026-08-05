@@ -31,6 +31,10 @@ namespace Uality.IteTour.Core
 
         private Transform _anchorObject;
         private Transform _tourOffsetObject;
+        private Transform _camera;
+
+        /// <summary>相机进出本 Tour 的触发体积。由编排层转给 <see cref="TourDirector"/>。</summary>
+        public Action<string, VolumeTransition> OnCameraVolumeTransition;
 
         private bool _isDestroyed;
         private IteSpaceScene.Tour.DisplayType _displayType;
@@ -49,11 +53,30 @@ namespace Uality.IteTour.Core
 
         public Data.IteTour Tour => _tour;
 
-        /// <summary>注入锚点与偏移 Transform。装配时调用一次。</summary>
-        public void BindAnchors(Transform anchorObject, Transform tourOffsetObject)
+        /// <summary>
+        /// 注入锚点、偏移与相机 Transform。装配时调用一次。
+        ///
+        /// 相机用于识别谁进出了触发体积——源实现用 tag <c>ARCamera</c>，那是工程级
+        /// 全局配置，包移植后会静默失效（design D26）。
+        /// </summary>
+        public void BindScene(Transform anchorObject, Transform tourOffsetObject, Transform camera)
         {
             _anchorObject = anchorObject;
             _tourOffsetObject = tourOffsetObject;
+            _camera = camera;
+        }
+
+        /// <summary>由触发体积上的 <see cref="TourVolumeTrigger"/> 调用。</summary>
+        internal void NotifyVolumeTransition(Collider other, VolumeTransition transition)
+        {
+            if (_isDestroyed
+                || _displayType == IteSpaceScene.Tour.DisplayType.alwaysDisplayed
+                || !SceneRoles.IsCamera(_camera, other != null ? other.transform : null))
+            {
+                return;
+            }
+
+            OnCameraVolumeTransition?.Invoke(_tourId, transition);
         }
 
         public async Task CreateTourObject(IteSpaceScene.Tour tour, Data.IteTour tourData)
