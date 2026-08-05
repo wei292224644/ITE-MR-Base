@@ -300,7 +300,52 @@ IMarkerTrackingProvider ──► MarkerStabilizer ──┬──► MarkerAnch
 
 **已知局限**：纯函数层可离机测死，但「决策 → 效果」的接线仍需真机确认（任务 10.2 / 10.4）。可测面从约 0 提到约七成，不是十成。
 
-**顺带**：`IteTourObject.Disable()` 中 `ResetSecondAnchor()`（置 `_canAnchor = true`）紧接着被 `_canAnchor = false` 覆盖，是死调用。迁移时不保留这行无效果的调用。
+**实现期发现（正是 D14 要防的东西）**：源实现里 `SecondAnchored()` 在「扫码激活一个 regionalTrigger Tour」这个调用点上是**死代码**。
+
+```
+OnQrCodeScanned 的 else 分支：  ChangeTour(tour);  tour.SecondAnchored();
+
+ChangeTour → EnableActiveTour → _ = newTour.Enable()      // async 启动，不等待
+                                     └─ await CreateTourScene()
+                                     └─ _canAnchor = true       ← 稍后执行
+             ↓
+tour.SecondAnchored()          →  _canAnchor = false            ← 先执行
+             ↓
+        （await 完成）          →  _canAnchor = true             ← 把上面那行覆盖掉
+```
+
+按 D14 所选语义（以内容异步加载路径为规范），结论是：**扫码激活 regionalTrigger 不消耗其二次锚定许可**。二次锚定许可只在「目标就是当前激活 Tour」的重锚路径上被真正消耗——那条路径不触发 `Enable()`，所以置位不会被覆盖。
+
+照搬方案会把这个失效调用当成有意义的语义原样保留，并写进测试，从而把一处竞态固化成契约。
+
+**顺带**：`IteTourObject.Disable()` 中 `ResetSecondAnchor()`（置 `_canAnchor = true`）紧接着被 `_canAnchor = false` 覆盖，同样是死调用。迁移时不保留这行无效果的调用。
+
+### D15：组件层与 `IteTourObject` 的循环引用**保留**，靠任务次序落地（2026-08-05）
+
+`BaseComponent._iteTourObject` ↔ `IteTourObject.CreateTourScene`（要调 `ComponentsUtils` 与 `BaseComponent.Constructor`）构成类型循环。
+
+**选定**：保留循环，把任务拆成无环的三步落地——`IteTourObject` 外壳（5.2，不含 `CreateTourScene`）→ 组件层（第 6 节）→ 回填 `CreateTourScene`（5.2c）。同一程序集内的类型循环是合法 C#，不影响编译，只影响任务次序。
+
+**否决的替代**：抽 `ITourContext` 之类的接口切断循环。组件从 Tour 对象拿的只有三样：`.transform`（路由用）、`OnTourSceneLoaded`、`GetAsset(id)`。为这三个方法造一个**只有一个实现**的接口，正是 CLAUDE.md 判据里点名拒绝的形状；换来的只是任务可以并行，而任务次序本来就免费。
+
+**顺带删掉**：`IteTourObject.CanAnchor` 属性。它在源工程里无人调用，却是 `IteTourObject` 对 `IteSpaceManager.Instance` 单例的唯一依赖——删掉之后 Tour 对象不再反向依赖管理器，「谁是当前 Tour」只由 `TourScanPolicy` 判定（D14）。
+
+**顺带删掉**：`ResetSecondAnchor()`。D14 已论证它在 `Disable()` 里的唯一调用是死调用，删掉调用后它就没有调用方了。
+
+### D16：资源相对路径抽成纯函数 `TourAssetPaths`，且一律用 `/`（2026-08-05）
+
+源实现把七处 `Path.Combine` 散在 `IteTourObject.LoadAssets` 的 switch 分支里。两个问题：
+
+1. **路径拼错只表现为「资源没出现」**，且必须上机才看得到——`ContentAssetLoader` 按约定对缺文件静默返回 null。
+2. `Path.Combine` 在 Windows 编辑器下拼出反斜杠，与 Android 真机不一致。属于「跨平台走出不同行为、且故障只在真机复现」，是 CLAUDE.md 里列明的重构触发条件。
+
+**选定**：抽成 `TourAssetPaths` 纯静态函数，一律用 `'/'`（Unity 全平台路径 API 都接受），7 个 EditMode 测试钉住形状。期望值取自源实现，不取自本包实现。
+
+固化下来的两处**不一致但有意保留**的形状：
+- EMW 音频在**资源目录**下，而 publish.json / glb 在**版本目录**下
+- 富文本位图在 `raster/` 子目录下，音频不在
+
+**一处偏离**：`LoadEmwModelAsset` 对 `json == null` 与 `json.audio == null` 加了判空。源实现在这两处会 NRE，导致整个 Tour 加载失败。`ContentAssetLoader` 的契约明确写着「缺文件静默返回 null」，源实现没有兑现这个契约的消费端；补齐属于「信任边界缺防止数据丢失的错误处理」。
 
 ## Risks / Open Questions
 

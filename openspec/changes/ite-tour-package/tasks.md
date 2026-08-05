@@ -37,12 +37,15 @@
 
 ## 5. 运行时核心
 
-> **执行顺序：第 6 节先于本节其余部分。** 真实依赖是 `Data(3) → Components(6) → TourObject(5.2) → Manager(5.4)`——`IteTourObject.CreateTourScene` 要调 `ComponentsUtils.GetComponent`（6.7）与 `BaseComponent.Constructor`（6.1）。编号是标识符，不代表执行次序；本节只有 5.1、5.4、5.8 不依赖第 6 节。
+> **执行顺序：`5.2 → 第 6 节 → 5.2c → 本节其余`。** 组件与 Tour 对象**互相引用**（`BaseComponent._iteTourObject` ↔ `IteTourObject.CreateTourScene`），同一程序集内合法，但任务必须按无环的次序落地：先 `IteTourObject` 外壳（5.2，不含 `CreateTourScene`），再组件层（第 6 节），最后回填 `CreateTourScene`（5.2c）。
+>
+> 这个环**不拆**：拆它要为 `.transform` / `OnTourSceneLoaded` / `GetAsset` 三件事造一个单实现接口，属于「为单一实现造接口」，按 CLAUDE.md 的判据应当拒绝。编号是标识符，不代表执行次序。
 
 - [x] 5.1 迁移 `Entity`（Root 子对象 + `OnPreEnable` / `OnPreDisable`）
-- [ ] 5.2 迁移 `IteTourObject`：`CreateTourObject`、`LoadAssets`、`CreateTourScene`、`DestroyTourScene`、`Enable`/`Disable`、二次锚定许可、`GetAsset`
+- [x] 5.2 迁移 `IteTourObject` **外壳**：`CreateTourObject`、`LoadAssets`、`DestroyTourScene`、`Enable`/`Disable`、二次锚定许可、`GetAsset`。资源相对路径抽成纯函数 `TourAssetPaths` 以便离机测
+- [ ] 5.2c 回填 `IteTourObject.CreateTourScene`：三组件组的加载次序（element → trigger → action）、`ComponentsUtils.GetComponent`、`BaseComponent.Constructor`。**依赖第 6 节**
 - [ ] 5.2b 管线的**实例化半段**（从 4.5 移来）：逐 Tour 实例化 prefab、`CreateTourObject`、维护 liveTours、按 Tour 数推进进度、触发 `OnInitialized`
-- [ ] 5.3 `IteTourObject` 的锚点与偏移 Transform 改为由装配注入，移除 `FindGameObjectWithTag`
+- [x] 5.3 `IteTourObject` 的锚点与偏移 Transform 改为由装配注入（`BindAnchors`），移除 `FindGameObjectWithTag`
 - [x] 5.4a 实现 `TourScanPolicy` **纯决策函数**（design D14）：输入当前状态 + Tour 描述表 + 标记 ID，输出 `Ignore | Activate | Reanchor` 及是否消费 `mustScan`、是否标记二次锚定。覆盖强制扫码、normal 切换、regionalTrigger 二次锚定、待扫描集合过滤
 - [x] 5.4b 实现区域进出决策：待扫描集合增删 + 进出后的激活重选（`MatchAndChangeTour` 的判定部分），同样是纯函数
 - [ ] 5.4c 薄效果层：把决策落到 `IteTourObject` 上（`Enable`/`Disable`/`ChangeTourObjectTransform`/`SecondAnchored`），并从单一入口 `SubmitMarkerScan` 驱动。**不保留**源实现的三订阅者结构与 `_canAnchor` 依赖 `await` 时机的写法
