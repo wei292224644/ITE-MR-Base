@@ -258,6 +258,9 @@ Mask = ~ComponentType.Camera & ~ComponentType.Light   // 这是 GLTFast.Componen
 - `SpinActionUnityComponent.Oestroy()` 拼写错误，`OnDestroy` 从未被调用 → 事件与 `OnPreDisable` 未反注册
 - `MatchAndChangeTourCoroutine` 用 `OrderBy(t => Guid.NewGuid())` 在多个候选 regionalTrigger 中随机选一个
 - 硬编码域名 `https://api.uality.cn/ITE/Tour/LatestVersion`（本次配置化，但端点契约仍是外部约定）
+- `EMWModelRenderElement` 存下 `_onTap` 却**从不触发**（模型上没有 Button，也没有射线命中回调）→ EMW 模型上挂 `TapTrigger` 不生效
+- `PrimitiveModelRenderUnityComponent` 继承 `BaseComponent` 而非 `BaseElementComponent` → 几何体上挂 `TapTrigger` 会报错退出
+- 几何体挂在**组件自身的 transform** 下而不是 `Entity.Root` 下 → `Entity.SetActive(false)` 隐不掉它，`ToggleVisibilityAction` 对几何体无效
 
 ### D13：ITE 消费原始 Marker 事件流，不接 `MarkerAnchorService`
 
@@ -409,6 +412,14 @@ IteTourObject.prefab
 **否决改 `Constructor` 签名**：把 prefab 目录作为参数传下去更显式，但会让 11 个组件都背上一个只有 3 个用得着的参数。
 
 **顺带说明为什么不把元素折叠成独立 prefab**：看似能一步到位（prefab 自带引用），但触发器与动作组件靠**与元素组件同挂一个 GameObject** 来工作（`BaseActionComponent.GetComponent<T>()`、`EventEmitter` 的实体级路由）。折叠会破坏这个共址契约。当前的两层结构是被共址设计逼出来的，不是随手写的。
+
+### D21：视频的 `RenderTexture` 在停用时释放（2026-08-05）
+
+`VideoPlaneElement.Constructor` 每次都 `new RenderTexture(width, height, 0)`；`OnDisable` 只把 `targetTexture` 置空并销毁 `VideoPlayer`，**从不释放这张贴图**。
+
+1080p 一张约 8MB 显存。Tour 每激活一次泄一张，头显上的显存预算撑不住几轮切换。这是「缺防止资源泄漏的清理」，属 CLAUDE.md 列明的重构触发条件。
+
+**选定**：`OnDisable` 里 `Release()` + `Destroy()`，字段置空。
 
 ## Risks / Open Questions
 

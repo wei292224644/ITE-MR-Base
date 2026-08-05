@@ -57,9 +57,9 @@
 ## 6. 组件层
 
 - [x] 6.1 迁移 `BaseComponent` / `BaseElementComponent` / `BaseTriggerComponent` / `BaseActionComponent<T>`。动作派发抽成静态 `BaseTriggerComponent.Dispatch` 以便离机测（design D17）
-- [ ] 6.2 迁移 4 个 Element 的 **MonoBehaviour 部分**（数据类已在 3.1b 落地）：`EMWModelRender`(+Element)、`RichText`(+Element)、`VideoPlane`(+Element)、`PrimitiveModelRender`
-- [ ] 6.3 `EMWModelRenderElement` 中 gltfast 类型写全限定名 `GLTFast.ComponentType.Camera` / `.Light`，消除与 `ITETourComponent.ComponentType` 的 CS0104 二义性（design D9）
-- [ ] 6.4 `RichTextElement` / `VideoPlaneElement` 改用包内自实现的圆角 UI 组件（任务 2.3）
+- [x] 6.2 迁移 4 个 Element 的 **MonoBehaviour 部分**（数据类已在 3.1b 落地）：`EMWModelRender`(+Element)、`RichText`(+Element)、`VideoPlane`(+Element)、`PrimitiveModelRender`
+- [x] 6.3 `EMWModelRenderElement` 中 gltfast 类型写全限定名 `GLTFast.ComponentType.Camera` / `.Light`，消除与 `ITETourComponent.ComponentType` 的 CS0104 二义性（design D9）
+- [x] 6.4 `RichTextElement` / `VideoPlaneElement` 改用包内自实现的圆角 UI 组件（任务 2.3）
 - [ ] 6.5 迁移 3 个 Trigger 的 **MonoBehaviour 部分**（数据类已在 3.1b 落地）：`LoadTrigger`、`TapTrigger`、`ApproximateTrigger`。`VolumeTrigger` / `CustomGestureTrigger` 原为注释状态，不实现
 - [ ] 6.6 迁移 4 个 Action 的 **MonoBehaviour 部分**（数据类与参数类已在 3.1b 落地）：`PlayAnimationAction`、`PlayAudioAction`、`SpinAction`、`ToggleVisibilityAction`
 - [ ] 6.7 迁移 `ComponentsUtils`（注册表机制 + 类型表，从 2.1 移来），确认 11 个组件类型键与源工程一致
