@@ -2,6 +2,7 @@ using System;
 using System.Collections.Generic;
 using System.Threading.Tasks;
 using UnityEngine;
+using Uality.IteTour.Components;
 using Uality.IteTour.Data;
 using Uality.IteTour.Data.Assets;
 using Uality.IteTour.Internal;
@@ -23,10 +24,10 @@ namespace Uality.IteTour.Core
         [SerializeField] private GameObject _volumeObject;
         [SerializeField] private GameObject _mainGroupObject;
 
-        [SerializeField] private Components.IteTourElementPrefabs _elementPrefabs;
+        [SerializeField] private IteTourElementPrefabs _elementPrefabs;
 
         /// <summary>元素组件要实例化的预制体。运行时挂上去的组件拿不到序列化引用，从这里要（D20）。</summary>
-        public Components.IteTourElementPrefabs ElementPrefabs => _elementPrefabs;
+        public IteTourElementPrefabs ElementPrefabs => _elementPrefabs;
 
         private Transform _anchorObject;
         private Transform _tourOffsetObject;
@@ -231,8 +232,79 @@ namespace Uality.IteTour.Core
                 TourAssetPaths.RichTextImage(_tourId, richText.Id));
         }
 
-        // TODO(5.2c) 组件实例化：依赖第 6 节的 ComponentsUtils 与 BaseComponent
-        private Task CreateTourScene() => Task.CompletedTask;
+        /// <summary>
+        /// 构建 Tour 的第一个场景：逐实体建 GameObject，按 <see cref="ComponentLoadOrder"/>
+        /// 挂组件并依次 await 各自的 <c>Constructor</c>。
+        /// </summary>
+        private async Task CreateTourScene()
+        {
+            if (_isDestroyed || !TryGetFirstScene(out var scene))
+            {
+                return;
+            }
+
+            foreach (var entityData in scene.Entities.Values)
+            {
+                if (_isDestroyed)
+                {
+                    return;
+                }
+
+                await CreateEntity(entityData);
+            }
+        }
+
+        private bool TryGetFirstScene(out Scene scene)
+        {
+            scene = null;
+
+            if (_tour?.ScenesOrder == null || _tour.ScenesOrder.Length == 0)
+            {
+                Debug.LogError("[ITE] Tour 里没有任何场景: " + _tourId);
+                return false;
+            }
+
+            var firstSceneId = _tour.ScenesOrder[0];
+            if (_tour.Scenes == null || !_tour.Scenes.TryGetValue(firstSceneId, out scene))
+            {
+                Debug.LogError($"[ITE] 找不到场景 {firstSceneId}（tour {_tourId}）");
+                return false;
+            }
+
+            return true;
+        }
+
+        private async Task CreateEntity(Data.Entity entityData)
+        {
+            var go = new GameObject(entityData.Id, typeof(EventEmitter), typeof(Entity));
+            go.transform.SetParent(_mainGroupObject.transform, false);
+
+            go.transform.SetLocalPositionAndRotation(
+                entityData.Matrix4X4.GetPosition(), entityData.Matrix4X4.rotation);
+            go.transform.localScale = entityData.Matrix4X4.lossyScale;
+
+            foreach (var componentData in ComponentLoadOrder.Sort(entityData.Components))
+            {
+                var componentType = ComponentRegistry.Resolve(componentData.ComponentType);
+                if (componentType == null)
+                {
+                    continue;
+                }
+
+                // 逐个 await：触发器与动作要在自己的 Constructor 里 GetComponent 拿元素，
+                // 元素必须已经构建完
+                if (go.AddComponent(componentType) is BaseComponent component)
+                {
+                    await component.Constructor(componentData);
+                }
+            }
+
+            // alwaysDisplayed 的 Tour 忽略实体自身的初始显隐，全部显示
+            if (_displayType != IteSpaceScene.Tour.DisplayType.alwaysDisplayed)
+            {
+                go.GetComponent<Entity>().SetActive(entityData.enable);
+            }
+        }
 
         private void DestroyTourScene()
         {

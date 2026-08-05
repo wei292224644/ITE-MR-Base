@@ -437,6 +437,19 @@ IteTourObject.prefab
 
 行为与源实现逐点一致，一处未改。
 
+### D23：组件注册表与实例化次序改为编译期常量表（2026-08-05）
+
+源实现的 `ComponentsUtils` 是个 `StaticInstance<T>` 单例 MonoBehaviour，靠 `executionOrder: 500` 保证在有人用它之前 `Awake` 完成建表——**一张内容完全固定的表，却被绑在场景对象的生命周期与执行顺序上**。包里不能留这个形状：它要求宿主场景里必须有这么个物体，且执行顺序配错就静默失效。
+
+**选定**：`ComponentRegistry`（静态字典）+ `ComponentLoadOrder`（静态次序表），无实例、无生命周期。
+
+实例化次序单独抽出来是因为**它是正确性条件而非美观问题**：`TapTrigger.Constructor` 要 `GetComponent<BaseElementComponent>()`，动作组件要 `GetComponent<T>()` 拿元素——元素必须先在，否则触发器直接报错退出。源实现把这个次序写成 `CreateTourScene` 里的三层嵌套循环，与 GameObject 创建、`AddComponent`、`await` 混在一起，无法单独验证。
+
+两个**防漏**测试值得单列，它们挡的是同一类最难查的故障——「组件静默不出现，没有任何报错」：
+
+- 每个 `ComponentType` 常量都必须能在注册表里解析出类型（加了常量忘了登记）
+- 每个 `ComponentType` 常量都必须出现在次序表里（登记了却排不上队）
+
 ## Risks / Open Questions
 
 | 项 | 风险 | 缓解 |

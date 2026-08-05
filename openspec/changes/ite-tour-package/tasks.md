@@ -43,7 +43,7 @@
 
 - [x] 5.1 迁移 `Entity`（Root 子对象 + `OnPreEnable` / `OnPreDisable`）
 - [x] 5.2 迁移 `IteTourObject` **外壳**：`CreateTourObject`、`LoadAssets`、`DestroyTourScene`、`Enable`/`Disable`、二次锚定许可、`GetAsset`。资源相对路径抽成纯函数 `TourAssetPaths` 以便离机测
-- [ ] 5.2c 回填 `IteTourObject.CreateTourScene`：三组件组的加载次序（element → trigger → action）、`ComponentsUtils.GetComponent`、`BaseComponent.Constructor`。**依赖第 6 节**
+- [x] 5.2c 回填 `IteTourObject.CreateTourScene`：三组件组的加载次序（element → trigger → action）、`ComponentsUtils.GetComponent`、`BaseComponent.Constructor`。**依赖第 6 节**
 - [ ] 5.2b 管线的**实例化半段**（从 4.5 移来）：逐 Tour 实例化 prefab、`CreateTourObject`、维护 liveTours、按 Tour 数推进进度、触发 `OnInitialized`
 - [x] 5.3 `IteTourObject` 的锚点与偏移 Transform 改为由装配注入（`BindAnchors`），移除 `FindGameObjectWithTag`
 - [x] 5.4a 实现 `TourScanPolicy` **纯决策函数**（design D14）：输入当前状态 + Tour 描述表 + 标记 ID，输出 `Ignore | Activate | Reanchor` 及是否消费 `mustScan`、是否标记二次锚定。覆盖强制扫码、normal 切换、regionalTrigger 二次锚定、待扫描集合过滤
@@ -62,7 +62,7 @@
 - [x] 6.4 `RichTextElement` / `VideoPlaneElement` 改用包内自实现的圆角 UI 组件（任务 2.3）
 - [x] 6.5 迁移 3 个 Trigger 的 **MonoBehaviour 部分**（数据类已在 3.1b 落地）：`LoadTrigger`、`TapTrigger`、`ApproximateTrigger`。`VolumeTrigger` / `CustomGestureTrigger` 原为注释状态，不实现
 - [x] 6.6 迁移 4 个 Action 的 **MonoBehaviour 部分**（数据类与参数类已在 3.1b 落地）：`PlayAnimationAction`、`PlayAudioAction`、`SpinAction`、`ToggleVisibilityAction`
-- [ ] 6.7 迁移 `ComponentsUtils`（注册表机制 + 类型表，从 2.1 移来），确认 11 个组件类型键与源工程一致
+- [x] 6.7 迁移 `ComponentsUtils`（注册表机制 + 类型表，从 2.1 移来），确认 11 个组件类型键与源工程一致
 - [x] 6.8 `SpinActionUnityComponent.Oestroy()` 拼写错误：**原样保留**，记入 TODO（design D12）
 
 ## 7. 对外 API 面
