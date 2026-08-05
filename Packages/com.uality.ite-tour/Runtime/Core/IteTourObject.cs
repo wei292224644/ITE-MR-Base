@@ -23,6 +23,11 @@ namespace Uality.IteTour.Core
         [SerializeField] private GameObject _volumeObject;
         [SerializeField] private GameObject _mainGroupObject;
 
+        [SerializeField] private Components.IteTourElementPrefabs _elementPrefabs;
+
+        /// <summary>元素组件要实例化的预制体。运行时挂上去的组件拿不到序列化引用，从这里要（D20）。</summary>
+        public Components.IteTourElementPrefabs ElementPrefabs => _elementPrefabs;
+
         private Transform _anchorObject;
         private Transform _tourOffsetObject;
 

@@ -380,6 +380,36 @@ tour.SecondAnchored()          →  _canAnchor = false            ← 先执行
 
 顺带修掉 `PrimitiveType` 为 null 时 `ToLower()` 的 NRE。
 
+### D20：元素 prefab 由 `IteTourObject` 预制体持有，不进 Resources、不进 `IteRuntimeConfig`（2026-08-05）
+
+源实现用 `MainConstants.Instance.IteTourElementRichTextPrefab` —— 宿主单例。包里不能留这个形状。
+
+问题的根子在于：元素组件是 `CreateTourScene` 用 `AddComponent(componentType)` **运行时挂上去**的，运行时添加的组件拿不到序列化引用。所以 prefab 只能来自某个**被作者化过的祖先**。
+
+包里唯一被作者化的祖先就是 `IteTourObject` 预制体（D11 已定 prefab 随包走）。于是：
+
+```
+IteTourObject.prefab
+  └─ [SerializeField] IteTourElementPrefabs _elementPrefabs   ← 作者时连线，随包发布
+       ├─ EmwModelRender
+       ├─ RichText
+       └─ VideoPlane
+                ↑
+     组件通过已持有的 _iteTourObject 读取
+```
+
+**否决 `Resources.Load`**：Unity 官方最佳实践明确反对 —— Resources 目录整体进包、启动时统一反序列化、无法按需卸载；更要命的是**包往宿主的 Resources 命名空间里塞路径**，多个包之间会撞名。路径还是字符串，没有编译期检查。
+
+**否决 Addressables**：这是 Unity 当前对运行时资源加载的官方答案，但它要求宿主建 Addressable 组、加一条 `com.unity.addressables` 依赖，与验收项 12.6「拷进空工程、只带 3 条依赖、能编译」直接冲突。三个 prefab 不值这个代价。
+
+**否决放进 `IteRuntimeConfig`**：那是**宿主面向**的配置（URL、场景名）。元素 prefab 是包的内部实现，放进去等于邀请宿主去改它。
+
+**否决独立 ScriptableObject 目录**：会多出一份要发布、要连线、要保持同步的资产，而这些 prefab 与 Tour 对象一一对应、不跨所有者共享、也不需要按宿主换皮。多一个资产就多一处能连断的地方。用嵌套的 `[Serializable]` 类，预制体之间的引用在导入期解析，运行时零加载。
+
+**否决改 `Constructor` 签名**：把 prefab 目录作为参数传下去更显式，但会让 11 个组件都背上一个只有 3 个用得着的参数。
+
+**顺带说明为什么不把元素折叠成独立 prefab**：看似能一步到位（prefab 自带引用），但触发器与动作组件靠**与元素组件同挂一个 GameObject** 来工作（`BaseActionComponent.GetComponent<T>()`、`EventEmitter` 的实体级路由）。折叠会破坏这个共址契约。当前的两层结构是被共址设计逼出来的，不是随手写的。
+
 ## Risks / Open Questions
 
 | 项 | 风险 | 缓解 |
