@@ -1,4 +1,5 @@
 using System;
+using System.Collections.Generic;
 using Newtonsoft.Json;
 using NUnit.Framework;
 using Uality.IteTour.Components;
@@ -73,19 +74,37 @@ namespace Uality.IteTour.Tests
         }
 
         /// <summary>
-        /// 表征一颗**前向兼容地雷**：未知组件类型不是被跳过，而是直接抛异常，
-        /// 于是整个 Tour 加载失败。服务端新增任何组件类型，已发布的客户端
-        /// 就整体加载不出内容。
+        /// 未知组件类型**跳过**，不抛异常（design D24）。
         ///
-        /// 这是迁移前既有的行为，按"行为等价优先"原样保留。写成断言是为了
-        /// 它可见 —— 将来决定加那句 null 判断时，这个测试会变红，
-        /// 提醒改动者这是一次有意的行为变更。
+        /// 源实现在这里返回 null 后 <c>Populate(reader, null)</c> 抛
+        /// <c>ArgumentNullException</c>，整个 Tour 加载失败——服务端上线任何新组件
+        /// 类型，已发布的客户端就整体加载不出内容。版本化线格式的标准做法是跳过未知项。
         /// </summary>
         [Test]
-        public void ComponentConverter_UnknownTypeThrows_KnownForwardCompatibilityLandmine()
+        public void ComponentConverter_UnknownTypeIsSkipped()
         {
-            Assert.Throws<ArgumentNullException>(() =>
-                Deserialize<Component>("{\"ComponentType\":\"SomethingNew\"}", new ComponentConverter()));
+            var component = Deserialize<Component>(
+                "{\"ComponentType\":\"SomethingNew\"}", new ComponentConverter());
+
+            Assert.That(component, Is.Null);
+        }
+
+        /// <summary>
+        /// 关键在于**其余组件照常解析**——未知项只损失它自己，不牵连同一实体上的别人。
+        /// </summary>
+        [Test]
+        public void ComponentConverter_UnknownTypeDoesNotAffectTheRestOfTheList()
+        {
+            var json = "[{\"ComponentType\":\"SomethingNew\"}," +
+                       "{\"ComponentType\":\"RichText\",\"Asset\":\"a1\"}]";
+
+            var components = JsonConvert.DeserializeObject<List<Component>>(
+                json, new JsonSerializerSettings { Converters = { new ComponentConverter() } });
+
+            Assert.That(components.Count, Is.EqualTo(2));
+            Assert.That(components[0], Is.Null);
+            Assert.That(components[1], Is.TypeOf<RichText>());
+            Assert.That(((RichText)components[1]).Asset, Is.EqualTo("a1"));
         }
 
         // ---- ComponentActionConverter ----

@@ -126,5 +126,34 @@ namespace Uality.IteTour.Tests
             Assert.DoesNotThrowAsync(async () =>
                 await pipeline.LoadSceneSpritesAsync(new IteSpaceScene { id = "x", tours = null }));
         }
+
+        // ---- 版本比对（design D25）----
+
+        /// <summary>
+        /// 版本查询失败时**退回本地缓存**：不下载，也不抛异常。
+        ///
+        /// 源实现在这里直接读 <c>serverVersion.data.version</c>，查询一失败就 NRE 冒泡，
+        /// 整个场景加载失败——**即便本地已有完整可用的缓存**。网络抖动不该让导览打不开。
+        /// </summary>
+        [TestCase(null)]
+        [TestCase("")]
+        public void ShouldDownloadTourPackage_FallsBackToCacheWhenServerVersionIsUnknown(string serverVersion)
+        {
+            Assert.That(IteContentPipeline.ShouldDownloadTourPackage("v3", serverVersion), Is.False);
+        }
+
+        [Test]
+        public void ShouldDownloadTourPackage_SkipsWhenCachedVersionMatches()
+        {
+            Assert.That(IteContentPipeline.ShouldDownloadTourPackage("v3", "v3"), Is.False);
+        }
+
+        [TestCase(null)]
+        [TestCase("")]
+        [TestCase("v2")]
+        public void ShouldDownloadTourPackage_DownloadsWhenCacheIsMissingOrStale(string cachedVersion)
+        {
+            Assert.That(IteContentPipeline.ShouldDownloadTourPackage(cachedVersion, "v3"), Is.True);
+        }
     }
 }

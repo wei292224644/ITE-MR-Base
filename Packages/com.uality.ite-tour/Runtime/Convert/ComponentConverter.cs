@@ -16,10 +16,6 @@ namespace Uality.IteTour.Serialization
 
             string type = obj["ComponentType"]?.ToString();
 
-            // 注意：未知类型这里得到 null，随后 Populate(reader, null) 会抛异常，
-            // 于是整个 Tour 加载失败。这是迁移前既有的行为，按"行为等价优先"原样保留。
-            // 但它是一颗前向兼容的地雷：服务端新增任何组件类型都会让已发布的客户端
-            // 整体加载不出内容。已记入 TODO，修法是加一句 null 判断。
             Component result = type switch
             {
                 ComponentType.EMWModelRender => new EMWModelRender(),
@@ -38,6 +34,14 @@ namespace Uality.IteTour.Serialization
 
                 _ => null
             };
+
+            // 未知类型跳过（design D24）。源实现此处直接 Populate(reader, null) 抛
+            // ArgumentNullException，整个 Tour 加载失败——服务端上线任何新组件类型，
+            // 已发布的客户端就整体加载不出内容。版本化线格式的标准做法是跳过未知项。
+            if (result == null)
+            {
+                return null;
+            }
 
             serializer.Populate(obj.CreateReader(), result);
             return result;

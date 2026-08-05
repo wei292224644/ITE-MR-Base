@@ -168,15 +168,30 @@ namespace Uality.IteTour.Core
             }
         }
 
+        /// <summary>
+        /// 要不要重新下载 Tour 内容包。纯决策（design D25）。
+        ///
+        /// 服务端版本查不到时**退回本地缓存**：源实现在这里直接解引用查询结果，
+        /// 一失败就 NRE 冒泡、整个场景加载失败——即便本地已有完整可用的缓存。
+        /// </summary>
+        public static bool ShouldDownloadTourPackage(string cachedVersion, string serverVersion)
+        {
+            if (string.IsNullOrEmpty(serverVersion))
+            {
+                return false;
+            }
+
+            return cachedVersion != serverVersion;
+        }
+
         private async Task UpdateTourPackageIfStaleAsync(string tourId)
         {
-            var serverVersion = await ContentAssetLoader.FetchJsonAsync<LatestVersionJsonResult>(
+            var latest = await ContentAssetLoader.FetchJsonAsync<LatestVersionJsonResult>(
                 _config.BuildTourLatestVersionUrl(tourId));
 
-            // 注意：版本查询失败时 serverVersion 为 null，下一行会抛 NullReferenceException，
-            // 于是整个场景加载失败——即便本地已有可用缓存。这是迁移前既有的行为，
-            // 按 D12 原样保留。修法是加一句判空后退回本地缓存。已记入 TODO。
-            if (TourVersionCache.Get(tourId) == serverVersion.data.version)
+            var serverVersion = latest?.data?.version;
+
+            if (!ShouldDownloadTourPackage(TourVersionCache.Get(tourId), serverVersion))
             {
                 return;
             }
@@ -184,7 +199,7 @@ namespace Uality.IteTour.Core
             await ZipContentDownloader.DownloadAndExtractAsync(_config.BuildTourPackageUrl(tourId));
 
             // 只在下载解压成功之后才写版本，保持源实现的顺序
-            TourVersionCache.Set(tourId, serverVersion.data.version);
+            TourVersionCache.Set(tourId, serverVersion);
         }
     }
 }

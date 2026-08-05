@@ -254,6 +254,8 @@ Mask = ~ComponentType.Camera & ~ComponentType.Light   // 这是 GLTFast.Componen
 
 已发现待记录项：
 
+- ~~`ComponentConverter` 未知类型抛异常~~ → 已按 D24 修正
+- ~~版本查询失败 NRE~~ → 已按 D25 修正
 - 空间场景 zip **无版本校验**，只要联网每次冷启动都重新下载解压（tour zip 有校验，两者不一致）
 - `SpinActionUnityComponent.Oestroy()` 拼写错误，`OnDestroy` 从未被调用 → 事件与 `OnPreDisable` 未反注册
 - `MatchAndChangeTourCoroutine` 用 `OrderBy(t => Guid.NewGuid())` 在多个候选 regionalTrigger 中随机选一个
@@ -449,6 +451,22 @@ IteTourObject.prefab
 
 - 每个 `ComponentType` 常量都必须能在注册表里解析出类型（加了常量忘了登记）
 - 每个 `ComponentType` 常量都必须出现在次序表里（登记了却排不上队）
+
+### D24：未知组件类型跳过，不再打死整个 Tour（2026-08-05，复议旧裁定）
+
+`ComponentConverter` 遇到未知 `ComponentType` 时返回 null，随后 `Populate(reader, null)` 抛 `ArgumentNullException`，向上冒泡使**整个 Tour 加载失败**。
+
+这条曾按旧 D12「行为等价优先」裁定为保留。在「以架构最优为判据」下复议后**修正**：这不是偶发 bug，是**边界契约缺陷**——客户端无法容忍服务端的增量式 schema 变更，服务端上线任何新组件类型，所有已发布客户端即刻整体加载不出内容。版本化线格式的标准做法是跳过未知项。
+
+**选定**：`result == null` 时直接返回 null。未知项只损失它自己，同一实体上的其余组件照常解析（`ComponentLoadOrder` 已对 null 元素判空）。
+
+### D25：版本查询失败退回本地缓存（2026-08-05，复议旧裁定）
+
+`UpdateTourPackageIfStaleAsync` 直接解引用查询结果的 `data.version`，查询一失败就 NRE 冒泡，**整个场景加载失败——即便本地已有完整可用的缓存**。
+
+同样在新判据下复议后修正：网络抖动不该让导览打不开，这是「信任边界缺防止数据丢失的错误处理」。
+
+**选定**：抽出纯决策 `ShouldDownloadTourPackage(cachedVersion, serverVersion)`——服务端版本未知时返回 false（用缓存），相同时返回 false，其余返回 true。6 个测试钉住三种输入。
 
 ## Risks / Open Questions
 
