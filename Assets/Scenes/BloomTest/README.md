@@ -47,9 +47,9 @@ bloom 由出货管线提供，本场景不带私有管线资源：
 
 | 资源 | 关键值 |
 |---|---|
-| `Standalone Performant Preset` / `Standalone Balanced Preset` | `m_SupportsHDR: 1`、`m_HDRColorBufferPrecision: 1`（64bit R16G16B16A16）、`m_AllowPostProcessAlphaOutput: 1` |
+| `Standalone Performant Preset` / `Standalone Balanced Preset` | `m_SupportsHDR: 1`、`m_HDRColorBufferPrecision: 1`（64bit R16G16B16A16）、`m_AllowPostProcessAlphaOutput: 1`、`m_MSAA: 1`（关，见下方抗锯齿对照） |
 | `Performant / Balanced URP Renderer Config` | `postProcessData` 指向 URP 内置 |
-| MRCore 的 Main Camera | `renderPostProcessing: true`、`clearFlags: SolidColor`、背景 alpha 0 |
+| MRCore 的 Main Camera | `renderPostProcessing: true`、`antialiasing: FXAA`、`clearFlags: SolidColor`、背景 alpha 0 |
 | `Assets/Settings/MR Bloom Profile.asset` | threshold 1.0、Fast Mode、maxIterations 4 |
 
 **色彩缓冲精度必须是 64bit。** 32bit 是 R11G11B10，没有 alpha 通道，而背景
@@ -61,17 +61,31 @@ alpha = 0 正是虚拟内容与 passthrough 合成的前提。
 或 `EmissiveIsBlack`，Unity 保存时 `MaterialEditor.FixupEmissiveFlag` 会剥掉
 `_EMISSION` 关键字，自发光**静默失效** —— 材质面板看着是对的，就是不亮。
 
-## 开销（Quest 3 实测，VrApi 帧统计）
+## 开销与抗锯齿（Quest 3 实测，VrApi 帧统计，BloomTest 场景）
 
-| 场景 | App 时间 | GPU |
-|---|---|---|
-| GroundUpRevealDemo（无 bloom 触发） | 1.4 ~ 1.8 ms | 29 ~ 32% |
-| BloomTest（bloom 生效） | 7.9 ms | 74% |
+同一构建，只改抗锯齿配置：
 
-几何开销可忽略（6 个球 + 6 个 TextMesh），约 6.4ms 的增量基本就是 bloom：
-HDR 64bit 色彩缓冲 + 后处理强制中间纹理 + MSAA 4x 每帧 resolve 出 tile。
-72Hz 的单帧预算是 13.9ms，这一项就吃掉大半。
+| 配置 | App 时间 | GPU | CPU&GPU |
+|---|---|---|---|
+| MSAA 4 | 7.47 ~ 7.54 ms | 77 ~ 78% | 14.7 ~ 15.3 ms |
+| MSAA 2 | 4.86 ~ 4.99 ms | 58 ~ 59% | 8.7 ~ 9.5 ms |
+| **MSAA 关 + FXAA**（当前配置） | **4.14 ~ 4.21 ms** | **53%** | 7.9 ~ 10.3 ms |
 
-**MSAA 4 → 2 的对照还没做。** 开销大头是 tile resolve 的带宽而非模糊本身，4x 会把
-这笔放大一倍，这是目前最有把握的一笔回收。改 `Standalone Performant Preset` 的
-`m_MSAA` 后重测上面两个数字即可。
+三档都稳定 72fps。72Hz 的单帧预算是 13.9ms —— MSAA 4 时 `CPU&GPU` 已经超预算，
+靠合成器兜着。
+
+参照：GroundUpRevealDemo（无 bloom 触发）是 1.4 ~ 1.8ms / GPU 29 ~ 32%。本场景几何
+可忽略（6 个球 + 6 个 TextMesh），差额基本都是 bloom 这条链的钱。
+
+**为什么关 MSAA 反而能配后处理 AA：** bloom 已经强制了中间纹理和 UberPost pass，
+FXAA 搭在同一个 pass 里跑，边际成本很小；而 MSAA 是另一笔独立开销 —— 每帧把多采样
+颜色缓冲 resolve 出 tile 再写回，纯带宽。开销大头一直是这笔 resolve，不是模糊运算。
+所以在「已经付了后处理钱」的场景里，post-AA 优于 MSAA，与常规 VR 建议相反。
+
+没试 TAA：URP 的 TAA 在 XR 下支持不完整，且头动叠加 passthrough 重投影会拖影。
+SMAA 比 FXAA 贵不少，FXAA 已够用就没往下试。
+
+**换设备或改配置后要重看的两点**（编辑器测不出，只能真机）：
+1. 边缘质量 —— FXAA 按亮度找边混色，比 MSAA 糊，VR 分辨率下会被放大
+2. 轮廓有没有半透明描边或彩边 —— FXAA 在已 resolve 的颜色缓冲上混色，而这套依赖
+   alpha=0 做 passthrough 合成。处理不当会在真实世界上糊出一圈边，比锯齿更难看
