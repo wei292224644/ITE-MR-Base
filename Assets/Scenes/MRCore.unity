@@ -709,6 +709,10 @@ PrefabInstance:
     serializedVersion: 3
     m_TransformParent: {fileID: 73705418}
     m_Modifications:
+    - target: {fileID: 6324879572849659163, guid: ee444d5239d074213815468b8f67ce89, type: 3}
+      propertyPath: m_RenderPostProcessing
+      value: 1
+      objectReference: {fileID: 0}
     - target: {fileID: 7961741359537160032, guid: ee444d5239d074213815468b8f67ce89, type: 3}
       propertyPath: m_Name
       value: XR Origin

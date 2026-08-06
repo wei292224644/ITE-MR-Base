@@ -27,6 +27,7 @@ public static class BuildScript
     const string k_MRCoreScene = "Assets/Scenes/MRCore.unity";
     const string k_MarkerProbeScene = "Assets/Scenes/MarkerProbe.unity";
     const string k_PicoQrCameraProbeScene = "Assets/Scenes/PicoQrCameraProbe.unity";
+    const string k_BloomTestScene = "Assets/Scenes/BloomTest/BloomTest.unity";
 
     // 探针场景自身不带 XR 装配，靠 MRCoreLoader 在运行时附加加载 MRCore，
     // 所以 MRCore 必须一起进包 —— 否则 LoadScene("MRCore") 在真机上直接失败，
@@ -104,6 +105,32 @@ public static class BuildScript
             "Builds/Localization/PICO/PicoQrCameraProbe.apk",
             excludePluginRoot: k_MetaPackageRoot,
             sceneOverride: ProbeScenes(k_PicoQrCameraProbeScene),
+            buildOptions: BuildOptions.Development | BuildOptions.AllowDebugging);
+    }
+
+    [MenuItem("MRBase/Build/Bloom Test/Quest Development")]
+    public static void BuildBloomTestQuest()
+    {
+        Build(
+            k_QuestProfilePath,
+            "MRBASE_QUEST",
+            k_OpenXRLoader,
+            "Builds/BloomTest/Quest/BloomTest-Quest.apk",
+            excludePluginRoot: k_PicoPackageRoot,
+            sceneOverride: ProbeScenes(k_BloomTestScene),
+            buildOptions: BuildOptions.Development | BuildOptions.AllowDebugging);
+    }
+
+    [MenuItem("MRBase/Build/Bloom Test/PICO Development")]
+    public static void BuildBloomTestPico()
+    {
+        Build(
+            k_PicoProfilePath,
+            "MRBASE_PICO",
+            k_PicoLoader,
+            "Builds/BloomTest/PICO/BloomTest-PICO.apk",
+            excludePluginRoot: k_MetaPackageRoot,
+            sceneOverride: ProbeScenes(k_BloomTestScene),
             buildOptions: BuildOptions.Development | BuildOptions.AllowDebugging);
     }
 
