@@ -26,6 +26,14 @@ namespace Uality.IteTour.Core
 
         public IReadOnlyList<IteTourObject> LiveTours => _liveTours;
 
+        /// <summary>
+        /// Tour 实例已就位、内容尚未构建。订阅方在这一刻挂钩子。
+        ///
+        /// 时机必须在 <c>CreateTourObject</c> 之前：<c>alwaysDisplayed</c> 的 Tour 会在
+        /// 那里面就把内容建完并触发 <c>OnTourSceneLoaded</c>（design D29），事后再订就晚了。
+        /// </summary>
+        public Action<IteTourObject> TourCreated;
+
         /// <param name="tourObjectPrefab">包内的 Tour 预制体。</param>
         /// <param name="tourRoot">Tour 实例的父节点（原 tag <c>AnchorOffsetObject</c>）。</param>
         /// <param name="anchorRoot">锚定目标（原 tag <c>AnchorObject</c>）。</param>
@@ -60,6 +68,8 @@ namespace Uality.IteTour.Core
             }
 
             tourObject.BindScene(_anchorRoot, _tourRoot, _camera);
+            TourCreated?.Invoke(tourObject);
+
             await tourObject.CreateTourObject(tour, tourData);
 
             _liveTours.Add(tourObject);

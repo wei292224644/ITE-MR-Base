@@ -68,11 +68,13 @@
 ## 7. 对外 API 面
 
 - [x] 7.1 定义 `IteBootstrap`：`Config` / `AnchorRoot` / `TourRoot` / `Camera`（必需）+ `IsNetworkAvailable`（可选，默认 true）
-- [ ] 7.2 实现 `IteRuntime.Create` + `StartAsync`；必需项缺失时拒绝启动并记录具体缺失项，不抛空引用
+- [x] 7.2 实现 `IteRuntime.Create` + `StartAsync`；必需项缺失时拒绝启动并记录具体缺失项，不抛空引用
 - [x] 7.3 实现推入方法 ×2：`SubmitMarkerScan(string, Pose)`、`SetHeadsetMounted(bool)`
-- [ ] 7.4 实现广播事件：`OnLoadProgress` / `OnSpaceSceneLoaded` / `OnInitialized` / `OnTourActivated` / `OnTourDeactivated` / `OnTourSceneLoaded` / `OnScanPromptChanged`。**待决**：源工程另有 `OnLoadedIteSpaceSceneAssets`，因为 logo 与 Tour 预览图是 fire-and-forget 加载的、在 `OnSpaceSceneLoaded` 之后才就绪；而 spec 写的是该事件发出时「供宿主展示标题、图标与预览」。二者对不上。要么加第 8 个事件 `OnSpaceSceneAssetsLoaded`，要么让 `OnSpaceSceneLoaded` 等 sprite 加载完（改变既有时序）。在此处决定并同步 design 与 spec
-- [ ] 7.5 确认公开 API 面**不含任何 `interface`**，且无必需的行为委托
-- [ ] 7.6 无订阅者时全流程无空引用异常（事件均以 `?.Invoke` 触发）
+- [x] 7.4 实现广播事件 ×8：`OnLoadProgress` / `OnSpaceSceneLoaded` / `OnSpaceSceneAssetsLoaded` / `OnInitialized` / `OnTourActivated` / `OnTourDeactivated` / `OnTourSceneLoaded` / `OnScanPromptChanged`。已决（design D28）：加第 8 个事件 `OnSpaceSceneAssetsLoaded`，`OnSpaceSceneLoaded` 保持源工程时序——描述解析完立刻发、图未就绪；图与 Tour 装配并行加载，就位后另发。spec 已同步拆成两个 Scenario
+- [x] 7.5 确认公开 API 面**不含任何行为 `interface`**，且无必需的行为委托。唯一的 `interface` 是数据判别器 `Data.Component`（宿主只读不实现，抽象类替不掉——见 design D3 补注）
+- [x] 7.6 无订阅者时全流程无空引用异常（事件均以 `?.Invoke` 触发）
+- [x] 7.7 修复 `alwaysDisplayed` 的 Tour 内容永不构建（design D29）：装配时即 `await Enable()`
+- [x] 7.8 新增 `ActivateTour(tourId)` 显式激活入口（design D30）：无真机、无二维码时验证内容管线的唯一手段
 
 ## 8. Prefab 与资产
 

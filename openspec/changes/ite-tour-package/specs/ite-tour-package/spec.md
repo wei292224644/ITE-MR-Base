@@ -251,7 +251,13 @@ Tour 激活时 SHALL 按实体描述构建对象树，组件 MUST 按「元素 �
 
 #### Scenario: 场景元数据就绪
 - **WHEN** 空间场景描述解析完成
-- **THEN** 广播场景元数据，供宿主展示标题、图标与预览
+- **THEN** 广播场景元数据，供宿主展示标题与 Tour 列表
+- **THEN** 此时图片资源尚未就绪，对应 Sprite 字段为 null
+
+#### Scenario: 场景图片就绪
+- **WHEN** 场景 logo 与各 Tour 预览图加载完成
+- **THEN** 广播场景图片就绪事件，携带同一场景对象
+- **THEN** 图片加载与 Tour 装配并行，MUST NOT 阻塞后者
 
 #### Scenario: 初始化完成
 - **WHEN** 全部 Tour 实例化完成

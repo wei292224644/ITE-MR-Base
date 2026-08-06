@@ -92,6 +92,24 @@ namespace Uality.IteTour.Core
             _paused = true;
         }
 
+        /// <summary>
+        /// 不经传感器直接激活指定 Tour（design D30）。沿用现有位姿，不重新锚定。
+        /// 找不到返回 false。
+        /// </summary>
+        public bool ActivateById(string tourId)
+        {
+            var tour = _assembler.Find(tourId);
+            if (tour == null)
+            {
+                Debug.LogError("[ITE] 找不到 Tour：" + tourId);
+                return false;
+            }
+
+            _promptDirty = true;
+            Activate(tour, pose: null);
+            return true;
+        }
+
         public void SubmitMarkerScan(string markerId, Pose pose)
         {
             _promptDirty = true;

@@ -102,7 +102,8 @@ ite.SetHeadsetMounted(bool mounted);
 
 // 包广播 ×7
 event Action<float>          OnLoadProgress;
-event Action<IteSpaceScene>  OnSpaceSceneLoaded;      // 元数据就绪（含 logo / 预览图）
+event Action<IteSpaceScene>  OnSpaceSceneLoaded;      // 描述解析完，图未就绪（D28）
+event Action<IteSpaceScene>  OnSpaceSceneAssetsLoaded;// logo 与预览图就位（D28）
 event Action                 OnInitialized;           // 全部 tour 实例化完成
 event Action<string>         OnTourActivated;
 event Action<string>         OnTourDeactivated;
@@ -120,6 +121,8 @@ await ite.StartAsync();
 但方向二可以整体消灭：见 D4。消灭之后剩下的「外 → 包」只有两条**单向推送**（扫码结果、佩戴状态），单向推送不需要契约，一个 public 方法就够——连接口都不需要。
 
 **替代**：为每类能力定义 `IIteMarkerSource` / `IIteAssetIO` / `IIteSessionEvents` / `IIteNetworkSession`——否决，全部是伪需求（D4/D6）或过度形式化。
+
+**唯一的例外，且不违背本条**（2026-08-06 核验）：`Data.Component` 是个只有 `ComponentType` 的**数据判别器**，用于组件列表的多态反序列化。它由包内 11 个数据类实现，宿主只读不实现——不是行为契约。抽象类替不掉它：`PlayAnimationAction : PlayAnimation, Component` 这类已经继承了参数基类，C# 单继承下没有第二个位置。本条禁的是「让宿主实现行为」的接口，不是数据形状。
 
 ### D4：IO 边界下移到字节，内容管线整体归包
 
@@ -489,6 +492,30 @@ IteTourObject.prefab
 **扫码提示的重算时机**：源实现是每 0.75 秒轮询的协程，每次都无条件调 UI 的 `Show`/`Hide`。提示是状态的**纯函数**（`ScanPromptPolicy.Decide` 只读 `ScanState` 与各 Tour 的 `DisplayType`），状态没变就不可能变——所以改为各状态变更方法置 `_promptDirty`，帧末结算时才重算，且**只在结果变化时**广播。既去掉了 0.75 秒这个魔数，也避免了每帧重复分配候选列表。
 
 **`OnScanPromptChanged` 的签名**：D3 写的是 `Action<ScanPromptState, string[]>`，实际改为 `Action<ScanPrompt>`——`ScanPrompt` 结构体携带的正是这两项，单参数、字段有名字、日后加字段不破坏订阅方签名。
+
+### D28：场景图片单独广播，事件数 7 → 8（2026-08-06）
+
+源工程里场景 logo 与各 Tour 预览图是 **fire-and-forget** 加载的（`_ = FetchIteSpaceSceneAssets(scene)`，不 await），与 Tour 内容包的下载解压并行，完成后另发一个 `OnLoadedIteSpaceSceneAssets`。而 spec 原先写的是 `OnSpaceSceneLoaded` 发出时「供宿主展示标题、图标与预览」——订阅方此刻读 `SpriteLogo` 拿到的是 null。二者对不上。
+
+**否决「让 `OnSpaceSceneLoaded` 等图加载完」**：加载界面的标题与 Tour 列表会被排在 N 张图的下载之后，且把源工程并行的两件事串行化了。为了少一个事件，牺牲首屏时间。
+
+**选定**：加第 8 个事件 `OnSpaceSceneAssetsLoaded`。理由是**事件携带的必须是当下真实就绪的东西**——图确实晚到，用一个 await 把它藏起来是假装它没晚。宿主要简单处理，只订第二个事件即可；要首屏快，就两个都订。
+
+### D29：`alwaysDisplayed` 的 Tour 在装配时就构建内容（2026-08-06，修既有缺陷）
+
+源工程 `CreateTourObject` 对 `alwaysDisplayed` 不调 `Disable()`，但**也没有任何地方对它调 `Enable()`**——`IteSpaceManagerScan` 里那个 `Enable()` 只在扫码路径上。内容树由 `Enable()` 构建，所以「一直显示」的 Tour 在源工程里**内容永远是空的**。要么这个类型的数据从没上过线，要么这是个没人发现的死分支。
+
+这不属于 D12 的「行为等价照搬」范围：`alwaysDisplayed` 的字面语义就是不需要触发条件，当前实现与该语义直接矛盾，且矛盾**不报错**。
+
+**选定**：`CreateTourObject` 末尾，`alwaysDisplayed` 走 `await Enable()`，其余两型仍 `Disable()`。不碰 `normal` / `regionalTrigger` 的任何时序。
+
+**副作用**：线上若存在内容很重的 `alwaysDisplayed` Tour，冷启动会把它们全建出来。记入 TODO，真机验证时确认。
+
+### D30：新增 `ActivateTour(tourId)` 显式激活入口（2026-08-06）
+
+扫码与区域进出之外，宿主需要一条**不依赖任何传感器**的激活路径：没有真机、没有二维码时，这是验证内容管线唯一的手段。源工程的同类需求靠 `IteSpaceManager` 的 `OnGUI` 调试面板解决（已按 5.7 删除）。
+
+**选定**：`IteRuntime.ActivateTour(string tourId)` → `TourDirector.ActivateById`，与扫码路径共用同一个 `Activate`，不改任何既有语义。找不到 ID 时报错返回 false，不抛。
 
 ## Risks / Open Questions
 

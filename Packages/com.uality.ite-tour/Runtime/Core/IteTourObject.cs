@@ -110,7 +110,13 @@ namespace Uality.IteTour.Core
             await LoadAssets(tourData.Assets);
             ChangeDisplayType(tour.displayType);
 
-            if (tour.displayType != IteSpaceScene.Tour.DisplayType.alwaysDisplayed)
+            // 源实现对 alwaysDisplayed 既不 Disable 也不 Enable，而内容树由 Enable 构建——
+            // 于是「一直显示」的 Tour 内容永远是空的，且不报错（design D29）。
+            if (tour.displayType == IteSpaceScene.Tour.DisplayType.alwaysDisplayed)
+            {
+                await Enable();
+            }
+            else
             {
                 Disable();
             }
