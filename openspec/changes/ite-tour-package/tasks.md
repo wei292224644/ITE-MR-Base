@@ -78,10 +78,10 @@
 
 ## 8. Prefab 与资产
 
-- [ ] 8.1 迁移 4 个 prefab 至 `Runtime/Prefabs/`：`Tour`、`Rich Text Element`、`Video Plane Element`、`EMW Model Render Element`
-- [ ] 8.2 逐个打开 prefab 检查 Missing Script 与残留的宿主/Meta 组件引用，替换为包内等价实现
-- [ ] 8.3 迁移 prefab 依赖的材质与图标资源（含圆角 UI 材质、视频播放/暂停图标、音频控制动画）
-- [ ] 8.4 创建 `IteRuntimeConfig` 资产实例放在宿主 `Assets/`，默认引用包内 prefab
+- [x] 8.1 迁移 4 个 prefab 至 `Runtime/Prefabs/`：`Tour`、`Rich Text Element`、`Video Plane Element`、`EMW Model Render Element`
+- [x] 8.2 逐个打开 prefab 检查 Missing Script 与残留的宿主/Meta 组件引用，替换为包内等价实现。实际是**重建交互层**（design D31）：删两棵 ISDK 子树、剥 14 个 Missing Script、`GraphicRaycaster` → `TrackedDeviceGraphicRaycaster`。核验 4 个 prefab 均 missingScripts=0、包外依赖=0
+- [x] 8.3 迁移 prefab 依赖的图标与动画资源（6 张图标、`Audio Controller.controller` + 2 个 clip、`AutoRotate`）。圆角材质**不迁**：Meta shader，改为包内生成的 `RoundRadius16.png` 九宫格 sprite（design D31）
+- [x] 8.4 创建 `IteRuntimeConfig` 资产实例 `Assets/Settings/ITE/IteRuntimeConfig.asset`，`tourObjectPrefab` 指向包内 `Tour.prefab`。同时删掉配置里三个元素 prefab 字段——D20 已裁定它们挂在 `Tour.prefab` 自己身上，留在配置里是死字段
 
 ## 9. 宿主适配层
 

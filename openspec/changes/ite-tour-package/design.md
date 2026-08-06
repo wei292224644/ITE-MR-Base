@@ -517,6 +517,22 @@ IteTourObject.prefab
 
 **选定**：`IteRuntime.ActivateTour(string tourId)` → `TourDirector.ActivateById`，与扫码路径共用同一个 `Activate`，不改任何既有语义。找不到 ID 时报错返回 false，不抛。
 
+### D31：UI 交互层从 Meta Interaction SDK 换成 XRI，圆角用九宫格 sprite（2026-08-06）
+
+迁移时发现 `Rich Text Element` 与 `Video Plane Element` 各带 **10 类 Meta Interaction SDK 组件**（`PokeInteractable` / `RayInteractable` / `PointableCanvas` + `...UnityEventWrapper` / `PlaneSurface` ×2 / `ClippedPlaneSurface` ×2 / `BoundsClipper` ×2 / `RectTransformBoundsClipperDriver` ×2 / `RoundedBoxUIProperties` ×2 + `RoundedBoxUI.mat`）。MR_Base **根本没装 `com.meta.xr.sdk.interaction`**（只有 `sdk.core` 与 `mrutilitykit`），原样拷入即 14 个 Missing Script。这也正是源工程跑不了 PICO 的根。
+
+**选定**：包依赖加 `com.unity.xr.interaction.toolkit` 3.5.1（Unity 官方，Quest/PICO 都经 OpenXR），Canvas 上 `GraphicRaycaster` → `TrackedDeviceGraphicRaycaster`。Meta 那一大摞存在的理由是它**不走 Unity 的 EventSystem**；XRI 走，所以 10 类组件塌成 1 个，`Button` 原生就响应，`ISDK_PokeInteraction` / `ISDK_RayInteraction` 两棵子树整棵删除。`TrackedDeviceGraphicRaycaster` 自身实现 `IPokeStateDataProvider`，戳与射线都由它接管，不需要额外的碰撞体或 filter。
+
+**否决「宿主自己往 Canvas 上加」**（可保住 3 依赖）：忘了加就是按钮点不动、不报错——与 D26/D27 同一类静默失效。**否决 asmdef `versionDefines` 做可选依赖**：为省一个依赖引入条件编译，是用复杂度换依赖数字。
+
+**圆角**：`RoundedBoxUI.mat` 是 Meta sample 的 shader，不迁。接回**任务 2.3 已经建好**的包内实现——`Runtime/Internal/RoundedBoxUI.shader` + `RoundedBoxUIProperties`（`IMeshModifier` 把每角半径写进 `uv1`，片元里做 SDF 裁边），新建 `Runtime/Prefabs/Materials/RoundedBoxUI.mat` 挂到 4 个 `Front`/`Back` 节点上。
+
+**不能用九宫格 sprite**（XRI 自己的 `Hands Interaction Demo` 与 `Starter Assets` 用的是 `Round Radius N.png` 九宫格）：ITE 的 `CornerRadius` 是**每个富文本 / 视频资源自带的数据**，`RichTextElement.ApplySprite` / `VideoPlaneElement.ApplyTexture` 运行时按内容逐个写 `borderRadius`（Vector4，四角可不同）。九宫格是死半径，做不到。这是本包唯一偏离「照抄 XRI 做法」的地方，理由是数据驱动的动态半径。
+
+**代价**：任务 12.6 的移植验证从「3 个依赖」变成 4 个。
+
+**迁移后核验**：4 个 prefab 均 `missingScripts=0`、`AssetDatabase.GetDependencies` 的包外依赖数为 0；两个按钮的 `onClick` 仍指向 `RichTextElement.ToggleAudio` / `VideoPlaneElement.ToggleVideo`；6 张图标 sprite 引用全部存活。
+
 ## Risks / Open Questions
 
 | 项 | 风险 | 缓解 |

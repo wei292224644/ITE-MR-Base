@@ -53,6 +53,8 @@ MeshRenderer:
   m_RayTracingAccelStructBuildFlagsOverride: 0
   m_RayTracingAccelStructBuildFlags: 1
   m_SmallMeshCulling: 1
+  m_ForceMeshLod: -1
+  m_MeshLodSelectionBias: 0
   m_RenderingLayerMask: 1
   m_RendererPriority: 0
   m_Materials:
@@ -74,9 +76,11 @@ MeshRenderer:
   m_AutoUVMaxDistance: 0.5
   m_AutoUVMaxAngle: 89
   m_LightmapParameters: {fileID: 0}
+  m_GlobalIlluminationMeshLod: 0
   m_SortingLayerID: 0
   m_SortingLayer: 0
   m_SortingOrder: 0
+  m_MaskInteraction: 0
   m_AdditionalVertexStreams: {fileID: 0}
 --- !u!102 &7895727819143821742
 TextMesh:
@@ -166,36 +170,6 @@ MonoBehaviour:
   m_Script: {fileID: 11500000, guid: 29ce4dcbd9c82423ebf40590214ebb7f, type: 3}
   m_Name: 
   m_EditorClassIdentifier: 
-  onTriggerEnter:
-    m_PersistentCalls:
-      m_Calls:
-      - m_Target: {fileID: 3629382841355521096}
-        m_TargetAssemblyTypeName: IteTourObject, Assembly-CSharp
-        m_MethodName: OnVolumeTriggerEnter
-        m_Mode: 0
-        m_Arguments:
-          m_ObjectArgument: {fileID: 0}
-          m_ObjectArgumentAssemblyTypeName: UnityEngine.Object, UnityEngine
-          m_IntArgument: 0
-          m_FloatArgument: 0
-          m_StringArgument: 
-          m_BoolArgument: 0
-        m_CallState: 2
-  onTriggerExit:
-    m_PersistentCalls:
-      m_Calls:
-      - m_Target: {fileID: 3629382841355521096}
-        m_TargetAssemblyTypeName: IteTourObject, Assembly-CSharp
-        m_MethodName: OnVolumeTriggerExit
-        m_Mode: 0
-        m_Arguments:
-          m_ObjectArgument: {fileID: 0}
-          m_ObjectArgumentAssemblyTypeName: UnityEngine.Object, UnityEngine
-          m_IntArgument: 0
-          m_FloatArgument: 0
-          m_StringArgument: 
-          m_BoolArgument: 0
-        m_CallState: 2
 --- !u!1 &5738882722445983899
 GameObject:
   m_ObjectHideFlags: 0
@@ -245,6 +219,10 @@ MonoBehaviour:
   m_EditorClassIdentifier: 
   _volumeObject: {fileID: 2235408729116568626}
   _mainGroupObject: {fileID: 6709616806414798085}
+  _elementPrefabs:
+    EmwModelRender: {fileID: 8256180458677393790, guid: 83cc277cf71e548aa8ac9174b492b0cd, type: 3}
+    RichText: {fileID: 4236638641735767541, guid: 0de14fd7fef3a47a6be8a40be9b5fed3, type: 3}
+    VideoPlane: {fileID: 5501114138230737422, guid: f8221d23fe6054aabbc58bbc45230bbd, type: 3}
 --- !u!1 &6709616806414798085
 GameObject:
   m_ObjectHideFlags: 0

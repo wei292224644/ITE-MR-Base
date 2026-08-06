@@ -35,18 +35,14 @@ namespace Uality.IteTour.Config
         private string sceneName = "";
 
         [Header("Prefab")]
-        [SerializeField] private GameObject tourObjectPrefab;
-        [SerializeField] private GameObject richTextElementPrefab;
-        [SerializeField] private GameObject videoPlaneElementPrefab;
-        [SerializeField] private GameObject emwModelRenderElementPrefab;
+        [SerializeField]
+        [Tooltip("Tour 载体预制体。元素预制体挂在它自己身上，不在这里配——见 design D20")]
+        private GameObject tourObjectPrefab;
 
         public string SpaceSceneBaseUrl => spaceSceneBaseUrl;
         public string SceneName => sceneName;
 
         public GameObject TourObjectPrefab => tourObjectPrefab;
-        public GameObject RichTextElementPrefab => richTextElementPrefab;
-        public GameObject VideoPlaneElementPrefab => videoPlaneElementPrefab;
-        public GameObject EmwModelRenderElementPrefab => emwModelRenderElementPrefab;
 
         public string BuildSpaceSceneUrl(string scene) => $"{spaceSceneBaseUrl}/{scene}.zip";
 
