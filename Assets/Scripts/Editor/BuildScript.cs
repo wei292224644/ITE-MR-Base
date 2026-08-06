@@ -27,15 +27,17 @@ public static class BuildScript
     const string k_MRCoreScene = "Assets/Scenes/MRCore.unity";
     const string k_MarkerProbeScene = "Assets/Scenes/MarkerProbe.unity";
     const string k_PicoQrCameraProbeScene = "Assets/Scenes/PicoQrCameraProbe.unity";
-    const string k_BloomTestScene = "Assets/Scenes/BloomTest/BloomTest.unity";
-    const string k_GroundUpRevealScene = "Assets/Scenes/GroundUpRevealDemo.unity";
 
-    // 探针场景自身不带 XR 装配，靠 MRCoreLoader 在运行时附加加载 MRCore，
-    // 所以 MRCore 必须一起进包 —— 否则 LoadScene("MRCore") 在真机上直接失败，
-    // 表现为没有相机、没有手部追踪。数组首项是启动场景，探针必须排在前面。
-    static string[] ProbeScenes(string probeScene) => new[] { probeScene, k_MRCoreScene };
     const string k_PicoOfficialCameraRenderingScene =
         "Packages/com.unity.xr.picoxr/Enterprise/Sample/CameraRendering/PXR/CameraRendering.unity";
+
+    // 探针场景自身不带 XR 装配，靠 MRCoreLoader 在运行时加载 MRCore，所以 MRCore 必须
+    // 一起进包 —— 否则 LoadScene("MRCore") 在真机上直接失败，表现为没有相机、没有手部追踪。
+    // 数组首项是启动场景，探针必须排在前面。
+    //
+    // 只有探针用这条路径：它们要保持极简来做测量，不该带上整套内容场景。demo 与测试场景
+    // 都在 MRBase/Build/Quest 的统一包里，运行时用 MRSceneDirector 的菜单切换。
+    static string[] ProbeScenes(string probeScene) => new[] { probeScene, k_MRCoreScene };
 
     const string k_OpenXRLoader = "UnityEngine.XR.OpenXR.OpenXRLoader";
     const string k_PicoLoader = "Unity.XR.PXR.PXR_Loader";
@@ -55,6 +57,12 @@ public static class BuildScript
     {
         Build(k_QuestProfilePath, "MRBASE_QUEST", k_OpenXRLoader, "Builds/Quest/MR_Base.apk",
             excludePluginRoot: k_PicoPackageRoot);
+    }
+
+    [MenuItem("MRBase/Build/Queue Quest")]
+    public static void QueueQuest()
+    {
+        QueueBuild(BuildQuest, "Quest");
     }
 
     [MenuItem("MRBase/Build/Pico")]
@@ -110,82 +118,6 @@ public static class BuildScript
             sceneOverride: ProbeScenes(k_PicoQrCameraProbeScene),
             buildOptions: BuildOptions.Development | BuildOptions.AllowDebugging,
             applicationIdSuffix: ".qrcamprobe");
-    }
-
-    [MenuItem("MRBase/Build/Bloom Test/Quest Development")]
-    public static void BuildBloomTestQuest()
-    {
-        Build(
-            k_QuestProfilePath,
-            "MRBASE_QUEST",
-            k_OpenXRLoader,
-            "Builds/BloomTest/Quest/BloomTest-Quest.apk",
-            excludePluginRoot: k_PicoPackageRoot,
-            sceneOverride: ProbeScenes(k_BloomTestScene),
-            buildOptions: BuildOptions.Development | BuildOptions.AllowDebugging,
-            applicationIdSuffix: ".bloomtest");
-    }
-
-    [MenuItem("MRBase/Build/Ground Up Reveal/Quest Development")]
-    public static void BuildGroundUpRevealQuest()
-    {
-        Build(
-            k_QuestProfilePath,
-            "MRBASE_QUEST",
-            k_OpenXRLoader,
-            "Builds/GroundUpReveal/Quest/GroundUpReveal-Quest.apk",
-            excludePluginRoot: k_PicoPackageRoot,
-            sceneOverride: ProbeScenes(k_GroundUpRevealScene),
-            buildOptions: BuildOptions.Development | BuildOptions.AllowDebugging,
-            applicationIdSuffix: ".groundup");
-    }
-
-    // 隔离测试用：MRCore 的内容已并进这一个场景，不走 MRCoreLoader 附加加载。
-    // 若这个包正常而 ProbeScenes 那个不正常，问题就在多场景加载；两个都不正常则与场景组织无关。
-    [MenuItem("MRBase/Build/Ground Up Reveal/Quest Merged (single scene)")]
-    public static void BuildGroundUpRevealMergedQuest()
-    {
-        Build(
-            k_QuestProfilePath,
-            "MRBASE_QUEST",
-            k_OpenXRLoader,
-            "Builds/GroundUpReveal/Quest/GroundUpRevealMerged-Quest.apk",
-            excludePluginRoot: k_PicoPackageRoot,
-            sceneOverride: new[] { "Assets/Scenes/GroundUpRevealMerged.unity" },
-            buildOptions: BuildOptions.Development | BuildOptions.AllowDebugging,
-            applicationIdSuffix: ".groundupmerged");
-    }
-
-    [MenuItem("MRBase/Build/Ground Up Reveal/Queue Quest Merged")]
-    public static void QueueGroundUpRevealMergedQuest()
-    {
-        QueueBuild(BuildGroundUpRevealMergedQuest, "Quest Ground Up Reveal Merged");
-    }
-
-    [MenuItem("MRBase/Build/Ground Up Reveal/Queue Quest Development")]
-    public static void QueueGroundUpRevealQuest()
-    {
-        QueueBuild(BuildGroundUpRevealQuest, "Quest Ground Up Reveal");
-    }
-
-    [MenuItem("MRBase/Build/Bloom Test/Queue Quest Development")]
-    public static void QueueBloomTestQuest()
-    {
-        QueueBuild(BuildBloomTestQuest, "Quest Bloom Test");
-    }
-
-    [MenuItem("MRBase/Build/Bloom Test/PICO Development")]
-    public static void BuildBloomTestPico()
-    {
-        Build(
-            k_PicoProfilePath,
-            "MRBASE_PICO",
-            k_PicoLoader,
-            "Builds/BloomTest/PICO/BloomTest-PICO.apk",
-            excludePluginRoot: k_MetaPackageRoot,
-            sceneOverride: ProbeScenes(k_BloomTestScene),
-            buildOptions: BuildOptions.Development | BuildOptions.AllowDebugging,
-            applicationIdSuffix: ".bloomtest");
     }
 
     [MenuItem("MRBase/Build/PICO Official CameraRendering Sample")]
