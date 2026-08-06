@@ -1,4 +1,16 @@
 <?xml version="1.0" encoding="utf-8"?>
+<!--
+  Unity 一旦发现本文件，就把它当作**主** manifest，而不是在自带模板上做合并。
+  凡是这里没写的，最终 APK 里就没有 —— 包括启动入口。
+
+  曾因漏掉下面这段 intent-filter，APK 里的 UnityPlayerActivity 只剩 Meta SDK
+  注入的 com.oculus.intent.category.VR，没有 MAIN/LAUNCHER。症状具有欺骗性：
+  应用能被显式组件名拉起，进程正常、72fps、MRBootstrap 报就绪、passthrough 已装配，
+  但 OpenXR session 永远停在 VISIBLE 进不到 FOCUSED，Quest 把它降级成一块 2D 面板，
+  头显里只看得到一个悬浮方框。判据是 `aapt dump badging` 不打印 launchable-activity。
+
+  改动本文件时，MAIN + LAUNCHER + VR 三项必须同时在场。
+-->
 <manifest xmlns:android="http://schemas.android.com/apk/res/android"
           xmlns:tools="http://schemas.android.com/tools">
     <uses-permission android:name="android.permission.CAMERA" />
@@ -6,6 +18,12 @@
         <activity
             android:name="com.unity3d.player.UnityPlayerActivity"
             android:exported="true"
-            tools:replace="android:exported" />
+            tools:replace="android:exported">
+            <intent-filter>
+                <action android:name="android.intent.action.MAIN" />
+                <category android:name="android.intent.category.LAUNCHER" />
+                <category android:name="com.oculus.intent.category.VR" />
+            </intent-filter>
+        </activity>
     </application>
 </manifest>

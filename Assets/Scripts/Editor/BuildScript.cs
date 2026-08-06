@@ -28,6 +28,7 @@ public static class BuildScript
     const string k_MarkerProbeScene = "Assets/Scenes/MarkerProbe.unity";
     const string k_PicoQrCameraProbeScene = "Assets/Scenes/PicoQrCameraProbe.unity";
     const string k_BloomTestScene = "Assets/Scenes/BloomTest/BloomTest.unity";
+    const string k_GroundUpRevealScene = "Assets/Scenes/GroundUpRevealDemo.unity";
 
     // 探针场景自身不带 XR 装配，靠 MRCoreLoader 在运行时附加加载 MRCore，
     // 所以 MRCore 必须一起进包 —— 否则 LoadScene("MRCore") 在真机上直接失败，
@@ -73,7 +74,8 @@ public static class BuildScript
             "Builds/MarkerProbe/Quest/MarkerProbe-Quest.apk",
             excludePluginRoot: k_PicoPackageRoot,
             sceneOverride: ProbeScenes(k_MarkerProbeScene),
-            buildOptions: BuildOptions.Development | BuildOptions.AllowDebugging);
+            buildOptions: BuildOptions.Development | BuildOptions.AllowDebugging,
+            applicationIdSuffix: ".markerprobe");
     }
 
     [MenuItem("MRBase/Build/Marker Probe/Queue Quest Development")]
@@ -92,7 +94,8 @@ public static class BuildScript
             "Builds/MarkerProbe/PICO/MarkerProbe-PICO.apk",
             excludePluginRoot: k_MetaPackageRoot,
             sceneOverride: ProbeScenes(k_MarkerProbeScene),
-            buildOptions: BuildOptions.Development | BuildOptions.AllowDebugging);
+            buildOptions: BuildOptions.Development | BuildOptions.AllowDebugging,
+            applicationIdSuffix: ".markerprobe");
     }
 
     [MenuItem("MRBase/Build/PICO QR Camera Probe Development")]
@@ -105,7 +108,8 @@ public static class BuildScript
             "Builds/Localization/PICO/PicoQrCameraProbe.apk",
             excludePluginRoot: k_MetaPackageRoot,
             sceneOverride: ProbeScenes(k_PicoQrCameraProbeScene),
-            buildOptions: BuildOptions.Development | BuildOptions.AllowDebugging);
+            buildOptions: BuildOptions.Development | BuildOptions.AllowDebugging,
+            applicationIdSuffix: ".qrcamprobe");
     }
 
     [MenuItem("MRBase/Build/Bloom Test/Quest Development")]
@@ -118,7 +122,56 @@ public static class BuildScript
             "Builds/BloomTest/Quest/BloomTest-Quest.apk",
             excludePluginRoot: k_PicoPackageRoot,
             sceneOverride: ProbeScenes(k_BloomTestScene),
-            buildOptions: BuildOptions.Development | BuildOptions.AllowDebugging);
+            buildOptions: BuildOptions.Development | BuildOptions.AllowDebugging,
+            applicationIdSuffix: ".bloomtest");
+    }
+
+    [MenuItem("MRBase/Build/Ground Up Reveal/Quest Development")]
+    public static void BuildGroundUpRevealQuest()
+    {
+        Build(
+            k_QuestProfilePath,
+            "MRBASE_QUEST",
+            k_OpenXRLoader,
+            "Builds/GroundUpReveal/Quest/GroundUpReveal-Quest.apk",
+            excludePluginRoot: k_PicoPackageRoot,
+            sceneOverride: ProbeScenes(k_GroundUpRevealScene),
+            buildOptions: BuildOptions.Development | BuildOptions.AllowDebugging,
+            applicationIdSuffix: ".groundup");
+    }
+
+    // 隔离测试用：MRCore 的内容已并进这一个场景，不走 MRCoreLoader 附加加载。
+    // 若这个包正常而 ProbeScenes 那个不正常，问题就在多场景加载；两个都不正常则与场景组织无关。
+    [MenuItem("MRBase/Build/Ground Up Reveal/Quest Merged (single scene)")]
+    public static void BuildGroundUpRevealMergedQuest()
+    {
+        Build(
+            k_QuestProfilePath,
+            "MRBASE_QUEST",
+            k_OpenXRLoader,
+            "Builds/GroundUpReveal/Quest/GroundUpRevealMerged-Quest.apk",
+            excludePluginRoot: k_PicoPackageRoot,
+            sceneOverride: new[] { "Assets/Scenes/GroundUpRevealMerged.unity" },
+            buildOptions: BuildOptions.Development | BuildOptions.AllowDebugging,
+            applicationIdSuffix: ".groundupmerged");
+    }
+
+    [MenuItem("MRBase/Build/Ground Up Reveal/Queue Quest Merged")]
+    public static void QueueGroundUpRevealMergedQuest()
+    {
+        QueueBuild(BuildGroundUpRevealMergedQuest, "Quest Ground Up Reveal Merged");
+    }
+
+    [MenuItem("MRBase/Build/Ground Up Reveal/Queue Quest Development")]
+    public static void QueueGroundUpRevealQuest()
+    {
+        QueueBuild(BuildGroundUpRevealQuest, "Quest Ground Up Reveal");
+    }
+
+    [MenuItem("MRBase/Build/Bloom Test/Queue Quest Development")]
+    public static void QueueBloomTestQuest()
+    {
+        QueueBuild(BuildBloomTestQuest, "Quest Bloom Test");
     }
 
     [MenuItem("MRBase/Build/Bloom Test/PICO Development")]
@@ -131,7 +184,8 @@ public static class BuildScript
             "Builds/BloomTest/PICO/BloomTest-PICO.apk",
             excludePluginRoot: k_MetaPackageRoot,
             sceneOverride: ProbeScenes(k_BloomTestScene),
-            buildOptions: BuildOptions.Development | BuildOptions.AllowDebugging);
+            buildOptions: BuildOptions.Development | BuildOptions.AllowDebugging,
+            applicationIdSuffix: ".bloomtest");
     }
 
     [MenuItem("MRBase/Build/PICO Official CameraRendering Sample")]
@@ -206,7 +260,8 @@ public static class BuildScript
         string excludePluginRoot = null,
         bool dryRun = false,
         string[] sceneOverride = null,
-        BuildOptions buildOptions = BuildOptions.None)
+        BuildOptions buildOptions = BuildOptions.None,
+        string applicationIdSuffix = null)
     {
         var profile = AssetDatabase.LoadAssetAtPath<BuildProfile>(profilePath);
         if (profile == null)
@@ -223,8 +278,24 @@ public static class BuildScript
         List<string> restorePlugins = null;
         List<OpenXrVersionRestore> restoreOpenXrVersions = null;
 
+        // 各测试包必须有各自的包名，否则装一个覆盖一个 —— 无法在设备上并存对照。
+        // 与 loader/profile 同样的纪律：快照 + finally 还原，不在 ProjectSettings 上留 diff。
+        //
+        // 注意：finally 里的还原只改内存值，ProjectSettings.asset 要等 Unity 下次落盘才更新。
+        // 所以构建刚结束时去 grep 那个文件，可能读到带后缀的旧值 —— 那是落盘滞后，不是没还原。
+        // 以 PlayerSettings.GetApplicationIdentifier 的返回值为准。
+        var androidTarget = NamedBuildTarget.Android;
+        var previousApplicationId = PlayerSettings.GetApplicationIdentifier(androidTarget);
+
         try
         {
+            if (!string.IsNullOrEmpty(applicationIdSuffix))
+            {
+                var testId = previousApplicationId + applicationIdSuffix;
+                PlayerSettings.SetApplicationIdentifier(androidTarget, testId);
+                Debug.Log($"[BuildScript] 本次包名：{testId}（构建后还原为 {previousApplicationId}）");
+            }
+
             ApplyAndroidLoader(manager, loaderTypeName);
             restorePlugins = DisableAndroidPluginsUnder(excludePluginRoot);
 
@@ -281,6 +352,8 @@ public static class BuildScript
             RestoreOpenXrFeatureApiVersions(restoreOpenXrVersions);
             if (previousProfile != profile)
                 BuildProfile.SetActiveBuildProfile(previousProfile);
+            if (!string.IsNullOrEmpty(applicationIdSuffix))
+                PlayerSettings.SetApplicationIdentifier(androidTarget, previousApplicationId);
         }
     }
 

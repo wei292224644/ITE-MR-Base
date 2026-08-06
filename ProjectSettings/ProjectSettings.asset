@@ -166,7 +166,7 @@ PlayerSettings:
   androidMaxAspectRatio: 2.4
   androidMinAspectRatio: 1
   applicationIdentifier:
-    Android: com.DefaultCompany.MixedRealityTemplate
+    Android: com.DefaultCompany.MixedRealityTemplate.bloomtest
     Standalone: com.unity.template.mr
   buildNumber:
     Standalone: 0
