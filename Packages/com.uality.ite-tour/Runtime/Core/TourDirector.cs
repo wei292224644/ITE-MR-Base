@@ -31,6 +31,12 @@ namespace Uality.IteTour.Core
         private bool _reselectPending;
         private IReadOnlyList<string> _reselectCandidates = Array.Empty<string>();
 
+        /// <summary>
+        /// 有状态变动、扫码提示待重算。提示是状态的纯函数，状态没变就不可能变——
+        /// 所以按变动重算，而不是像源实现那样每 0.75 秒轮询一次。
+        /// </summary>
+        private bool _promptDirty;
+
         /// <summary>Tour 被激活（先于内容构建完成）。</summary>
         public Action<string> TourActivated;
 
@@ -62,13 +68,19 @@ namespace Uality.IteTour.Core
         public IReadOnlyList<string> PendingTourIds => _pendingTourIds;
 
         /// <summary>要求下一次扫码无条件生效。冷启动与重新戴上头显时置位。</summary>
-        public void RequireScan() => _forcedScanPending = true;
+        public void RequireScan()
+        {
+            _forcedScanPending = true;
+            _promptDirty = true;
+        }
 
         /// <summary>
         /// 摘下头显：停用当前 Tour 并暂停一切扫描。重新戴上：恢复并要求重新扫码。
         /// </summary>
         public void SetHeadsetMounted(bool mounted)
         {
+            _promptDirty = true;
+
             if (mounted)
             {
                 _forcedScanPending = true;
@@ -82,6 +94,8 @@ namespace Uality.IteTour.Core
 
         public void SubmitMarkerScan(string markerId, Pose pose)
         {
+            _promptDirty = true;
+
             var decision = TourScanPolicy.Decide(CurrentState(), Descriptors(), markerId);
 
             switch (decision.Action)
@@ -112,6 +126,8 @@ namespace Uality.IteTour.Core
         /// </summary>
         public void SubmitVolumeTransition(string tourId, VolumeTransition transition)
         {
+            _promptDirty = true;
+
             var decision = TourRegionPolicy.Decide(CurrentState(), Descriptors(), tourId, transition);
 
             _pendingTourIds = new List<string>(decision.PendingTourIds);
@@ -123,27 +139,34 @@ namespace Uality.IteTour.Core
             }
         }
 
-        /// <summary>结算本帧累积的区域进出。由驱动方在 <c>LateUpdate</c> 调用。</summary>
+        /// <summary>
+        /// 帧末结算：处理本帧累积的区域进出，并在状态变过时重算扫码提示。
+        /// 由 <see cref="IteRuntimeDriver"/> 在 <c>LateUpdate</c> 调用。
+        /// </summary>
         public void FlushRegionTransitions()
         {
-            if (!_reselectPending)
+            if (_reselectPending)
             {
-                return;
+                _reselectPending = false;
+
+                DeactivateCurrent();
+
+                // 多个候选时随机挑一个——源实现的 OrderBy(Guid.NewGuid())。策略只给候选集，
+                // 挑选是这里的显式选择（design D14）。
+                if (_reselectCandidates.Count > 0)
+                {
+                    var pick = _reselectCandidates[UnityEngine.Random.Range(0, _reselectCandidates.Count)];
+                    Activate(_assembler.Find(pick), pose: null);
+                }
+
+                _reselectCandidates = Array.Empty<string>();
             }
 
-            _reselectPending = false;
-
-            DeactivateCurrent();
-
-            // 多个候选时随机挑一个——源实现的 OrderBy(Guid.NewGuid())。策略只给候选集，
-            // 挑选是这里的显式选择（design D14）。
-            if (_reselectCandidates.Count > 0)
+            if (_promptDirty)
             {
-                var pick = _reselectCandidates[UnityEngine.Random.Range(0, _reselectCandidates.Count)];
-                Activate(_assembler.Find(pick), pose: null);
+                _promptDirty = false;
+                EvaluateScanPrompt();
             }
-
-            _reselectCandidates = Array.Empty<string>();
         }
 
         /// <summary>

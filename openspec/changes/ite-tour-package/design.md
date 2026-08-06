@@ -478,6 +478,18 @@ IteTourObject.prefab
 
 **区域进出的合并时机**：源实现用 `WaitForSeconds(0.01f)` 的协程合并同一物理步内的「退出 A + 进入 B」，避免中间空一帧。改为帧末结算（`FlushRegionTransitions`）——同样合并，但不必解释 0.01 秒是怎么来的。
 
+### D27：帧驱动由包自持，扫码提示按状态变动重算（2026-08-06）
+
+`TourDirector.FlushRegionTransitions` 需要每帧末调一次，扫码提示需要在状态变化后重算。谁来驱动？
+
+**否决「宿主每帧调 `ite.Tick()`」**：忘了调不报错，只是区域触发从此不再结算——与 D26 的 tag 问题同一类静默失效，而且只在真机上现形。公开面上多一个「必须记得调」的义务，等于把包的正确性押在宿主的记性上。
+
+**选定**：`IteRuntime` 装配时创建 `[ITE] Runtime Driver` GameObject，挂 `internal IteRuntimeDriver`，`Shutdown()` 时销毁。宿主没有忘的机会。
+
+**扫码提示的重算时机**：源实现是每 0.75 秒轮询的协程，每次都无条件调 UI 的 `Show`/`Hide`。提示是状态的**纯函数**（`ScanPromptPolicy.Decide` 只读 `ScanState` 与各 Tour 的 `DisplayType`），状态没变就不可能变——所以改为各状态变更方法置 `_promptDirty`，帧末结算时才重算，且**只在结果变化时**广播。既去掉了 0.75 秒这个魔数，也避免了每帧重复分配候选列表。
+
+**`OnScanPromptChanged` 的签名**：D3 写的是 `Action<ScanPromptState, string[]>`，实际改为 `Action<ScanPrompt>`——`ScanPrompt` 结构体携带的正是这两项，单参数、字段有名字、日后加字段不破坏订阅方签名。
+
 ## Risks / Open Questions
 
 | 项 | 风险 | 缓解 |
