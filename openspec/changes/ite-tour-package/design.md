@@ -533,6 +533,18 @@ IteTourObject.prefab
 
 **迁移后核验**：4 个 prefab 均 `missingScripts=0`、`AssetDatabase.GetDependencies` 的包外依赖数为 0；两个按钮的 `onClick` 仍指向 `RichTextElement.ToggleAudio` / `VideoPlaneElement.ToggleVideo`；6 张图标 sprite 引用全部存活。
 
+### D32：标记提供方由 `MarkerTrackingBootstrapper` 暴露，两家共享一份硬件会话（2026-08-06）
+
+D13 已裁定 ITE 不经过 `MarkerAnchorService`（那条链产出 `AnchorEntity`，与导览锚定是两桩业务）。但 ITE 仍需要一个 `IMarkerTrackingProvider`，而现状是 `MarkerTrackingBootstrapper` 在 `Start` 里创建了一个、直接交给 `MarkerAnchorService`，不对外可见。
+
+**否决「ITE 侧自己再 new 一个 provider」**：标记识别是一份**硬件会话**，开两份要在同一硬件上跑两次 `StartTracking`；更糟的是平台 `#if` 会被复制成两份，与 D2「平台分支只此一处」直接冲突。
+
+**选定**：`MarkerTrackingBootstrapper` 增加 `public IMarkerTrackingProvider Provider`，在 **`Awake`** 里创建（原先在 `Start` 里）。`Awake` 早于任何 `Start`，消费方在自己的 `Start` 里取用是确定的，不依赖组件执行顺序。`MarkerAnchorService` **一行未改**（任务 9.6 已核）。
+
+**`MarkerSourceAdapter` 经过自己的 `MarkerStabilizer`**：`MarkerResolved` 在标记可见期间每帧都发，而 ITE 拿这个位姿去摆整个 Tour——抖动的位姿等于抖动的导览。稳定器天然「每次稳定检出只发一次」，正是包要的粒度。用独立实例，不复用 `MarkerAnchorService` 内部那个。**丢失时 `Reset`**：稳定器的 `HasFiredStableEvent` 只在位姿变动时复位，走开再站回原处不动就永远不再触发。
+
+**两个适配器都不是 MonoBehaviour**：`HeadsetPresenceAdapter` 只需要有人每帧调一次 `Poll`，`MarkerSourceAdapter` 全靠事件驱动。由 `IteHostBootstrap` 一个 MonoBehaviour 驱动，场景里少两个组件、少两处能连错的引用，且两者都能离机测。它们也不认识 `IteRuntime`——出口是 `Action<...>`，装配时接到包的推入方法上。
+
 ## Risks / Open Questions
 
 | 项 | 风险 | 缓解 |

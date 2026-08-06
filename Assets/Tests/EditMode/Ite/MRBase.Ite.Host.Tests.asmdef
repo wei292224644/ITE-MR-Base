@@ -1,0 +1,26 @@
+{
+    "name": "MRBase.Ite.Host.Tests",
+    "rootNamespace": "MRBase.Ite.Host.Tests",
+    "references": [
+        "MRBase.Ite.Host",
+        "MRBase.Localization",
+        "Uality.IteTour",
+        "UnityEngine.TestRunner",
+        "UnityEditor.TestRunner"
+    ],
+    "includePlatforms": [
+        "Editor"
+    ],
+    "excludePlatforms": [],
+    "allowUnsafeCode": false,
+    "overrideReferences": true,
+    "precompiledReferences": [
+        "nunit.framework.dll"
+    ],
+    "autoReferenced": true,
+    "defineConstraints": [
+        "UNITY_INCLUDE_TESTS"
+    ],
+    "versionDefines": [],
+    "noEngineReferences": false
+}

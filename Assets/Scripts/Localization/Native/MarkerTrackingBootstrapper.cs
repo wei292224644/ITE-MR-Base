@@ -5,9 +5,23 @@ public class MarkerTrackingBootstrapper : MonoBehaviour
     [SerializeField] private MarkerAnchorService anchorService;
     [SerializeField] private string anchorRegistryUrl = "anchor_registry.json";
 
+    /// <summary>
+    /// 本次会话的标记提供方。**在 Awake 里就绪**，其它消费方可以在自己的 Start 里安全取用。
+    ///
+    /// 暴露出来是因为标记识别是一份**硬件会话**，不该按消费方数量开多份：ITE 导览
+    /// （<c>MRBase.Ite.Host.MarkerSourceAdapter</c>）与 <see cref="MarkerAnchorService"/>
+    /// 是两桩业务，但共享同一个提供方。同时这也让平台 <c>#if</c> 继续只存在于此处一份。
+    /// </summary>
+    public IMarkerTrackingProvider Provider { get; private set; }
+
+    private void Awake()
+    {
+        Provider = CreateProvider();
+    }
+
     private async void Start()
     {
-        await anchorService.Initialize(CreateProvider(), CreateDataSource());
+        await anchorService.Initialize(Provider, CreateDataSource());
     }
 
     private IMarkerTrackingProvider CreateProvider()

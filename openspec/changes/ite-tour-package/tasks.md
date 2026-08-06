@@ -85,12 +85,12 @@
 
 ## 9. 宿主适配层
 
-- [ ] 9.1 创建 `Assets/Scripts/IteHost/MRBase.Ite.Host.asmdef`，references 含 `MRBase.Localization`、`MRBase.Common`、`Uality.IteTour`
-- [ ] 9.2 `MarkerSourceAdapter`：订阅 `IMarkerTrackingProvider.MarkerResolved`（经或不经 `MarkerStabilizer`）转发至 `SubmitMarkerScan`。**不经过 `MarkerAnchorService`**（design D13）
-- [ ] 9.3 `HeadsetPresenceAdapter`：轮询 HMD 节点的 `CommonUsages.userPresence`，仅在状态边沿调用 `SetHeadsetMounted`
-- [ ] 9.4 `HeadsetPresenceAdapter` 在平台不支持 `userPresence` 时记录并保持「已佩戴」，不阻断导览
-- [ ] 9.5 `IteHostBootstrap`：装配 `IteBootstrap`、启动运行时、按需订阅广播事件
-- [ ] 9.6 验证既有 `MarkerAnchorService` 消费链未被改动且仍正常工作
+- [x] 9.1 创建 `Assets/Scripts/IteHost/MRBase.Ite.Host.asmdef`，references 含 `MRBase.Localization`、`MRBase.Localization.Native`、`MRBase.Common`、`Uality.IteTour`。（比原计划多一个 `.Native`：要从 `MarkerTrackingBootstrapper` 取 provider，见 design D32）
+- [x] 9.2 `MarkerSourceAdapter`：订阅 `IMarkerTrackingProvider.MarkerResolved`，**经自己的 `MarkerStabilizer`** 转发至 `SubmitMarkerScan`。**不经过 `MarkerAnchorService`**（design D13）。provider 由 `MarkerTrackingBootstrapper.Provider` 共享，不另开硬件会话（design D32）。丢失时 `Reset` 稳定器，否则走开再站回原处不动就永远不再触发
+- [x] 9.3 `HeadsetPresenceAdapter`：轮询 HMD 节点的 `CommonUsages.userPresence`，仅在状态边沿调用 `SetHeadsetMounted`
+- [x] 9.4 `HeadsetPresenceAdapter` 在平台不支持 `userPresence` 时记录并保持「已佩戴」，不阻断导览
+- [x] 9.5 `IteHostBootstrap`：装配 `IteBootstrap`、启动运行时、按需订阅广播事件
+- [x] 9.6 验证既有 `MarkerAnchorService` 消费链未被改动且仍正常工作。`MarkerAnchorService.cs` **零改动**；`Localization` 下仅 `MarkerTrackingBootstrapper` 有纯新增改动（`Provider` 属性 + `Awake` 创建，`Start` 改用同一实例）
 
 ## 10. 场景接线与真机验证
 

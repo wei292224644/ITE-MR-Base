@@ -1,0 +1,19 @@
+{
+    "name": "MRBase.Ite.Host",
+    "rootNamespace": "MRBase.Ite.Host",
+    "references": [
+        "MRBase.Localization",
+        "MRBase.Localization.Native",
+        "MRBase.Common",
+        "Uality.IteTour"
+    ],
+    "includePlatforms": [],
+    "excludePlatforms": [],
+    "allowUnsafeCode": false,
+    "overrideReferences": false,
+    "precompiledReferences": [],
+    "autoReferenced": true,
+    "defineConstraints": [],
+    "versionDefines": [],
+    "noEngineReferences": false
+}
