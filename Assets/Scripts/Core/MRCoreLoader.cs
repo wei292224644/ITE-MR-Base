@@ -23,6 +23,17 @@ public class MRCoreLoader : MonoBehaviour
         if (scene.IsValid() && scene.isLoaded)
             return;
 
+        // 缺场景是构建期漏配，不是运行期异常：直接 LoadScene 只会留下一行 Unity 内部
+        // 报错，然后应用继续跑在一个没有相机、没有手部追踪的空场景里 —— 又一个静默失败。
+        // 出包用 MRBase/Build/*，探针构建见 BuildScript.ProbeScenes。
+        if (!Application.CanStreamedLevelBeLoaded(coreSceneName))
+        {
+            Debug.LogError($"[MRCoreLoader] 场景 '{coreSceneName}' 不在构建里，未加载。" +
+                           "本场景将没有 XR Origin、相机与手部追踪。" +
+                           "把它加进 Build Settings，或用 MRBase/Build/* 出包。");
+            return;
+        }
+
         // ponytail: 同步 LoadScene，MRCore 的 Awake 排在本帧末尾之后。因此 demo 内容
         // 不得在自己的 Awake/Start 里读 MRContext —— 目前没有任何 demo 脚本这么做
         // （MRContext 的调用方只有 MRBootstrap 和 PalmsTogetherGesture，两者都住在

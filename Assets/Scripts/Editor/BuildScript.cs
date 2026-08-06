@@ -24,8 +24,14 @@ public static class BuildScript
 {
     const string k_QuestProfilePath = "Assets/Settings/Build Profiles/Quest.asset";
     const string k_PicoProfilePath = "Assets/Settings/Build Profiles/PICO.asset";
+    const string k_MRCoreScene = "Assets/Scenes/MRCore.unity";
     const string k_MarkerProbeScene = "Assets/Scenes/MarkerProbe.unity";
     const string k_PicoQrCameraProbeScene = "Assets/Scenes/PicoQrCameraProbe.unity";
+
+    // 探针场景自身不带 XR 装配，靠 MRCoreLoader 在运行时附加加载 MRCore，
+    // 所以 MRCore 必须一起进包 —— 否则 LoadScene("MRCore") 在真机上直接失败，
+    // 表现为没有相机、没有手部追踪。数组首项是启动场景，探针必须排在前面。
+    static string[] ProbeScenes(string probeScene) => new[] { probeScene, k_MRCoreScene };
     const string k_PicoOfficialCameraRenderingScene =
         "Packages/com.unity.xr.picoxr/Enterprise/Sample/CameraRendering/PXR/CameraRendering.unity";
 
@@ -65,7 +71,7 @@ public static class BuildScript
             k_OpenXRLoader,
             "Builds/MarkerProbe/Quest/MarkerProbe-Quest.apk",
             excludePluginRoot: k_PicoPackageRoot,
-            sceneOverride: new[] { k_MarkerProbeScene },
+            sceneOverride: ProbeScenes(k_MarkerProbeScene),
             buildOptions: BuildOptions.Development | BuildOptions.AllowDebugging);
     }
 
@@ -84,7 +90,7 @@ public static class BuildScript
             k_PicoLoader,
             "Builds/MarkerProbe/PICO/MarkerProbe-PICO.apk",
             excludePluginRoot: k_MetaPackageRoot,
-            sceneOverride: new[] { k_MarkerProbeScene },
+            sceneOverride: ProbeScenes(k_MarkerProbeScene),
             buildOptions: BuildOptions.Development | BuildOptions.AllowDebugging);
     }
 
@@ -97,7 +103,7 @@ public static class BuildScript
             k_PicoLoader,
             "Builds/Localization/PICO/PicoQrCameraProbe.apk",
             excludePluginRoot: k_MetaPackageRoot,
-            sceneOverride: new[] { k_PicoQrCameraProbeScene },
+            sceneOverride: ProbeScenes(k_PicoQrCameraProbeScene),
             buildOptions: BuildOptions.Development | BuildOptions.AllowDebugging);
     }
 
