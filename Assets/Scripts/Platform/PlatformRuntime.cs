@@ -50,13 +50,26 @@ public static class PlatformRuntime
     public static void EnablePassthrough()
     {
 #if MRBASE_QUEST
+        // AR Session 必须活过场景切换。
+        //
+        // 它原本建在「当前激活场景」里，而核心装配（含挂着 ARCameraManager 的相机）
+        // 进了 DontDestroyOnLoad —— 于是每次 LoadSceneMode.Single 切场景，session 随旧场景
+        // 被销毁，相机管理器却还在。相机子系统随之停掉，passthrough 关闭，背景变成不透明黑。
+        // 症状很有欺骗性：日志照常打「已装配」（组件确实加上了），XR、手部追踪、帧率全都正常。
         if (Object.FindFirstObjectByType<ARSession>() == null)
-            new GameObject("AR Session").AddComponent<ARSession>();
+        {
+            var session = new GameObject("AR Session");
+            session.AddComponent<ARSession>();
+            // 与 sceneLoaded 钩子同一个道理：这是进程级设施，不属于任何一个场景。
+            Object.DontDestroyOnLoad(session);
+        }
 
         var camera = Camera.main;
         if (camera == null)
         {
-            Debug.LogError("[PlatformRuntime] 场景里没有 MainCamera，passthrough 未开启。");
+            // 多场景组合下，内容场景先于核心装配加载时会走到这里。sceneLoaded 会再触发一次，
+            // 那时相机已就位 —— 所以这是可恢复状态，不是错误，打成 LogError 会淹掉真错误。
+            Debug.LogWarning("[PlatformRuntime] 暂无 MainCamera，passthrough 推迟到下次场景加载后装配。");
             return;
         }
 
