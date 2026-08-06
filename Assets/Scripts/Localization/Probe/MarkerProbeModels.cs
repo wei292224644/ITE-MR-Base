@@ -16,6 +16,10 @@ public enum MarkerProbeState
     QrResultReceived,
     AwaitingMatchingMarker,
     MatchingMarkerObserved,
+    TrackingRequested,
+    MarkerObserved,
+    RegistryResolved,
+    RegistryMiss,
     RunEnded,
     SessionEnded,
     Faulted
@@ -77,6 +81,7 @@ public sealed class MarkerProbeSessionModel
     public MarkerProbeFixtureMetadata fixture;
     public MarkerProbeEnvironmentSnapshot environment;
     public MarkerProbePicoRegistrationSnapshot picoMarkerRegistration;
+    public MarkerProbeRegistrySnapshot markerRegistry;
     public MarkerProbePrivacySettings privacy;
 }
 
@@ -182,6 +187,13 @@ public sealed class MarkerProbePicoRegistrationSnapshot
     public float cameraYOffset;
     public bool registrationAttempted;
     public int setMarkerInfoCallbackResult;
+}
+
+[Serializable]
+public sealed class MarkerProbeRegistrySnapshot
+{
+    public string version;
+    public string sourceSha256;
 }
 
 [Serializable]

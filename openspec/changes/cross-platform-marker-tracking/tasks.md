@@ -35,28 +35,29 @@
 - [x] 4.3 校验 Quest Pose 位置有限且旋转可归一化，并记录其已经是 QR 参考点 Unity World Pose，不应用 PICO Offset
 - [x] 4.4 记录空 Payload、解析失败、无效 Pose、移除、重新出现、能力/权限失败和 SDK 异常，不推导生产 Lost/恢复语义
 - [x] 4.5 验证 Probe Stop 或场景卸载后的迟到 MRUK 事件被当前会话代次隔离且不会写入已关闭会话
+- [x] 4.6 为 Quest Probe 增加双 QR 诊断可视锚定：ID 0/250 同时各自显示跟随盒子与 QR 原文/MarkerID 标签，不受夹具选择过滤；盒子中心对齐 MRUK `PlaneRect` 中心并沿局部 `+Z` 抬高半边长，使底面紧贴 QR 平面；单个 Trackable 失效只隐藏自身，会话结束清空全部
 
-## 5. PICO QR 到 ArUco Probe
+## 5. PICO ArUco Probe 与外部身份映射
 
 - [x] 5.1 由 Probe 自行 `InitEnterpriseService` + `BindEnterpriseService` 并记录二者结果、TOB 授权、设备支持和 Marker 回调注册返回值；Probe Stop **不**调用 `UnBindEnterpriseService`，只用会话代次吞掉后续回调。本 change 不建立共享企业服务门面
-- [x] 5.2 实现手动 `Idle → QrScanRequested → QrResultReceived → AwaitingMatchingMarker → MatchingMarkerObserved/RunEnded` 诊断流程
-- [x] 5.3 调用 `ScanQRCode` 并记录请求、回调线程、RawPayload 摘要、解析结果、耗时、空结果和 SDK 异常
-- [x] 5.4 添加仅用于结束测试轮的扫码 watchdog 和会话代次，记录取消、无回调及迟到回调事实，不实现生产自动重试策略
+- [x] 5.2 将诊断流程改为 `Idle → TrackingRequested → MarkerObserved → RegistryResolved/RegistryMiss/RunEnded`
+- [x] 5.3 新增版本化 MarkerRegistry，维护 `PicoArUcoId → QrId → LogicalMarkerId → businessObjectId` 映射，并记录文件哈希
+- [x] 5.4 移除 Probe 对 `ScanQRCode` 的调用、扫码 watchdog、扫码取消和 QR→ArUco 配对状态；PICO 运行时不得启动系统扫码界面
 - [x] 5.5 接收 Marker 全量回调并逐条记录 `iMarkerId`、`validFlag`、原始 Pose、原生时间戳、回调间隔和静默区间
-- [x] 5.6 只把 `iMarkerId.ToString()` 与当前 MarkerID 精确相等的有效样本标为匹配；完整记录不同 ID、重复条目和无效样本
+- [x] 5.6 只把 Registry 命中的 `iMarkerId` 标为身份解析成功；完整记录未知 ID、重复条目和无效样本
 - [x] 5.7 保存 PICO 原始 Pose、当前 XR Origin、Unity Pose 及任何候选空间转换/Offset 的输入输出，禁止只保留最终派生 Pose
 - [x] 5.8 支持选择 static ID 0 与 dynamic ID 250 测试轮，并确保两类使用相同动作与日志字段
-- [x] 5.8b 实现双码采样轮：两次配对完成后从同一份 Marker 快照同时读取 A(ID 0) 与 B(ID 250) 的 Pose；只有同一快照/同一帧内两码均有效的样本参与 A→B 计算，跨时刻拼配的样本丢弃并记录原因。Quest 侧同理，从同时持有的两个 Trackable 取同一帧样本
-- [x] 5.9 验证 Probe Stop、watchdog、下一轮开始和应用暂停之间的迟到 QR/Marker 回调不会串入错误 runId
+- [ ] 5.8b 实现双码采样轮：从同一份 Marker 快照同时读取 Registry 配置的 A(ID 0) 与 B(ID 250) 的 Pose；只有同一快照/同一帧内两码均有效的样本参与 A→B 计算，跨时刻拼配的样本丢弃并记录原因。Quest 侧同理，从同时持有的两个 Trackable 取同一帧样本
+- [ ] 5.9 验证 Probe Stop、下一轮开始和应用暂停之间的迟到 Marker 回调不会串入错误 runId
 
 ## 6. Editor 与自动化验证
 
-- [x] 6.1 测试默认 MarkerID 解析器对 `0`、`250`、前导零、空值和非数字原文的确定结果
+- [x] 6.1 测试 Registry 对 ArUco ID `0`、`250`、未知 ID、重复映射和版本哈希的确定结果
 - [x] 6.2 测试 JSONL 每行可独立解析、sequence 严格递增、公共字段完整且事件顺序可重放
 - [x] 6.3 测试默认日志不含 RawPayload 原文，显式开发配置会写入原文并标记 `rawPayloadCaptured=true`
 - [x] 6.4 测试周期/强制 flush、异常结束和会话尾计数，确保已关闭会话不再接收事件
 - [x] 6.5 用 Fake Quest 观察测试 Added/Updated/Removed、当前 Transform、无效 Pose和迟到事件隔离
-- [x] 6.6 用 Fake PICO 能力测试扫码成功/空结果/无回调 watchdog/迟到回调、ID 匹配/不匹配及 Marker 无效样本
+- [x] 6.6 用 Fake PICO 能力测试 Marker 回调、Registry 命中/未命中、静默 watchdog、迟到回调及 Marker 无效样本
 - [x] 6.7 测试 Pose 序列化完整保留原生、Unity、XR Origin 与 Offset 前后值，并能计算相对首帧和 A→B 相对变换
 - [x] 6.8 测试 Console 镜像被节流而 JSONL 不丢完整样本，错误与会话 ID 可相互关联
 - [x] 6.9 运行现有 Marker 相关测试，确认启用或移除 Probe 不改变 `MarkerAnchorService` 和现有 Provider 的生产行为
@@ -64,8 +65,8 @@
 ## 7. 分平台构建与预检
 
 - [x] 7.1 验证 Editor/无设备环境编译，平台无关日志与模型不泄漏 MRUK/PICO SDK 类型
-- [ ] 7.2 构建 Quest 开发包，确认 QR 权限、MRUK 能力、诊断入口、Console 镜像和 persistentDataPath 日志文件可用
-- [ ] 7.3 构建 PICO 4 Ultra Enterprise 开发包，确认企业服务、TOB 授权、QR 扫描、Marker 回调、诊断入口和日志文件可用
+- [x] 7.2 构建 Quest 开发包，确认 QR 权限、MRUK 能力、诊断入口、Console 镜像和 persistentDataPath 日志文件可用（证据：`quest-smoke-20260804.md`）
+- [ ] 7.3 构建 PICO 4 Ultra Enterprise 开发包，确认企业服务、TOB 授权、连续 Marker 回调、Registry、诊断入口和日志文件可用，并确认不会弹出系统 QR 扫码界面
 - [ ] 7.4 在两端执行一轮 smoke test，拉取 JSONL 并验证版本、权限、夹具、Marker、Pose、线程和会话尾字段完整
 - [ ] 7.5 对任何预检失败保存原始 SDK 返回值和环境快照；权限/授权受阻不得伪装成算法失败
 
@@ -79,14 +80,14 @@
 
 ## 9. PICO 真机矩阵与设备闸门
 
-- [ ] 9.1 在 PICO 上对 static ID 0 完成 10 轮独立 QR→ArUco 精确配对，每轮保存有效 6DOF Pose 和闭合 JSONL
-- [ ] 9.2 在 PICO 上对 dynamic ID 250 完成 10 轮独立 QR→ArUco 精确配对，每轮保存有效 6DOF Pose 和闭合 JSONL
+- [ ] 9.1 在 PICO 上对 static ID 0 完成 10 轮独立 ArUco 识别与 Registry 命中，每轮保存有效 6DOF Pose 和闭合 JSONL
+- [ ] 9.2 在 PICO 上对 dynamic ID 250 完成 10 轮独立 ArUco 识别与 Registry 命中，每轮保存有效 6DOF Pose 和闭合 JSONL
 - [ ] 9.3 对 static/dynamic 分别执行静止、缓慢平移、缓慢旋转、短暂遮挡和重新入镜，比较实际有效标志、Pose、回调节奏与静默表现
-- [ ] 9.4 在等待目标 ID 时展示另一 ID，验证日志明确记录 expected/actual ID 且不会伪造配对成功
-- [ ] 9.5 记录系统扫码界面取消、空结果、无回调、watchdog 结束及下一轮恢复的实际行为
-- [ ] 9.6 在 Marker 回调活动时启动一次 QR 扫描，记录扫描期间回调是否继续、间隔/有效标志变化、扫描后恢复和是否需要重新注册
+- [ ] 9.4 在等待目标 ID 时展示另一 ID，验证日志明确记录 actual ID、Registry miss 且不会伪造身份成功
+- [ ] 9.5 记录无回调、watchdog 结束及下一轮恢复的实际行为；不启动 PICO 系统扫码界面
+- [ ] 9.6 验证 Marker 回调持续活动时 Unity 业务交互不中断，并记录回调间隔/有效标志变化
 - [ ] 9.7 通过已知方向的移动/旋转动作确认 PICO Marker Pose 的局部轴、符号和原点，并回填 210 mm 物理偏移的候选局部 Pose
-- [ ] 9.8 汇总 PICO 两类 Marker 的配对耗时、回调间隔、最大静默区间、无效样本、SDK 错误和权限/TOB 约束
+- [ ] 9.8 汇总 PICO 两类 Marker 的 Registry 命中耗时、回调间隔、最大静默区间、无效样本、SDK 错误和权限/TOB 约束
 
 ## 10. Pose 验收、日志入库与结论
 

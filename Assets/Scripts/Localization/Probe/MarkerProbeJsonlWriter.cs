@@ -41,6 +41,13 @@ public sealed class MarkerProbeLogEvent
     public string markerIdParseFailure;
     public string markerIdParseFailureDetail;
     public string markerId;
+    public int picoArUcoId;
+    public bool registryResolved;
+    public string qrId;
+    public string logicalMarkerId;
+    public string businessObjectId;
+    public string registryVersion;
+    public string registrySourceSha256;
     public RawPayloadSummary rawPayload;
     public bool validFlagAvailable;
     public int validFlag;

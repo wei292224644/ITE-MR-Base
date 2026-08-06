@@ -25,6 +25,9 @@ public static class BuildScript
     const string k_QuestProfilePath = "Assets/Settings/Build Profiles/Quest.asset";
     const string k_PicoProfilePath = "Assets/Settings/Build Profiles/PICO.asset";
     const string k_MarkerProbeScene = "Assets/Scenes/MarkerProbe.unity";
+    const string k_PicoQrCameraProbeScene = "Assets/Scenes/PicoQrCameraProbe.unity";
+    const string k_PicoOfficialCameraRenderingScene =
+        "Packages/com.unity.xr.picoxr/Enterprise/Sample/CameraRendering/PXR/CameraRendering.unity";
 
     const string k_OpenXRLoader = "UnityEngine.XR.OpenXR.OpenXRLoader";
     const string k_PicoLoader = "Unity.XR.PXR.PXR_Loader";
@@ -82,6 +85,32 @@ public static class BuildScript
             "Builds/MarkerProbe/PICO/MarkerProbe-PICO.apk",
             excludePluginRoot: k_MetaPackageRoot,
             sceneOverride: new[] { k_MarkerProbeScene },
+            buildOptions: BuildOptions.Development | BuildOptions.AllowDebugging);
+    }
+
+    [MenuItem("MRBase/Build/PICO QR Camera Probe Development")]
+    public static void BuildPicoQrCameraProbe()
+    {
+        Build(
+            k_PicoProfilePath,
+            "MRBASE_PICO",
+            k_PicoLoader,
+            "Builds/Localization/PICO/PicoQrCameraProbe.apk",
+            excludePluginRoot: k_MetaPackageRoot,
+            sceneOverride: new[] { k_PicoQrCameraProbeScene },
+            buildOptions: BuildOptions.Development | BuildOptions.AllowDebugging);
+    }
+
+    [MenuItem("MRBase/Build/PICO Official CameraRendering Sample")]
+    public static void BuildPicoOfficialCameraRenderingSample()
+    {
+        Build(
+            k_PicoProfilePath,
+            "MRBASE_PICO",
+            k_PicoLoader,
+            "Builds/Localization/PICO/PicoOfficialCameraRendering.apk",
+            excludePluginRoot: k_MetaPackageRoot,
+            sceneOverride: new[] { k_PicoOfficialCameraRenderingScene },
             buildOptions: BuildOptions.Development | BuildOptions.AllowDebugging);
     }
 

@@ -6,7 +6,8 @@ using UnityEngine.XR.Hands.Gestures;
 /// <summary>
 /// 双手合十语义触发器（门面）。并行求值路径 A（JointMath）与路径 B（HandPoseComposite），
 /// 对外 <see cref="Performed"/> / <see cref="Released"/> / <see cref="IsHeld"/> 仅跟随
-/// <see cref="ActiveSource"/>（默认 A）。诊断可读 <see cref="IsHeldA"/> / <see cref="IsHeldB"/>。
+/// <see cref="ActiveSource"/>（默认 B：官方 Shape/Pose 复合，真机对比后选定）。
+/// 诊断可读 <see cref="IsHeldA"/> / <see cref="IsHeldB"/>。
 /// </summary>
 public class PalmsTogetherGesture : MonoBehaviour
 {
@@ -24,8 +25,8 @@ public class PalmsTogetherGesture : MonoBehaviour
     [Tooltip("松开时阈值放宽的倍数。")]
     [SerializeField, Min(1f)] float releaseSlack = 1.4f;
 
-    [Tooltip("对外事件由哪条路径驱动。A/B 仍并行求值供 HUD 对比。")]
-    [SerializeField] Source activeSource = Source.JointMath;
+    [Tooltip("对外事件由哪条路径驱动。默认 HandPoseComposite（B）。A 仍并行求值供 HUD 对比。")]
+    [SerializeField] Source activeSource = Source.HandPoseComposite;
 
     [Header("Path B — HandPoseComposite")]
     [SerializeField] XRHandPose leftHandPose;
@@ -64,7 +65,7 @@ public class PalmsTogetherGesture : MonoBehaviour
     readonly XRHandJointsUpdatedEventArgs leftArgs = new();
     readonly XRHandJointsUpdatedEventArgs rightArgs = new();
 
-    Source lastEmittingSource = Source.JointMath;
+    Source lastEmittingSource = Source.HandPoseComposite;
     bool lastEmittedHeld;
 
     void Awake()

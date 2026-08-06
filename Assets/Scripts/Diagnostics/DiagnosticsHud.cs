@@ -21,6 +21,9 @@ public class DiagnosticsHud : MonoBehaviour
     [Tooltip("同一份内容打到 Console 的间隔秒数；0 表示不打日志。")]
     [SerializeField] float logIntervalSeconds = 2f;
 
+    [Tooltip("设备内诊断面板的刷新间隔；帧率本身仍按每帧采样。")]
+    [SerializeField] float reportIntervalSeconds = 0.2f;
+
     [Header("要观察的 Action")]
     [Tooltip("手部交互相关的 action。逐个显示当前值与 activeControl —— " +
              "activeControl 会告出当前是哪条 binding 在生效，这是双 binding 验证的直接证据。")]
@@ -34,9 +37,11 @@ public class DiagnosticsHud : MonoBehaviour
 
     float m_SmoothedDeltaTime;
     float m_NextLogTime;
+    float m_NextReportTime;
 
     void OnEnable()
     {
+        m_NextReportTime = 0f;
         foreach (var reference in EnabledActionReferences())
             reference.action.Enable();
     }
@@ -48,6 +53,11 @@ public class DiagnosticsHud : MonoBehaviour
         m_SmoothedDeltaTime = m_SmoothedDeltaTime <= 0f
             ? dt
             : Mathf.Lerp(m_SmoothedDeltaTime, dt, 0.1f);
+
+        if (Time.unscaledTime < m_NextReportTime)
+            return;
+
+        m_NextReportTime = Time.unscaledTime + Mathf.Max(0.05f, reportIntervalSeconds);
 
         var report = BuildReport();
 
@@ -201,7 +211,13 @@ public class DiagnosticsHud : MonoBehaviour
     {
         m_Builder.Append("\n== camera / passthrough ==\n");
 
-        var cam = xrCamera != null ? xrCamera : Camera.main;
+        // 场景拆分后 XR 相机住在附加加载的 MRCore 里，无法在本场景预先接线，
+        // 所以 xrCamera 通常为空。优先走 MRContext —— 它拿的是 XR Origin 名下那台，
+        // 而 Camera.main 只认 MainCamera 标签，多相机场景里会取错。
+        var context = MRContext.Instance;
+        var cam = xrCamera != null ? xrCamera
+                : context != null && context.Camera != null ? context.Camera
+                : Camera.main;
         if (cam == null)
         {
             m_Builder.Append("  no camera found.\n");

@@ -1,27 +1,28 @@
 ## Why
 
-Quest 直接从 QR Trackable 获得身份和 Pose，而 PICO 需要先扫描 QR，再从独立的 ArUco Marker 回调取得 ID 与 Pose；目前缺少真机证据证明这两条原生路径能够支撑同一套后续扫描业务。现在应先用最小探针和可追溯日志验证架构可行性，避免在平台行为尚未确认前设计完整生产生命周期。
+Quest 直接从 QR Trackable 获得身份和 Pose，而 PICO 的系统 QR 扫描会接管独立体验，不能作为当前相机流能力使用。PICO 应只从连续 ArUco Marker 回调取得 ID 与 Pose，再通过外部 MarkerRegistry 映射到 QR ID 和业务对象；目前缺少真机证据证明这条非侵入式路径能够支撑后续业务。
 
 ## What Changes
 
 - 为 Quest 增加最小真机探针，记录 MRUK QR Trackable 的原始内容、解析后的 MarkerID、6DOF Pose、追踪状态和回调节奏。
-- 为 PICO 增加最小真机探针：由外部触发 QR 扫描，解析 MarkerID，再观察相同整数 ID 的 ArUco Pose；顺序路径稳定即可证明本次架构可行。
+- 为 Quest Probe 增加可移除的多锚点诊断可视化：ID 0 与 ID 250 可同时各自显示跟随盒子，并在头显内显示 QR 原文与 MarkerID；它不受当前测试轮夹具选择限制，也不接入业务对象系统。
+- 为 PICO 增加最小真机探针：只注册 ArUco Marker 回调，持续记录 MarkerID 与 6DOF Pose；通过版本化外部 MarkerRegistry 将 `PicoArUcoId` 映射到 `QrId` 和业务对象，不调用系统 QR 扫描。
 - 分别验证 PICO 官方静态 ID 0 与动态 ID 250，记录两类 Marker 的真实回调、移动和静默行为，不从文件命名推断运行时语义。
 - 使用平台原生 SDK；不接入相机帧、OpenCV 运行时识别、自定义视觉算法或软件降级。
 - 持久化详细 JSONL 日志，覆盖会话/平台/系统/SDK/权限/授权、状态、错误码、线程、原生与本地时间、回调间隔、MarkerID、Pose、夹具格式、实测尺寸、平整度和夹具文件哈希。
-- 默认只保存 QR RawPayload 的长度和 SHA-256；开发构建可显式记录原文。入库代表日志必须脱敏，并把世界 Pose 转成相对首帧坐标。
+- 默认只保存 Quest QR RawPayload 的长度和 SHA-256；开发构建可显式记录原文。PICO 运行时不读取 QR 原文，入库代表日志必须脱敏，并把世界 Pose 转成相对首帧坐标。
 - 纳入版本化打印夹具：A3 横版单页为首选，双 A4 为备用；QR 外框与 ArUco 外框均为 160 mm，QR 在左、ArUco 在右，物理中心距为 210 mm。打印后 ArUco 边长与 QR→ArUco 中心距**均需实测**并记录实测值——中心距是将来的 `ArUcoToQrOffset`，在双 A4 上由手工拼页决定，量边长推不出来。
 - 记录 PICO Marker 回调的注册参数（`trackingMode`、`cameraYOffset`、返回值），它们经 SDK 的原点高度补偿直接改变每个样本的 posY。
 - Probe 独占 PICO Marker 回调槽：`setMarkerInfoCallback` 是单槽 set 语义且无反注册 API，Probe 与生产 Provider 不得同时注册，Probe 停止时不解绑企业服务。
-- Quest 与 PICO 各连续执行 10 次获取；验证正确 MarkerID、6DOF Pose、PICO QR→同 ID ArUco 配对、日志字段完整，并用相对 Pose 评估 5 cm / 5° 对齐目标。
-- 将 PICO QR 扫描与 Marker 回调能否并行、Marker 局部坐标映射、权限/TOB 授权和回调节奏作为真机观测结果；并发失败不否决稳定的顺序架构。
+- Quest 与 PICO 各连续执行 10 次获取；验证 Quest QR 身份、PICO ArUco ID、外部映射命中、6DOF Pose、日志字段完整，并用相对 Pose 评估 5 cm / 5° 对齐目标。
+- 将 PICO Marker 回调节奏、外部映射版本、权限/TOB 授权和坐标映射作为真机观测结果；不把 PICO 系统 QR 扫描并发或顺序路径纳入本 change。
 - 明确不在本 change 实现生产级生命周期、多目标管理、业务对象创建、一次性触发模式、重复扫描辅助定位模式或最终公共 API 迁移；这些都基于本次证据后续单独设计。
 
 ## Capabilities
 
 ### New Capabilities
 
-- `cross-platform-marker-tracking`: Quest QR 与 PICO QR→ArUco 原生扫描架构的真机可行性探针、持久化诊断证据、打印夹具和通过标准。
+- `cross-platform-marker-tracking`: Quest QR 与 PICO ArUco＋外部身份映射架构的真机可行性探针、持久化诊断证据、打印夹具和通过标准。
 
 ### Modified Capabilities
 

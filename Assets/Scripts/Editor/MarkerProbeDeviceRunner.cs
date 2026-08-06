@@ -20,6 +20,9 @@ public static class MarkerProbeDeviceRunner
     const string PackageName = "com.DefaultCompany.MixedRealityTemplate";
     const string LaunchActivity = "com.unity3d.player.UnityPlayerActivity";
     const string QuestApk = "Builds/MarkerProbe/Quest/MarkerProbe-Quest.apk";
+    const string PicoApk = "Builds/MarkerProbe/PICO/MarkerProbe-PICO.apk";
+    const string PicoQrCameraProbeApk = "Builds/Localization/PICO/PicoQrCameraProbe.apk";
+    const string PicoOfficialCameraRenderingApk = "Builds/Localization/PICO/PicoOfficialCameraRendering.apk";
     const string LogDirectory = "Builds/MarkerProbe/Logs";
 
     static readonly object ProcessGate = new object();
@@ -46,6 +49,68 @@ public static class MarkerProbeDeviceRunner
 
         Debug.Log($"[MarkerProbeDevice] Quest install/run queued. adbLog={commandLog} liveLog={liveLog}");
         _ = Task.Run(() => InstallRunAndCapture(adbPath, apkPath, commandLog, liveLog));
+    }
+
+    [MenuItem("MRBase/Build/Marker Probe/PICO Install, Run and Monitor")]
+    public static void InstallRunAndMonitorPico()
+    {
+        string projectRoot = Path.GetDirectoryName(Application.dataPath);
+        string apkPath = Path.GetFullPath(Path.Combine(projectRoot, PicoApk));
+        string logRoot = Path.GetFullPath(Path.Combine(projectRoot, LogDirectory));
+        string adbPath = ResolveAdbPath();
+
+        if (!File.Exists(apkPath))
+            throw new FileNotFoundException("PICO Marker Probe APK not found.", apkPath);
+        if (!File.Exists(adbPath))
+            throw new FileNotFoundException("Unity Android SDK adb not found.", adbPath);
+
+        Directory.CreateDirectory(logRoot);
+        string stamp = DateTime.Now.ToString("yyyyMMdd-HHmmss");
+        string commandLog = Path.Combine(logRoot, $"PICO-{stamp}-adb.log");
+        string liveLog = Path.Combine(logRoot, $"PICO-{stamp}-logcat.log");
+
+        Debug.Log($"[MarkerProbeDevice] PICO install/run queued. adbLog={commandLog} liveLog={liveLog}");
+        _ = Task.Run(() => InstallRunAndCapturePico(adbPath, apkPath, commandLog, liveLog));
+    }
+
+    [MenuItem("MRBase/Build/PICO QR Camera Probe Install, Run and Monitor")]
+    public static void InstallRunAndMonitorPicoQrCameraProbe()
+    {
+        string projectRoot = Path.GetDirectoryName(Application.dataPath);
+        string apkPath = Path.GetFullPath(Path.Combine(projectRoot, PicoQrCameraProbeApk));
+        string logRoot = Path.GetFullPath(Path.Combine(projectRoot, "Builds/Localization/PICO/Logs"));
+        string adbPath = ResolveAdbPath();
+        if (!File.Exists(apkPath))
+            throw new FileNotFoundException("PICO QR Camera Probe APK not found.", apkPath);
+        if (!File.Exists(adbPath))
+            throw new FileNotFoundException("Unity Android SDK adb not found.", adbPath);
+
+        Directory.CreateDirectory(logRoot);
+        string stamp = DateTime.Now.ToString("yyyyMMdd-HHmmss");
+        string commandLog = Path.Combine(logRoot, $"PICO-QR-{stamp}-adb.log");
+        string liveLog = Path.Combine(logRoot, $"PICO-QR-{stamp}-logcat.log");
+        Debug.Log($"[MarkerProbeDevice] PICO QR install/run queued. adbLog={commandLog} liveLog={liveLog}");
+        _ = Task.Run(() => InstallRunAndCapturePico(adbPath, apkPath, commandLog, liveLog));
+    }
+
+    [MenuItem("MRBase/Build/PICO Official CameraRendering Install, Run and Monitor")]
+    public static void InstallRunAndMonitorPicoOfficialCameraRendering()
+    {
+        string projectRoot = Path.GetDirectoryName(Application.dataPath);
+        string apkPath = Path.GetFullPath(Path.Combine(projectRoot, PicoOfficialCameraRenderingApk));
+        string logRoot = Path.GetFullPath(Path.Combine(projectRoot, "Builds/Localization/PICO/Logs"));
+        string adbPath = ResolveAdbPath();
+        if (!File.Exists(apkPath))
+            throw new FileNotFoundException("PICO official CameraRendering APK not found.", apkPath);
+        if (!File.Exists(adbPath))
+            throw new FileNotFoundException("Unity Android SDK adb not found.", adbPath);
+
+        Directory.CreateDirectory(logRoot);
+        string stamp = DateTime.Now.ToString("yyyyMMdd-HHmmss");
+        string commandLog = Path.Combine(logRoot, $"PICO-OFFICIAL-{stamp}-adb.log");
+        string liveLog = Path.Combine(logRoot, $"PICO-OFFICIAL-{stamp}-logcat.log");
+        Debug.Log($"[MarkerProbeDevice] PICO official CameraRendering install/run queued. adbLog={commandLog} liveLog={liveLog}");
+        _ = Task.Run(() => InstallRunAndCapturePico(adbPath, apkPath, commandLog, liveLog));
     }
 
     [MenuItem("MRBase/Build/Marker Probe/Quest Pull Device Logs")]
@@ -138,6 +203,87 @@ public static class MarkerProbeDeviceRunner
                 $"[MarkerProbeDevice] Quest install/run failed: {exception.Message}; " +
                 $"auditLog={commandLog}");
         }
+    }
+
+    static void InstallRunAndCapturePico(
+        string adbPath,
+        string apkPath,
+        string commandLog,
+        string liveLog)
+    {
+        try
+        {
+            string serial = RequirePicoDevice(adbPath, commandLog);
+            CommandResult install = RunAdb(
+                adbPath, commandLog, "-s", serial, "install", "-r", "-d", apkPath);
+            if (install.ExitCode != 0)
+            {
+                // Some PICO firmware rejects adb's streamed install for large APKs while
+                // accepting the legacy file-based transfer.
+                AppendLine(commandLog, "INSTALL_STREAMED_FAILED retrying --no-streaming");
+                install = RunAdb(
+                    adbPath, commandLog, "-s", serial, "install", "--no-streaming", "-r", "-d", apkPath);
+            }
+            RequireSuccess(install, "install");
+            // Enterprise RGB capture requests CAMERA at runtime. For a development probe,
+            // grant it through adb so the headset does not remain on the permission/loading page.
+            RunAdb(adbPath, commandLog, "-s", serial, "shell", "pm", "grant",
+                PackageName, "android.permission.CAMERA");
+            RunAdb(adbPath, commandLog, "-s", serial, "shell", "am", "force-stop", PackageName);
+            RunAdb(adbPath, commandLog, "-s", serial, "logcat", "-c");
+            RequireSuccess(RunAdb(
+                adbPath, commandLog, "-s", serial, "shell", "am", "start", "-n",
+                $"{PackageName}/{LaunchActivity}"), "launch");
+
+            System.Threading.Thread.Sleep(2000);
+            CommandResult pidResult = RunAdb(adbPath, commandLog, "-s", serial, "shell", "pidof", "-s", PackageName);
+            RequireSuccess(pidResult, "resolve application pid");
+            string pid = pidResult.Output.Trim();
+            if (string.IsNullOrEmpty(pid) || pid.Any(character => !char.IsDigit(character)))
+                throw new InvalidOperationException($"Invalid PICO application pid: '{pid}'");
+
+            StartLogcat(adbPath, serial, pid, liveLog, commandLog);
+            Debug.Log($"[MarkerProbeDevice] PICO Marker Probe running. serial={serial} pid={pid} liveLog={liveLog}");
+        }
+        catch (Exception exception)
+        {
+            AppendLine(commandLog, "ERROR " + exception);
+            Debug.LogError($"[MarkerProbeDevice] PICO install/run failed: {exception.Message}; auditLog={commandLog}");
+        }
+    }
+
+    static string RequirePicoDevice(string adbPath, string auditLog)
+    {
+        RequireSuccess(RunAdb(adbPath, auditLog, "start-server"), "start adb server");
+        CommandResult devices = RunAdb(adbPath, auditLog, "devices", "-l");
+        RequireSuccess(devices, "list devices");
+
+        List<string> serials = devices.Output
+            .Split(new[] { '\r', '\n' }, StringSplitOptions.RemoveEmptyEntries)
+            .Select(line => line.Split(new[] { '\t', ' ' }, StringSplitOptions.RemoveEmptyEntries))
+            .Where(parts => parts.Length >= 2 && parts[1] == "device")
+            .Select(parts => parts[0])
+            .ToList();
+        var picoDevices = serials
+            .Select(serial =>
+            {
+                string manufacturer = RunAdb(
+                    adbPath, auditLog, "-s", serial, "shell", "getprop", "ro.product.manufacturer").Output.Trim();
+                string model = RunAdb(
+                    adbPath, auditLog, "-s", serial, "shell", "getprop", "ro.product.model").Output.Trim();
+                return (serial, identity: $"{manufacturer} {model}");
+            })
+            .Where(device => device.identity.IndexOf("pico", StringComparison.OrdinalIgnoreCase) >= 0)
+            .ToList();
+        if (picoDevices.Count != 1)
+            throw new InvalidOperationException(
+                $"Expected exactly one PICO device; found {picoDevices.Count} among {serials.Count} authorized devices.");
+
+        string serial = picoDevices[0].serial;
+        string identity = picoDevices[0].identity;
+
+        AppendLine(auditLog, $"PICO_DEVICE serial={serial} identity={identity}");
+        return serial;
     }
 
     static string RequireQuestDevice(string adbPath, string auditLog)

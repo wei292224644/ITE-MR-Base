@@ -1,4 +1,4 @@
-#if MRBASE_HAS_MRUK
+#if MRBASE_HAS_MRUK && MRBASE_QUEST
 using System;
 using System.Collections.Generic;
 using System.Diagnostics;
@@ -16,6 +16,10 @@ using UnityEngine;
 [DisallowMultipleComponent]
 public sealed class QuestMarkerProbeAdapter : MonoBehaviour
 {
+    private const float ObserverStartupTimeoutSeconds = 15f;
+    private const float ObserverRetryIntervalSeconds = 0.25f;
+    private const float DualEvidenceSampleIntervalSeconds = 0.1f;
+
     private sealed class Observation
     {
         public MRUKTrackable Trackable;
@@ -60,9 +64,14 @@ public sealed class QuestMarkerProbeAdapter : MonoBehaviour
     private MRUK.MRUKSettings subscribedSettings;
     private OVRAnchor.TrackerConfiguration originalRequestedConfiguration;
     private bool requestedConfigurationModified;
+    private bool observationPending;
+    private bool waitingEventRecorded;
+    private float observationDeadline;
+    private float nextObservationAttempt;
+    private float nextDualEvidenceSampleTime;
     private long capturedGeneration;
 
-    public bool IsObserving => subscribedSettings != null;
+    public bool IsObserving => observationPending || subscribedSettings != null;
 
     public bool BeginObservation(MarkerProbeEntry owner, long generation)
     {
@@ -76,33 +85,87 @@ public sealed class QuestMarkerProbeAdapter : MonoBehaviour
         }
 
         markerIdParser = entry.CreateMarkerIdParser();
+        observationPending = true;
+        observationDeadline = Time.unscaledTime + ObserverStartupTimeoutSeconds;
+        nextObservationAttempt = Time.unscaledTime;
+
+        QuestMarkerProbeRuntimeBootstrap.EnsureInitialized(out string bootstrapDetail);
+        return TryStartObservation(bootstrapDetail);
+    }
+
+    private bool TryStartObservation(string bootstrapDetail = null)
+    {
+        if (entry == null || !entry.IsSessionGenerationCurrent(capturedGeneration))
+        {
+            EndObservation();
+            return false;
+        }
 
         try
         {
             MRUK mruk = MRUK.Instance;
-            if (mruk == null || mruk.SceneSettings == null)
+            bool mrukReady = mruk != null && mruk.SceneSettings != null;
+            bool qrSupported = mrukReady && mruk.QRCodeTrackingSupported;
+            bool scenePermissionGranted =
+                OVRPermissionsRequester.IsPermissionGranted(OVRPermissionsRequester.Permission.Scene);
+
+            if (!mrukReady || !qrSupported || !scenePermissionGranted)
             {
-                RecordAdapterError(
-                    "quest_mruk_unavailable",
-                    "capability",
-                    "MRUK_UNAVAILABLE",
-                    "MRUK.Instance or MRUK.SceneSettings is null; QR Trackable observation was not started.");
+                if (!waitingEventRecorded)
+                {
+                    waitingEventRecorded = true;
+                    RecordWaitingState(mrukReady, qrSupported, scenePermissionGranted, bootstrapDetail);
+                }
+
+                if (Time.unscaledTime < observationDeadline)
+                {
+                    observationPending = true;
+                    return true;
+                }
+
+                if (mrukReady)
+                {
+                    bool requested = mruk.SceneSettings.TrackerConfiguration.QRCodeTrackingEnabled;
+                    RecordPreflight(mruk, qrSupported, scenePermissionGranted, requested, requested);
+                }
+
+                if (!mrukReady)
+                {
+                    RecordAdapterError(
+                        "quest_mruk_unavailable",
+                        "capability",
+                        "MRUK_UNAVAILABLE",
+                        $"MRUK runtime was not ready within {ObserverStartupTimeoutSeconds:F0} seconds; {bootstrapDetail}");
+                }
+                else if (!scenePermissionGranted)
+                {
+                    RecordAdapterError(
+                        "quest_scene_permission_denied",
+                        "permission",
+                        "QUEST_SCENE_PERMISSION_DENIED",
+                        $"Meta Scene permission was not granted within {ObserverStartupTimeoutSeconds:F0} seconds.");
+                }
+                else
+                {
+                    RecordAdapterError(
+                        "quest_qr_capability_unavailable",
+                        "capability",
+                        "QUEST_QR_TRACKING_UNSUPPORTED",
+                        $"MRUK reported QRCodeTrackingSupported=false for {ObserverStartupTimeoutSeconds:F0} seconds.");
+                }
+
+                EndObservation();
                 return false;
             }
 
-            bool qrSupported = mruk.QRCodeTrackingSupported;
-            bool scenePermissionGranted =
-                OVRPermissionsRequester.IsPermissionGranted(OVRPermissionsRequester.Permission.Scene);
             OVRAnchor.TrackerConfiguration requestedBefore = mruk.SceneSettings.TrackerConfiguration;
             OVRAnchor.TrackerConfiguration requestedAfter = requestedBefore;
             subscribedSettings = mruk.SceneSettings;
             originalRequestedConfiguration = requestedBefore;
-            if (qrSupported && scenePermissionGranted)
-            {
-                requestedAfter.QRCodeTrackingEnabled = true;
-                mruk.SceneSettings.TrackerConfiguration = requestedAfter;
-                requestedConfigurationModified = !requestedBefore.QRCodeTrackingEnabled;
-            }
+            requestedAfter.QRCodeTrackingEnabled = true;
+            mruk.SceneSettings.TrackerConfiguration = requestedAfter;
+            requestedConfigurationModified = !requestedBefore.QRCodeTrackingEnabled;
+            observationPending = false;
 
             RecordPreflight(
                 mruk,
@@ -110,28 +173,6 @@ public sealed class QuestMarkerProbeAdapter : MonoBehaviour
                 scenePermissionGranted,
                 requestedBefore.QRCodeTrackingEnabled,
                 requestedAfter.QRCodeTrackingEnabled);
-
-            if (!qrSupported)
-            {
-                RecordAdapterError(
-                    "quest_qr_capability_unavailable",
-                    "capability",
-                    "QUEST_QR_TRACKING_UNSUPPORTED",
-                    "MRUK reports QRCodeTrackingSupported=false; observation was not started.");
-                EndObservation();
-                return false;
-            }
-
-            if (!scenePermissionGranted)
-            {
-                RecordAdapterError(
-                    "quest_scene_permission_denied",
-                    "permission",
-                    "QUEST_SCENE_PERMISSION_DENIED",
-                    "The Meta Scene permission is not granted; observation was not started.");
-                EndObservation();
-                return false;
-            }
 
             subscribedSettings.TrackableAdded.AddListener(HandleTrackableAdded);
             subscribedSettings.TrackableRemoved.AddListener(HandleTrackableRemoved);
@@ -186,6 +227,11 @@ public sealed class QuestMarkerProbeAdapter : MonoBehaviour
         markerIdParser = null;
         capturedGeneration = 0;
         requestedConfigurationModified = false;
+        observationPending = false;
+        waitingEventRecorded = false;
+        observationDeadline = 0f;
+        nextObservationAttempt = 0f;
+        nextDualEvidenceSampleTime = 0f;
         originalRequestedConfiguration = default;
     }
 
@@ -200,6 +246,16 @@ public sealed class QuestMarkerProbeAdapter : MonoBehaviour
         {
             EndObservation();
             return;
+        }
+
+        if (observationPending && Time.unscaledTime >= nextObservationAttempt)
+        {
+            nextObservationAttempt = Time.unscaledTime + ObserverRetryIntervalSeconds;
+            TryStartObservation();
+            if (subscribedSettings == null)
+            {
+                return;
+            }
         }
 
         staleInstanceIds.Clear();
@@ -235,7 +291,10 @@ public sealed class QuestMarkerProbeAdapter : MonoBehaviour
 
         for (int i = 0; i < staleInstanceIds.Count; i++)
         {
-            observations.Remove(staleInstanceIds[i]);
+            int staleInstanceId = staleInstanceIds[i];
+            entry?.HideDiagnosticAnchor(staleInstanceId);
+            observations.Remove(staleInstanceId);
+            lastObservationTimes.Remove(staleInstanceId);
         }
 
         RecordQuestDualFrame();
@@ -247,6 +306,16 @@ public sealed class QuestMarkerProbeAdapter : MonoBehaviour
         {
             return;
         }
+
+        // The evidence remains same-Unity-frame evidence, but does not need to be
+        // serialized once per render frame. Trackable changes are still recorded
+        // immediately by RecordTrackableEvent above.
+        if (Time.unscaledTime < nextDualEvidenceSampleTime)
+        {
+            return;
+        }
+
+        nextDualEvidenceSampleTime = Time.unscaledTime + DualEvidenceSampleIntervalSeconds;
 
         MRUKTrackable markerA = null;
         MRUKTrackable markerB = null;
@@ -393,6 +462,7 @@ public sealed class QuestMarkerProbeAdapter : MonoBehaviour
             AddRemovedReappearanceKeys(trackable);
             RecordTrackableEvent(trackable, "quest_trackable_removed", "mruk.TrackableRemoved");
             int instanceId = trackable.GetInstanceID();
+            entry?.HideDiagnosticAnchor(instanceId);
             observations.Remove(instanceId);
             lastObservationTimes.Remove(instanceId);
         }
@@ -430,7 +500,7 @@ public sealed class QuestMarkerProbeAdapter : MonoBehaviour
         MarkerProbePoseValidationResult poseValidation =
             MarkerProbePoseSerialization.ValidateUnityPose(worldPose);
 
-        entry.TryRecordPlatformEvent(capturedGeneration, new MarkerProbeLogEvent
+        var logEvent = new MarkerProbeLogEvent
         {
             eventType = eventType,
             nativeEventKind = nativeEventKind,
@@ -471,7 +541,25 @@ public sealed class QuestMarkerProbeAdapter : MonoBehaviour
                     "no PICO marker-to-QR candidate offset was applied."
             },
             error = CreateObservationError(parseResult, poseValidation)
-        });
+        };
+        entry.ClassifyQuestObservation(logEvent, trackable.IsTracked, poseValidation.valid);
+        entry.TryRecordPlatformEvent(capturedGeneration, logEvent);
+
+        if (trackable.IsTracked &&
+            poseValidation.valid &&
+            !string.IsNullOrEmpty(trackable.MarkerPayloadString))
+        {
+            entry.ShowOrUpdateDiagnosticAnchor(
+                instanceId,
+                trackable.MarkerPayloadString,
+                parseResult?.markerId,
+                worldPose,
+                trackable.PlaneRect);
+        }
+        else
+        {
+            entry.HideDiagnosticAnchor(instanceId);
+        }
     }
 
     private void RecordPreflight(
@@ -505,6 +593,36 @@ public sealed class QuestMarkerProbeAdapter : MonoBehaviour
                 success = qrSupported && scenePermissionGranted,
                 detail = $"supported={qrSupported}; permission={scenePermissionGranted}; " +
                          $"requestedBefore={requestedBefore}; requestedAfter={requestedAfter}; active={active}"
+            }
+        });
+    }
+
+    private void RecordWaitingState(
+        bool mrukReady,
+        bool qrSupported,
+        bool scenePermissionGranted,
+        string bootstrapDetail)
+    {
+        entry?.TryRecordPlatformEvent(capturedGeneration, new MarkerProbeLogEvent
+        {
+            eventType = "quest_qr_observer_waiting",
+            nativeEventKind = "adapter_preflight_wait",
+            observationSemantics =
+                "Transient startup state; the adapter retries until the bounded startup deadline.",
+            questPreflight = new MarkerProbeQuestPreflightSnapshot
+            {
+                mrukInstanceAvailable = mrukReady,
+                qrCodeTrackingSupported = qrSupported,
+                scenePermissionGranted = scenePermissionGranted,
+                detail = $"timeoutSeconds={ObserverStartupTimeoutSeconds:F0}; bootstrap={bootstrapDetail}"
+            },
+            sdkResult = new MarkerProbeSdkResult
+            {
+                available = mrukReady,
+                operation = "Wait for Quest MRUK QR observer prerequisites",
+                success = false,
+                detail = $"mrukReady={mrukReady}; supported={qrSupported}; " +
+                         $"permission={scenePermissionGranted}; bootstrap={bootstrapDetail}"
             }
         });
     }

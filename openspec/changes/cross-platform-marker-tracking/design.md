@@ -3,7 +3,7 @@
 Quest 与 PICO 的原生 Marker 能力不对称：
 
 - Quest 的 MRUK QR Trackable 同时提供 QR 原文和 QR 的 6DOF Pose。
-- PICO 的 `ScanQRCode` 只返回 QR 原文；`SetMarkerInfoCallback` 返回独立的 ArUco 整数 ID 与 Pose。要建立身份和 Pose 的关系，必须先解析 QR，再观察相同 ID 的 ArUco。
+- PICO 的 `ScanQRCode` 会启动独立系统扫码体验并影响当前操作流程；它不是当前相机流。`SetMarkerInfoCallback` 则持续返回 ArUco 整数 ID 与 Pose。本 change 不调用 `ScanQRCode`，而由外部 MarkerRegistry 建立 ArUco ID、QR ID 和业务对象的关系。
 
 当前仓库已有 `QuestMarkerProvider`、`PicoMarkerProvider` 和 `IMarkerTrackingProvider`，但本 change 不应在平台行为未经真机确认前把它们扩展成完整生产架构。本次只建立可移除的诊断探针，用原生 API、版本化夹具和持久化日志回答“扫描架构是否可行”。
 
@@ -14,7 +14,7 @@ PICO 官方夹具已逐位确认使用 OpenCV `DICT_4X4_1000`：静态 ID 0 的�
 **Goals:**
 
 - 在 Quest 真机上取得 QR RawPayload、MarkerID、有效 6DOF Pose 和真实回调节奏。
-- 在 PICO 真机上完成外部触发的 QR→同 ID ArUco 顺序路径，并分别观察静态 ID 0 和动态 ID 250。
+- 在 PICO 真机上完成连续 ArUco 识别，并通过版本化外部 MarkerRegistry 命中静态 ID 0 和动态 ID 250。
 - 持久化足够详细的 JSONL，使测试结束后仍可重放时序、分析错误并比较 Pose。
 - 让测试期间可通过 Unity 日志实时监控，同时保留设备文件作为完整证据。
 - 使用固定、可测量的 A3/A4 夹具，记录打印与安装条件，避免把物理误差误判为追踪误差。
@@ -27,7 +27,7 @@ PICO 官方夹具已逐位确认使用 OpenCV `DICT_4X4_1000`：静态 ID 0 的�
 - 不迁移 `MarkerAnchorService`，不创建业务对象，不决定扫描后执行什么业务。
 - 不设计一次性触发和重复扫描辅助定位的最终 API；它们是后续 change。
 - 不实现相机帧访问、OpenCV 运行时识别、自定义视觉算法或软件降级。
-- 不承诺 PICO QR 扫描与 Marker 回调可以并行；只记录真机事实。
+- 不调用 PICO 系统 QR 扫描，不把系统扫码界面纳入本 change；若未来需要运行时读取 QR，另立相机帧能力 change。
 - 不以本探针的临时控制入口和日志模型作为最终公共 API。
 
 ## Decisions
@@ -37,7 +37,7 @@ PICO 官方夹具已逐位确认使用 OpenCV `DICT_4X4_1000`：静态 ID 0 的�
 实现一个仅在开发/诊断场景启用的 Probe Runner，组合四个边界：
 
 1. Quest 原生观察适配器；
-2. PICO 原生扫码与 Marker 回调适配器；
+2. PICO 原生 Marker 回调适配器与外部 MarkerRegistry 适配器；
 3. 单一 JSONL 记录器；
 4. 最小手动控制与状态显示入口。
 
@@ -65,11 +65,11 @@ value = tobHelper.Call<int>("setMarkerInfoCallback", new MarkerInfoCallback(...)
 
 本 change 不建立共享企业服务门面。那属于后续 production change；探针只需要「同一时刻只有一个注册方」这一条纪律。
 
-### D2. MarkerID 是 QR 与 PICO ArUco 的同一逻辑 ID
+### D2. PICO ArUco ID、QR ID 与业务身份由外部 Registry 映射
 
-本次夹具的 QR 原文分别是规范十进制字符串 `"0"` 和 `"250"`，解析后的 MarkerID 与 PICO `MarkerInfo.iMarkerId.ToString()` 精确相等。探针保留 `RawPayload` 与 `MarkerID` 两个字段，但不再引入独立的 `ArUcoId` 业务概念。
+本次夹具仍使用 QR 原文 `"0"` 和 `"250"`，但 PICO 不读取这些 QR。PICO SDK 返回的整数必须记录为 `PicoArUcoId`；外部 Registry 负责把它映射到 `QrId`、`LogicalMarkerId` 和业务对象。Quest 可独立从 QR Trackable 取得 QR 原文，再通过同一 Registry 解析业务身份。
 
-探针只需要一个可替换的最小解析边界。本次默认解析器接受规范十进制字符串；未来 URL、JSON 或查表规则不进入本 change。日志必须保存解析成功/失败和原因，以便后续业务解析器设计使用真实输入。
+Registry 必须版本化、可审计并记录文件哈希；PICO 运行时只做整数 `PicoArUcoId` 查表，不从 QR 原文推导 ID。QR URL、JSON 或其他格式的解析只属于 Registry/Quest 侧配置流程，不进入 PICO 采集链路。
 
 ### D3. Quest 流程只观察原生 QR Trackable
 
@@ -81,25 +81,30 @@ Quest 测试流程：
 4. 记录每次样本的 Unity World Pose、线程、原生时间（若有）、单调时间和相邻回调间隔；
 5. 每轮测试由操作者明确开始和结束，不由探针推导生产 Lost 语义。
 
+为直接观察 Pose 是否可用于空间锚定，Quest Probe 额外提供可移除的诊断可视化：每个有效 MRUK QR Trackable 按实例身份拥有独立盒子和标签，盒子位于 QR 本地上方并随当前 Transform 更新，标签显示内存中的 QR 原文和解析后的 MarkerID。ID 0 与 ID 250 必须能够同时存在；static/dynamic/dual 夹具选择只影响测试轮期望值和日志分类，不过滤可视化目标。单个 Trackable 失效或移除时只隐藏对应可视物，会话结束时清空全部可视物。QR 原文只显示在开发构建的头显诊断标签中，不因此改变 JSONL 默认脱敏策略。
+
+这里的“QR 本地上方”严格按 MRUK 平面坐标定义，而不是固定猜测局部 Y 偏移：QR 平面是 Trackable 局部 XY，局部 `+Z` 是用于摆放可视物的表面法线。盒子中心 X/Y 对齐 `PlaneRect.center`，中心 Z 为 `cubeSize / 2`，因此盒子底面紧贴 QR 平面并像放在纸面上一样向外立起，不再沿 QR 图案平面上下漂移。若运行时缺少 `PlaneRect`，布局回退到 Trackable 局部原点作为平面中心。
+
+这些盒子是 Probe 场景内的临时诊断几何体，不查询业务注册表、不创建 `AnchorEntity`，也不形成生产多目标或生命周期契约。
+
 Quest 没有 ArUco 配对步骤。打印纸上的 ArUco 只用于 PICO，Quest 的逻辑参考点天然是 QR 中心。
 
-### D4. PICO 基线是可重复的顺序 QR→ArUco 路径
+### D4. PICO 基线是连续 ArUco 观察与外部身份映射
 
 PICO 单轮测试状态仅用于诊断流程：
 
 ```text
-Idle → QrScanRequested → QrResultReceived → AwaitingMatchingMarker
-     → MatchingMarkerObserved → RunCompleted
+Idle → TrackingRequested → MarkerObserved → RegistryResolved
+     → RunCompleted / RunEnded
 ```
 
-操作者显式启动扫码。收到 QR 后，探针解析 MarkerID，并继续记录 Marker 全量回调：
+操作者显式启动或停止 Marker 观察。探针记录 Marker 全量回调，并用当前 Registry 解析身份：
 
-- 相同 ID 的有效 ArUco 产生 `matching_marker_observed`；
-- 不同 ID 产生 `marker_id_mismatch`，但不伪造成功；
-- 空 QR、解析失败、SDK 异常和超时只结束当前测试轮并记录原因，不实现生产自动重试；
+- Registry 命中产生 `registry_resolved`；
+- 未知 ID 产生 `registry_miss`，但不伪造业务身份；
+- 重复 ID、无效 Pose、SDK 异常和回调静默只记录事实，不实现生产自动重试；
 - 每轮完成后由操作者开始下一轮。
-
-`ScanQRCode` 没有可靠错误通道，用户取消时是否回调也没有公开保证。探针使用会话级 watchdog 防止测试 UI 永久停住，但 watchdog 只是测试终止机制，不作为未来产品超时策略。
+PICO 系统扫码不属于该状态机。需要重新确认 QR 时，由上层业务显式进入独立扫码体验，完成后再更新 Registry 或业务上下文；这属于后续 change。
 
 ### D5. 静态和动态 PICO Marker 必须分别留下事实
 
@@ -155,7 +160,7 @@ A3 与双 A4 夹具的物理关系固定：QR 在左、ArUco 在右、朝向一�
 **A→B 相对变换需要一个单独的双码采样模式。** D3 与 D4 的单轮流程都只跟一个 MarkerID，而 A→B 要求同一时刻拿到两个码的 Pose。原始数据是够的——PICO 的 Marker 回调本来就是全量快照，MRUK 也能同时持有两个 Trackable——但运行模型里必须显式有这个模式：
 
 - 双码轮同时记录 A（ID 0）与 B（ID 250）的 Pose 样本，各自带自己的 MarkerID 和有效标志；
-- PICO 侧仍需先完成两次 QR→ArUco 配对才能进入双码轮；配对完成后两个 ID 都从同一份快照里读；
+- PICO 侧按 Registry 预配置的两个 ArUco ID 直接进入双码轮；两个 ID 都从同一份快照里读；
 - 只有**同一份快照/同一帧**内两个码都有效的样本才用于计算 A→B，跨时刻配对的样本一律丢弃并记录原因。
 
 三条前提必须写进操作步骤，否则测出来的数没有意义：
@@ -229,8 +234,8 @@ A3 单页上两者相关：整页同一缩放，量准 160 mm 的 ArUco 就说�
 最低真机矩阵：
 
 1. Quest：同一 QR 连续完成 10 轮独立获取，每轮得到正确 MarkerID 和有限、可归一化的 6DOF Pose；
-2. PICO static ID 0：连续完成 10 轮 QR→ArUco 精确配对；
-3. PICO dynamic ID 250：连续完成 10 轮 QR→ArUco 精确配对；
+2. PICO static ID 0：连续完成 10 轮 ArUco 识别与 Registry 命中；
+3. PICO dynamic ID 250：连续完成 10 轮 ArUco 识别与 Registry 命中；
 4. 每类至少一轮执行移动、旋转、遮挡和重新入镜观察；
 5. 每轮产生字段完整、可提取、会话尾计数闭合的 JSONL。
 
@@ -238,11 +243,11 @@ Pose 对齐使用固定放置的两套组合码 A/B：Quest 与 PICO 分别计�
 
 架构判定：
 
-- `feasible`：两端重复路径稳定，PICO 两类码可配对，日志完整，Pose 目标通过；
+- `feasible`：两端重复路径稳定，PICO 两类码可识别并命中 Registry，日志完整，Pose 目标通过；
 - `feasible_with_constraints`：顺序路径稳定，但并发、授权、特定系统版本或 Pose 映射存在明确限制；
 - `not_feasible`：任一平台原生顺序路径无法稳定取得身份与有效 Pose，且日志证明不是权限、打印或操作问题。
 
-PICO QR 扫描与 Marker 回调不能并行，不会单独把结果判为 `not_feasible`；这只限制后续重复扫描业务的架构选择。
+PICO 系统 QR 扫描不属于本 change；需要运行时读取 QR 时必须另立相机帧或独立体验 change。
 
 ### D11. 并发测试只观测，不预先实现策略
 
@@ -282,7 +287,7 @@ PICO QR 扫描与 Marker 回调不能并行，不会单独把结果判为 `not_f
 
 以下项目不再通过规划问答推测，只能由真机日志关闭：
 
-- PICO 4 Ultra Enterprise 上 `ScanQRCode` 与 Marker 回调能否并行及扫描后恢复行为；
+- PICO 4 Ultra Enterprise 上连续 Marker 回调、Registry 命中和权限/TOB 授权行为；
 - PICO Marker Pose 的局部轴、符号、原点与 210 mm 物理偏移的映射；
 - 目标 Quest/PICO 系统版本、运行时权限和 PICO TOB 企业授权是否满足前置条件；
 - PICO Marker 正常回调频率、最大间隔及静默停滞表现。

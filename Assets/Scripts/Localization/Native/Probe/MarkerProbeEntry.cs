@@ -44,10 +44,12 @@ public sealed class MarkerProbeEntry : MonoBehaviour
     [SerializeField] private string fixtureInstallationNotes;
 
     private MarkerProbeSessionModel currentSession;
+    private MarkerProbeRegistry markerRegistry;
     private MarkerProbeRunModel currentRun;
     private MarkerProbeJsonlWriter logWriter;
     private MarkerProbeConsoleMirror consoleMirror;
-#if MRBASE_HAS_MRUK
+    private MarkerProbeVisualAnchorManager visualAnchorManager;
+#if MRBASE_HAS_MRUK && MRBASE_QUEST
     private QuestMarkerProbeAdapter questAdapter;
 #endif
 #if MRBASE_HAS_PICO_SDK
@@ -85,6 +87,8 @@ public sealed class MarkerProbeEntry : MonoBehaviour
     public string CurrentLogPath => currentSession?.logFilePath;
 
     public bool IsRawPayloadPlaintextEnabled => recordRawPayloadPlaintext && Debug.isDebugBuild;
+
+    public int DiagnosticVisualAnchorCount => visualAnchorManager?.ActiveAnchorCount ?? 0;
 
     /// <summary>
     /// Capture this token when subscribing or dispatching asynchronous platform work.
@@ -188,6 +192,7 @@ public sealed class MarkerProbeEntry : MonoBehaviour
             fixture = CreateFixtureMetadata(selectedFixture),
             environment = CreateEnvironmentSnapshot(xrInputSubsystems),
             picoMarkerRegistration = picoRegistration,
+            markerRegistry = null,
             privacy = new MarkerProbePrivacySettings
             {
                 rawPayloadPlaintextRequested = recordRawPayloadPlaintext,
@@ -196,6 +201,12 @@ public sealed class MarkerProbeEntry : MonoBehaviour
                     ? "SENSITIVE: full RawPayload plaintext is stored in this device log. Redact before sharing."
                     : "RawPayload plaintext disabled; only UTF-8 byte length and SHA-256 are stored."
             }
+        };
+        markerRegistry = MarkerProbeRegistry.LoadDefault();
+        currentSession.markerRegistry = new MarkerProbeRegistrySnapshot
+        {
+            version = markerRegistry.Version,
+            sourceSha256 = markerRegistry.SourceSha256
         };
 
         try
@@ -415,6 +426,96 @@ public sealed class MarkerProbeEntry : MonoBehaviour
         return new StandardFixtureMarkerIdParser(IsRawPayloadPlaintextEnabled);
     }
 
+    public void ShowOrUpdateDiagnosticAnchor(
+        int sourceInstanceId,
+        string qrContent,
+        string markerId,
+        Pose markerPose,
+        Rect? qrPlaneRect = null)
+    {
+        if (!IsSessionActive)
+        {
+            return;
+        }
+
+        if (visualAnchorManager == null)
+        {
+            visualAnchorManager = GetComponent<MarkerProbeVisualAnchorManager>();
+            if (visualAnchorManager == null)
+            {
+                visualAnchorManager = gameObject.AddComponent<MarkerProbeVisualAnchorManager>();
+            }
+        }
+
+        visualAnchorManager.ShowOrUpdate(sourceInstanceId, qrContent, markerId, markerPose, qrPlaneRect);
+    }
+
+    public void HideDiagnosticAnchor(int sourceInstanceId)
+    {
+        visualAnchorManager?.Hide(sourceInstanceId);
+    }
+
+    /// <summary>
+    /// Adds run-relative facts to a Quest observation without advancing the probe state machine.
+    /// Quest continuously reports QR Trackables, so matching is evidence rather than a scan trigger.
+    /// </summary>
+    public void ClassifyQuestObservation(
+        MarkerProbeLogEvent logEvent,
+        bool isTracked,
+        bool poseValid)
+    {
+        if (logEvent == null)
+        {
+            return;
+        }
+
+        bool hasActiveRun = currentRun != null && currentRun.state != MarkerProbeState.RunEnded;
+        logEvent.runId = hasActiveRun ? currentRun.runId : null;
+        logEvent.expectedMarkerId = hasActiveRun ? currentRun.expectedMarkerId : null;
+        logEvent.expectedMarkerIds = hasActiveRun ? currentRun.expectedMarkerIds : null;
+
+        bool parseSucceeded = logEvent.markerIdParseAttempted &&
+                              logEvent.markerIdParseSuccess &&
+                              !string.IsNullOrEmpty(logEvent.markerId);
+        bool idExpected = hasActiveRun &&
+                          parseSucceeded &&
+                          currentRun.expectedMarkerIds != null &&
+                          Array.IndexOf(currentRun.expectedMarkerIds, logEvent.markerId) >= 0;
+        logEvent.markerMatchesCurrentRun = hasActiveRun &&
+                                           isTracked &&
+                                           poseValid &&
+                                           idExpected;
+
+        if (!logEvent.markerIdParseAttempted)
+        {
+            logEvent.markerSampleClassification = "parse_not_attempted";
+        }
+        else if (!parseSucceeded)
+        {
+            logEvent.markerSampleClassification = "payload_parse_failed";
+        }
+        else if (!hasActiveRun)
+        {
+            logEvent.markerSampleClassification = "no_active_run";
+        }
+        else if (!isTracked)
+        {
+            logEvent.markerSampleClassification = "not_tracked";
+        }
+        else if (!poseValid)
+        {
+            logEvent.markerSampleClassification = "invalid_pose";
+        }
+        else if (!idExpected)
+        {
+            logEvent.markerSampleClassification = "valid_id_mismatch";
+        }
+        else
+        {
+            logEvent.markerSampleClassification = "valid_exact_match";
+        }
+    }
+
     public void EndSession()
     {
         EndSession(MarkerProbeEndReason.OperatorStopped, "Session ended by the operator.");
@@ -447,13 +548,13 @@ public sealed class MarkerProbeEntry : MonoBehaviour
             pairedMarkerIds = Array.Empty<string>(),
             dualMarkerMode = selectedFixture == MarkerProbeFixtureKind.DualMarker0And250,
             dualPairingComplete = false,
-            state = MarkerProbeState.QrScanRequested,
+            state = MarkerProbeState.TrackingRequested,
             startedUtc = DateTime.UtcNow.ToString("O"),
             endedUtc = null,
             endReason = MarkerProbeEndReason.None,
             endDetail = null
         };
-        currentSession.state = MarkerProbeState.QrScanRequested;
+        currentSession.state = MarkerProbeState.TrackingRequested;
         logWriter?.Write(CreateLogEvent("run_started"));
         consoleMirror?.LogState(
             "run_started",
@@ -462,18 +563,8 @@ public sealed class MarkerProbeEntry : MonoBehaviour
 
         Debug.Log(
             $"{LogPrefix} Run {currentRun.runIndex} started: {currentRun.runId}; " +
-            $"fixture={currentRun.fixtureId}; MarkerID={currentRun.expectedMarkerId}",
+            $"fixture={currentRun.fixtureId}; registry={markerRegistry?.Version}",
             this);
-#if MRBASE_HAS_PICO_SDK && MRBASE_PICO
-        if (picoAdapter == null ||
-            !picoAdapter.BeginQrScan(CurrentSessionGeneration, currentRun.runId))
-        {
-            EndCurrentRun(
-                MarkerProbeEndReason.CapabilityUnavailable,
-                "PICO QR scan could not start because the Enterprise/Marker observation path is not ready.");
-            return false;
-        }
-#endif
         return true;
     }
 
@@ -633,9 +724,13 @@ public sealed class MarkerProbeEntry : MonoBehaviour
 
         bool valid = logEvent.validFlagAvailable && logEvent.validFlag != 0;
         bool hasActiveRun = currentRun != null && currentRun.state != MarkerProbeState.RunEnded;
-        bool awaitingMatch = hasActiveRun &&
-                             (currentRun.state == MarkerProbeState.AwaitingMatchingMarker ||
-                              currentRun.state == MarkerProbeState.MatchingMarkerObserved);
+        bool trackingActive = hasActiveRun &&
+                              (currentRun.state == MarkerProbeState.TrackingRequested ||
+                               currentRun.state == MarkerProbeState.MarkerObserved ||
+                               currentRun.state == MarkerProbeState.RegistryResolved ||
+                               currentRun.state == MarkerProbeState.RegistryMiss ||
+                               currentRun.state == MarkerProbeState.AwaitingMatchingMarker ||
+                               currentRun.state == MarkerProbeState.MatchingMarkerObserved);
         logEvent.runId = hasActiveRun ? currentRun.runId : null;
         logEvent.expectedMarkerId = hasActiveRun ? currentRun.expectedMarkerId : null;
         logEvent.expectedMarkerIds = hasActiveRun ? currentRun.expectedMarkerIds : null;
@@ -643,13 +738,23 @@ public sealed class MarkerProbeEntry : MonoBehaviour
                                          currentRun.dualPairingComplete &&
                                          valid &&
                                          Array.IndexOf(currentRun.pairedMarkerIds, logEvent.markerId) >= 0;
-        logEvent.markerMatchesCurrentRun = awaitingMatch &&
-                                           valid &&
-                                           (isAlreadyPairedDualMarker ||
-                                            string.Equals(
-                                                logEvent.markerId,
-                                                currentRun.expectedMarkerId,
-                                                StringComparison.Ordinal));
+        int picoId = 0;
+        int.TryParse(logEvent.markerId, out picoId);
+        MarkerProbeRegistryEntry registryEntry = null;
+        bool registryResolved = valid && markerRegistry != null &&
+                                markerRegistry.TryResolve(picoId, out registryEntry);
+        logEvent.picoArUcoId = picoId;
+        logEvent.registryResolved = registryResolved;
+        logEvent.qrId = registryEntry?.qrId;
+        logEvent.logicalMarkerId = registryEntry?.logicalMarkerId;
+        logEvent.businessObjectId = registryEntry?.businessObjectId;
+        logEvent.registryVersion = markerRegistry?.Version;
+        logEvent.registrySourceSha256 = markerRegistry?.SourceSha256;
+        logEvent.markerMatchesCurrentRun = trackingActive && valid && registryResolved;
+        if (registryResolved && currentRun != null && currentRun.dualMarkerMode)
+        {
+            AddCurrentDualPairing(logEvent.markerId);
+        }
 
         if (!valid)
         {
@@ -661,15 +766,24 @@ public sealed class MarkerProbeEntry : MonoBehaviour
             logEvent.eventType = "pico_marker_sample_no_active_run";
             logEvent.markerSampleClassification = "no_active_run";
         }
-        else if (!awaitingMatch)
+        else if (!trackingActive)
         {
-            logEvent.eventType = "pico_marker_sample_before_qr_pairing";
-            logEvent.markerSampleClassification = "run_not_awaiting_match";
+            logEvent.eventType = "pico_marker_sample_before_tracking";
+            logEvent.markerSampleClassification = "run_not_tracking";
         }
-        else if (!logEvent.markerMatchesCurrentRun)
+        else if (!registryResolved)
         {
-            logEvent.eventType = "pico_marker_id_mismatch";
-            logEvent.markerSampleClassification = "valid_id_mismatch";
+            logEvent.eventType = "pico_marker_registry_miss";
+            logEvent.markerSampleClassification = "valid_registry_miss";
+            currentRun.state = MarkerProbeState.RegistryMiss;
+            currentSession.state = MarkerProbeState.RegistryMiss;
+        }
+        else if (currentRun.state == MarkerProbeState.TrackingRequested)
+        {
+            logEvent.eventType = "pico_marker_registry_resolved";
+            logEvent.markerSampleClassification = "first_valid_registry_match";
+            currentRun.state = MarkerProbeState.RegistryResolved;
+            currentSession.state = MarkerProbeState.RegistryResolved;
         }
         else if (isAlreadyPairedDualMarker)
         {
@@ -678,11 +792,6 @@ public sealed class MarkerProbeEntry : MonoBehaviour
         }
         else if (currentRun.state != MarkerProbeState.MatchingMarkerObserved)
         {
-            if (currentRun.dualMarkerMode)
-            {
-                AddCurrentDualPairing(logEvent.markerId);
-            }
-
             currentRun.state = MarkerProbeState.MatchingMarkerObserved;
             currentSession.state = MarkerProbeState.MatchingMarkerObserved;
             logEvent.eventType = "pico_matching_marker_observed";
@@ -754,14 +863,14 @@ public sealed class MarkerProbeEntry : MonoBehaviour
             currentRun.pairedMarkerIds.Length != 1 ||
             currentRun.state != MarkerProbeState.MatchingMarkerObserved)
         {
-            Debug.LogWarning($"{LogPrefix} Dual pairing is not ready for its second QR scan.", this);
+            Debug.LogWarning($"{LogPrefix} Dual marker sampling is not ready.", this);
             return false;
         }
 
         currentRun.expectedMarkerId = currentRun.expectedMarkerIds[1];
-        currentRun.state = MarkerProbeState.QrScanRequested;
-        currentSession.state = MarkerProbeState.QrScanRequested;
-        MarkerProbeLogEvent transition = CreateLogEvent("pico_dual_second_qr_requested");
+        currentRun.state = MarkerProbeState.TrackingRequested;
+        currentSession.state = MarkerProbeState.TrackingRequested;
+        MarkerProbeLogEvent transition = CreateLogEvent("pico_dual_second_marker_requested");
         transition.expectedMarkerId = currentRun.expectedMarkerId;
         transition.expectedMarkerIds = currentRun.expectedMarkerIds;
         logWriter?.Write(transition);
@@ -770,16 +879,6 @@ public sealed class MarkerProbeEntry : MonoBehaviour
             CurrentState.ToString(),
             $"run={currentRun.runId} MarkerID={currentRun.expectedMarkerId}");
 
-#if MRBASE_HAS_PICO_SDK && MRBASE_PICO
-        if (picoAdapter == null ||
-            !picoAdapter.BeginQrScan(CurrentSessionGeneration, currentRun.runId))
-        {
-            EndCurrentRun(
-                MarkerProbeEndReason.CapabilityUnavailable,
-                "The second PICO QR scan in the dual-marker run could not start.");
-            return false;
-        }
-#endif
         return true;
     }
 
@@ -793,6 +892,7 @@ public sealed class MarkerProbeEntry : MonoBehaviour
 #if MRBASE_HAS_MRUK && MRBASE_QUEST
         questAdapter?.EndObservation();
 #endif
+        visualAnchorManager?.Clear();
 
         EndCurrentRun(reason, detail);
 #if MRBASE_HAS_PICO_SDK && MRBASE_PICO
@@ -848,10 +948,6 @@ public sealed class MarkerProbeEntry : MonoBehaviour
         {
             return;
         }
-
-#if MRBASE_HAS_PICO_SDK && MRBASE_PICO
-        picoAdapter?.CancelQrScan(currentRun.runId, "Run is ending: " + detail);
-#endif
 
         currentRun.state = MarkerProbeState.RunEnded;
         currentRun.endedUtc = DateTime.UtcNow.ToString("O");
@@ -971,6 +1067,8 @@ public sealed class MarkerProbeEntry : MonoBehaviour
         logEvent.platform ??= currentSession?.platform.ToString() ?? ResolvePlatform().ToString();
         logEvent.runId ??= currentRun?.runId;
         logEvent.fixtureId ??= currentRun?.fixtureId ?? currentSession?.fixture?.fixtureId;
+        logEvent.expectedMarkerId ??= currentRun?.expectedMarkerId;
+        logEvent.expectedMarkerIds ??= currentRun?.expectedMarkerIds;
         logEvent.utcTimestamp ??= DateTime.UtcNow.ToString("O");
         if (logEvent.monotonicTimeSeconds <= 0d)
         {

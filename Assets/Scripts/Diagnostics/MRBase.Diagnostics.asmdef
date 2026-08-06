@@ -3,6 +3,7 @@
     "rootNamespace": "",
     "references": [
         "MRBase.Core",
+        "MRBase.Common",
         "Unity.XR.Hands",
         "Unity.InputSystem",
         "Unity.TextMeshPro",

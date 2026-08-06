@@ -21,9 +21,6 @@ using Pose = UnityEngine.Pose;
 [DisallowMultipleComponent]
 public sealed class PicoMarkerProbeAdapter : MonoBehaviour
 {
-    [Min(1f)]
-    [SerializeField] private float qrScanWatchdogSeconds = 30f;
-
     private readonly struct PendingBindResult
     {
         public PendingBindResult(long generation, bool bound)
@@ -39,36 +36,6 @@ public sealed class PicoMarkerProbeAdapter : MonoBehaviour
         public bool Bound { get; }
         public string UtcTimestamp { get; }
         public double MonotonicTimeSeconds { get; }
-        public int ThreadId { get; }
-    }
-
-    private readonly struct PendingQrResult
-    {
-        public PendingQrResult(
-            long sessionGeneration,
-            long scanGeneration,
-            string runId,
-            string rawPayload,
-            double requestedMonotonicSeconds)
-        {
-            SessionGeneration = sessionGeneration;
-            ScanGeneration = scanGeneration;
-            RunId = runId;
-            RawPayload = rawPayload;
-            UtcTimestamp = DateTime.UtcNow.ToString("O");
-            MonotonicTimeSeconds = Stopwatch.GetTimestamp() / (double)Stopwatch.Frequency;
-            RequestLatencyMilliseconds =
-                (MonotonicTimeSeconds - requestedMonotonicSeconds) * 1000d;
-            ThreadId = Thread.CurrentThread.ManagedThreadId;
-        }
-
-        public long SessionGeneration { get; }
-        public long ScanGeneration { get; }
-        public string RunId { get; }
-        public string RawPayload { get; }
-        public string UtcTimestamp { get; }
-        public double MonotonicTimeSeconds { get; }
-        public double RequestLatencyMilliseconds { get; }
         public int ThreadId { get; }
     }
 
@@ -119,34 +86,21 @@ public sealed class PicoMarkerProbeAdapter : MonoBehaviour
 
     private readonly ConcurrentQueue<PendingBindResult> pendingBindResults =
         new ConcurrentQueue<PendingBindResult>();
-    private readonly ConcurrentQueue<PendingQrResult> pendingQrResults =
-        new ConcurrentQueue<PendingQrResult>();
     private readonly ConcurrentQueue<PendingMarkerSnapshot> pendingMarkerSnapshots =
         new ConcurrentQueue<PendingMarkerSnapshot>();
     private readonly object markerTimingGate = new object();
 
     private MarkerProbeEntry entry;
-    private IMarkerIdParser markerIdParser;
     private long activeGeneration;
-    private long currentScanGeneration;
     private bool enterpriseBound;
     private bool markerCallbackRegistered;
-    private bool qrScanPending;
-    private string qrScanRunId;
-    private float qrScanDeadline;
     private long nextMarkerSnapshotSequence;
     private double lastMarkerCallbackMonotonicSeconds;
     private XROrigin xrOrigin;
 
     public bool BeginObservation(MarkerProbeEntry owner, long generation)
     {
-        if (qrScanPending)
-        {
-            CancelQrScan(qrScanRunId, "A new Marker Probe session is starting.");
-        }
-
         entry = owner;
-        markerIdParser = owner?.CreateMarkerIdParser();
         activeGeneration = generation;
         enterpriseBound = false;
         markerCallbackRegistered = false;
@@ -178,110 +132,10 @@ public sealed class PicoMarkerProbeAdapter : MonoBehaviour
 
     public void EndObservation()
     {
-        if (qrScanPending)
-        {
-            CancelQrScan(qrScanRunId, "PICO observation ended before the QR callback arrived.");
-        }
-
         // Deliberately no UnBindEnterpriseService call. See class contract.
         activeGeneration = 0;
         enterpriseBound = false;
         markerCallbackRegistered = false;
-    }
-
-    public bool BeginQrScan(long sessionGeneration, string runId)
-    {
-        if (entry == null ||
-            !entry.IsSessionGenerationCurrent(sessionGeneration) ||
-            sessionGeneration != activeGeneration ||
-            !enterpriseBound ||
-            !markerCallbackRegistered ||
-            qrScanPending)
-        {
-            RecordQrStartFailure(sessionGeneration, runId);
-            return false;
-        }
-
-        long scanGeneration = ++currentScanGeneration;
-        double requestedMonotonic = Stopwatch.GetTimestamp() / (double)Stopwatch.Frequency;
-        qrScanPending = true;
-        qrScanRunId = runId;
-        qrScanDeadline = Time.unscaledTime + Mathf.Max(1f, qrScanWatchdogSeconds);
-
-        entry.TryRecordPlatformEvent(sessionGeneration, new MarkerProbeLogEvent
-        {
-            eventType = "pico_qr_scan_requested",
-            nativeEventKind = "PXR_Enterprise.ScanQRCode",
-            observationSemantics = "Operator-triggered diagnostic scan; no automatic retry policy.",
-            runId = runId,
-            scanGeneration = scanGeneration,
-            monotonicTimeSeconds = requestedMonotonic,
-            sdkResult = new MarkerProbeSdkResult
-            {
-                available = true,
-                operation = "ScanQRCode request",
-                success = true,
-                detail = $"watchdogSeconds={qrScanWatchdogSeconds:F1}"
-            }
-        });
-
-        try
-        {
-            PXR_Enterprise.ScanQRCode(rawPayload =>
-                pendingQrResults.Enqueue(new PendingQrResult(
-                    sessionGeneration,
-                    scanGeneration,
-                    runId,
-                    rawPayload,
-                    requestedMonotonic)));
-            return true;
-        }
-        catch (Exception exception)
-        {
-            qrScanPending = false;
-            RecordException(sessionGeneration, "pico_qr_scan_exception", "PXR_Enterprise.ScanQRCode", exception);
-            entry.RecordPicoQrScanTerminalEvent(
-                sessionGeneration,
-                scanGeneration,
-                runId,
-                "pico_qr_scan_failed",
-                MarkerProbeEndReason.SdkError,
-                "ScanQRCode threw before returning control.",
-                new MarkerProbeErrorContext
-                {
-                    category = "sdk_exception",
-                    errorCode = "PICO_QR_SCAN_EXCEPTION",
-                    exceptionType = exception.GetType().FullName,
-                    message = exception.Message,
-                    stackTrace = exception.StackTrace
-                });
-            return false;
-        }
-    }
-
-    public void CancelQrScan(string runId, string detail)
-    {
-        if (!qrScanPending || !string.Equals(qrScanRunId, runId, StringComparison.Ordinal))
-        {
-            return;
-        }
-
-        qrScanPending = false;
-        entry?.TryRecordPlatformEvent(activeGeneration, new MarkerProbeLogEvent
-        {
-            eventType = "pico_qr_scan_cancelled",
-            nativeEventKind = "probe_scan_generation_cancel",
-            observationSemantics =
-                "Logical diagnostic cancellation only; PICO exposes no native ScanQRCode cancel API.",
-            runId = runId,
-            scanGeneration = currentScanGeneration,
-            error = new MarkerProbeErrorContext
-            {
-                category = "operator_or_lifecycle",
-                errorCode = "PICO_QR_SCAN_LOGICALLY_CANCELLED",
-                message = detail
-            }
-        });
     }
 
     private void Update()
@@ -291,36 +145,11 @@ public sealed class PicoMarkerProbeAdapter : MonoBehaviour
             ProcessBindResult(pending);
         }
 
-        while (pendingQrResults.TryDequeue(out PendingQrResult pending))
-        {
-            ProcessQrResult(pending);
-        }
-
         while (pendingMarkerSnapshots.TryDequeue(out PendingMarkerSnapshot pending))
         {
             ProcessMarkerSnapshot(pending);
         }
 
-        if (qrScanPending && Time.unscaledTime >= qrScanDeadline)
-        {
-            string runId = qrScanRunId;
-            long scanGeneration = currentScanGeneration;
-            qrScanPending = false;
-            entry?.RecordPicoQrScanTerminalEvent(
-                activeGeneration,
-                scanGeneration,
-                runId,
-                "pico_qr_scan_watchdog_timeout",
-                MarkerProbeEndReason.WatchdogTimeout,
-                $"ScanQRCode produced no callback within {qrScanWatchdogSeconds:F1} seconds.",
-                new MarkerProbeErrorContext
-                {
-                    category = "watchdog",
-                    errorCode = "PICO_QR_SCAN_NO_CALLBACK",
-                    message =
-                        "Diagnostic watchdog elapsed. User cancellation cannot be distinguished from SDK silence."
-                });
-        }
     }
 
     private void ProcessBindResult(PendingBindResult pending)
@@ -368,80 +197,6 @@ public sealed class PicoMarkerProbeAdapter : MonoBehaviour
                 "PXR_Enterprise.SetMarkerInfoCallback",
                 exception);
         }
-    }
-
-    private void ProcessQrResult(PendingQrResult pending)
-    {
-        MarkerIdParseResult parseResult = markerIdParser?.Parse(pending.RawPayload);
-        bool sdkReportedUnsupported = string.Equals(pending.RawPayload, "-2", StringComparison.Ordinal);
-        bool isCurrent = qrScanPending &&
-                         pending.SessionGeneration == activeGeneration &&
-                         pending.ScanGeneration == currentScanGeneration &&
-                         string.Equals(pending.RunId, qrScanRunId, StringComparison.Ordinal);
-        if (!isCurrent)
-        {
-            entry?.TryRecordPlatformEvent(pending.SessionGeneration, new MarkerProbeLogEvent
-            {
-                eventType = "pico_qr_late_callback",
-                nativeEventKind = "PXR_Enterprise.ScanQRCode.callback",
-                observationSemantics =
-                    "Late result retained as a fact under its original runId; it cannot advance the current run.",
-                runId = pending.RunId,
-                scanGeneration = pending.ScanGeneration,
-                utcTimestamp = pending.UtcTimestamp,
-                monotonicTimeSeconds = pending.MonotonicTimeSeconds,
-                threadId = pending.ThreadId,
-                requestLatencyAvailable = true,
-                requestLatencyMilliseconds = pending.RequestLatencyMilliseconds,
-                markerIdParseAttempted = parseResult != null,
-                markerIdParseSuccess = parseResult?.success == true,
-                markerIdParseFailure = parseResult?.failure.ToString(),
-                markerIdParseFailureDetail = parseResult?.failureDetail,
-                markerId = parseResult?.markerId,
-                rawPayload = parseResult?.rawPayload,
-                sdkResult = sdkReportedUnsupported
-                    ? new MarkerProbeSdkResult
-                    {
-                        available = false,
-                        operation = "ScanQRCode callback",
-                        resultCode = -2,
-                        success = false,
-                        detail = "PICO SDK documented unsupported sentinel."
-                    }
-                    : null
-            });
-            return;
-        }
-
-        qrScanPending = false;
-        entry?.RecordPicoQrScanResult(
-            pending.SessionGeneration,
-            pending.ScanGeneration,
-            pending.RunId,
-            parseResult,
-            sdkReportedUnsupported,
-            pending.UtcTimestamp,
-            pending.MonotonicTimeSeconds,
-            pending.ThreadId,
-            pending.RequestLatencyMilliseconds);
-    }
-
-    private void RecordQrStartFailure(long sessionGeneration, string runId)
-    {
-        entry?.TryRecordPlatformEvent(sessionGeneration, new MarkerProbeLogEvent
-        {
-            eventType = "pico_qr_scan_not_ready",
-            nativeEventKind = "probe_precondition",
-            runId = runId,
-            error = new MarkerProbeErrorContext
-            {
-                category = "precondition",
-                errorCode = "PICO_QR_SCAN_PATH_NOT_READY",
-                message =
-                    $"enterpriseBound={enterpriseBound}; markerCallbackRegistered={markerCallbackRegistered}; " +
-                    $"scanPending={qrScanPending}; activeGeneration={activeGeneration}"
-            }
-        });
     }
 
     private void HandleMarkerInfos(long generation, List<MarkerInfo> markers)

@@ -76,11 +76,11 @@ XRHandSubsystem┤                            ├→ 状态 A/B → HUD
 
 **理由**：A/B 对比的主观察面就是设备内 HUD。
 
-### D7：默认 ActiveSource = A
+### D7：默认 ActiveSource = B（修订）
 
-**决定**：开箱事件源为 JointMath；Inspector / 简易切换可改到 B。
+**决定**：开箱事件源为 `HandPoseComposite`（B）。路径 A 仍并行求值，供 HUD 对照。
 
-**理由**：与既有测试及草稿行为对齐；对比不依赖默认事件源。若用户在假设确认中推翻，改默认即可。
+**理由**：真机对比后用户选定 B（官方 Shape/Pose 复合为推荐实现）。路径 A 的 EditMode 几何测试仍保留；删除 A 另开清理。
 
 ## Risks / Trade-offs
 

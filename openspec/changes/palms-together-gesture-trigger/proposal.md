@@ -37,4 +37,5 @@
 - [DECIDED] 组件挂在 `MRCore.unity`（与 `MRContext` 同场景常驻），业务场景日后自行查找并订阅；本变更不提供全局静态事件总线。（用户确认）
 - [DECIDED] 默认调参沿用草稿（`maxWristGap=0.10`、`holdSeconds=0.3`、`releaseSlack=1.4` 等）；真机精调不阻塞本变更验收，EditMode（路径 A）+ 双路径可跑/HUD 可见即主验收路径。（用户确认 A）
 - [DECIDED] 能力名使用独立 `palms-together-gesture`，不并入进行中的 `hand-interaction` change，避免与 M1 捏合/触碰契约纠缠。（用户确认 A）
-- [DECIDED] 默认事件源先选路径 A（JointMath），便于与既有测试对齐；A/B 对比靠 HUD，不靠默认事件源。Inspector 可切换到 B。（用户确认 A）
+- [DECIDED] 默认事件源先选路径 A（JointMath），便于与既有测试对齐；A/B 对比靠 HUD。（用户确认 A）
+- [DECIDED] 真机对比后选定路径 B（HandPoseComposite）为正式事件源；默认 `ActiveSource = HandPoseComposite`。路径 A 暂留作 HUD 对照，删除另议。（用户确认）

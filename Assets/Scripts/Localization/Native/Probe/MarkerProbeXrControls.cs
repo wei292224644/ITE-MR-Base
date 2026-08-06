@@ -18,6 +18,8 @@ public sealed class MarkerProbeXrControls : MonoBehaviour
     private Button dualButton;
     private Button stopButton;
     private TMP_Text statusText;
+    [SerializeField] private float refreshIntervalSeconds = 0.2f;
+    private float nextRefreshTime;
 
     private void Start()
     {
@@ -75,8 +77,9 @@ public sealed class MarkerProbeXrControls : MonoBehaviour
 
     private void Update()
     {
-        if (entry != null)
+        if (entry != null && Time.unscaledTime >= nextRefreshTime)
         {
+            nextRefreshTime = Time.unscaledTime + Mathf.Max(0.05f, refreshIntervalSeconds);
             RefreshLabels();
         }
     }

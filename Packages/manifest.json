@@ -1,6 +1,7 @@
 {
   "dependencies": {
     "com.coplaydev.unity-mcp": "https://github.com/CoplayDev/unity-mcp.git?path=/MCPForUnity#main",
+    "com.github-glitchenzo.nugetforunity": "https://github.com/GlitchEnzo/NuGetForUnity.git?path=/src/NuGetForUnity",
     "com.meta.xr.mrutilitykit": "205.0.0",
     "com.meta.xr.sdk.core": "205.0.0",
     "com.unity.feature.development": "1.0.2",
@@ -22,7 +23,7 @@
     "com.unity.xr.management": "4.5.4",
     "com.unity.xr.meta-openxr": "2.5.1",
     "com.unity.xr.openxr": "1.16.1",
-    "com.unity.xr.picoxr": "https://github.com/Pico-Developer/PICO-Unity-Integration-SDK.git#release_3.4.0",
+    "com.unity.xr.picoxr": "file:/Users/wwj/Desktop/unity/PICO-Unity-Integration-SDK",
     "com.unity.modules.accessibility": "1.0.0",
     "com.unity.modules.adaptiveperformance": "1.0.0",
     "com.unity.modules.ai": "1.0.0",

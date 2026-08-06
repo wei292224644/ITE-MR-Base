@@ -15,7 +15,14 @@
         "com.unity.nuget.newtonsoft-json": "3.0.2",
         "com.unity.test-framework": "1.1.31"
       },
-      "hash": "c14de1e6dc01ab42d2bb358730cff954bce0ce6b"
+      "hash": "4ce7dd3cc54e37e2ed6dc59cb5a047f3dccb3f50"
+    },
+    "com.github-glitchenzo.nugetforunity": {
+      "version": "https://github.com/GlitchEnzo/NuGetForUnity.git?path=/src/NuGetForUnity",
+      "depth": 0,
+      "source": "git",
+      "dependencies": {},
+      "hash": "acc1c7bc9ea34c33b830e40316fca52553878d29"
     },
     "com.meta.xr.mrutilitykit": {
       "version": "205.0.0",
@@ -449,15 +456,14 @@
       "url": "https://packages.unity.com"
     },
     "com.unity.xr.picoxr": {
-      "version": "https://github.com/Pico-Developer/PICO-Unity-Integration-SDK.git#release_3.4.0",
+      "version": "file:/Users/wwj/Desktop/unity/PICO-Unity-Integration-SDK",
       "depth": 0,
-      "source": "git",
+      "source": "local",
       "dependencies": {
         "com.unity.xr.management": "4.0.0",
         "com.unity.xr.interaction.toolkit": "2.0.0",
         "com.unity.xr.core-utils": "2.3.0"
-      },
-      "hash": "e0740bf309b26a0b9adae33c506514569bfe5d38"
+      }
     },
     "com.unity.modules.accessibility": {
       "version": "1.0.0",
