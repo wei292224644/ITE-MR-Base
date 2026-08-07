@@ -32,11 +32,6 @@ namespace MRBase.Transitions
     /// </summary>
     public static class IceSpriteTeleport
     {
-        // 时间轴阈值是若干个 Mathf.Max 结果相加得到的；在这台机器的 Mono 运行时下，
-        // 这类连续求和在恰好等于测试边界值（如 d+f、d+f+d）时会比理论值大出几个 ULP，
-        // 导致本该"刚好到达"的一帧被误判成"还没到"。用一个远小于任何合理帧长的容差吸收掉。
-        const float BoundaryEpsilon = 0.0001f;
-
         public static float TotalDuration(
             IceSpriteTeleportStyle style, float dissolveDuration, float flightDuration)
         {
@@ -67,9 +62,15 @@ namespace MRBase.Transitions
                 ? Mathf.Max(0f, flightDuration)
                 : 0f;
 
+            // 这两个和必须先落到 float 局部变量再比较：Mono 允许把纯表达式中间值
+            // 留在比 float32 更宽的寄存器里参与比较，导致本该相等的边界判成"还没到"。
+            // 存一次局部变量会强制按 float32 舍入，边界才会和调用方传入的字面量位一致。
+            float transitEnd = d + f;
+            float appearEnd = transitEnd + d;
+
             if (t < d) return IceSpriteTeleportPhase.Vanishing;
-            if (t < d + f - BoundaryEpsilon) return IceSpriteTeleportPhase.InTransit;
-            if (t < d + f + d - BoundaryEpsilon) return IceSpriteTeleportPhase.Appearing;
+            if (t < transitEnd) return IceSpriteTeleportPhase.InTransit;
+            if (t < appearEnd) return IceSpriteTeleportPhase.Appearing;
             return IceSpriteTeleportPhase.Done;
         }
 
@@ -87,7 +88,8 @@ namespace MRBase.Transitions
             if (style == IceSpriteTeleportStyle.TrailFlight)
             {
                 float f = Mathf.Max(0f, flightDuration);
-                if (f > 0f && t < d + f - BoundaryEpsilon) return Vector3.Lerp(from, to, (t - d) / f);
+                float transitEnd = d + f; // 落到局部变量再比较，理由同 PhaseAt。
+                if (f > 0f && t < transitEnd) return Vector3.Lerp(from, to, (t - d) / f);
             }
 
             return to;
