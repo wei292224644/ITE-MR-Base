@@ -108,6 +108,10 @@ InitTestScene*.unity*
 # macOS
 .DS_Store
 
+# Local Claude / Cursor overrides (machine-specific; do not commit)
+.claude/settings.local.json
+.cursor/mcp.json
+
 # Python
 __pycache__/
 *.py[cod]
@@ -126,3 +130,11 @@ venv/
 # Generated debug textures (pipeline visualization, not runtime assets)
 **/DEBUG_*.png
 **/DEBUG_*.png.meta
+
+# Unity Performance Testing package local run artifacts
+/[Aa]ssets/[Rr]esources/[Pp]erformance[Tt]est[Rr]un*.json
+/[Aa]ssets/[Rr]esources/[Pp]erformance[Tt]est[Rr]un*.json.meta
+
+# XR Simulation temporary copies (editor-local)
+/[Aa]ssets/XR/[Tt]emp/
+/[Aa]ssets/XR/[Tt]emp.meta
