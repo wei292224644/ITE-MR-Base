@@ -266,6 +266,25 @@ BuildQuest() / BuildPico()
 
 **排期**：提前至 M0（原计划 M2）。M0 阶段需反复两端出包（依赖升级验证、PICO SDK 闸门、双 binding 验证各需出包），脚本先行可显著减少重复劳动；且即使 PICO SDK 闸门失败，脚本对 Quest 端仍然有效，不构成浪费。
 
+### D15：探针包与主包共用同一条启动路径，删除 MRCoreLoader
+
+**问题**：探针场景（`MarkerProbe` / `PicoQrCameraProbe`）自身不带 XR 装配。原先以**探针场景为启动场景**出包，靠场景里挂的 `MRCoreLoader` 在 `Awake` 里 `LoadScene("MRCore", Additive)` 把核心装配反向拉进来。同一份工程因此有两条启动路径 —— 主包里 MRCore 先起，探针包里 MRCore 后到。各 demo 场景也带着同一个组件，用途是「在编辑器里单独按 Play 看某个 demo」。
+
+**决定**：`ProbeScenes` 首项改为 `MRCore`，探针场景由 `MRSceneDirector` 以 Additive 加载。`MRCoreLoader` 从全部 8 个场景移除，脚本删除。
+
+**理由**：
+
+1. **两条路径的时序不同，而差异只在真机上显形**。主包里 `MRContext` 在内容场景脚本的 `Awake` 之前就绪；探针包里 `MRCoreLoader` 用同步 `LoadScene`，MRCore 的 `Awake` 排在本帧末尾之后 —— 于是「探针内容不得在自己的 `Awake`/`Start` 里读 `MRContext`」成为一条真实约束，却只写在 `MRCoreLoader` 的注释里。这正是「行为依赖隐式因素：调用顺序」
+2. **`StaticInstance` 的重复实例防护本就是为这条路径准备的**。见其 `Awake` 注释：漏判时 `_instance` 指向 Unity 伪 null 对象，`Instance != null` 为 false 而 `Instance` 又不是真 null。删掉第二条路径后该失败模式不再有触发源。防护保留 —— 漏判的代价不对称，留着比省下几行便宜
+3. **D3 已确立「一个常驻核心场景 + N 个 additive 业务场景」**。探针包是同一套结构的实例，不该有自己的启动约定
+
+**代价**：探针包里 `MRSceneDirector.firstScene` 为空，起来后需在菜单点一次进探针场景（探针包只有一个内容场景，菜单只有一项）。用一次点击换掉一整条平行启动路径。
+
+**考虑过的替代**：
+- **保留 `MRCoreLoader` 只服务探针**：改动最小，但两条启动路径与上述时序约束都留着，等于把一个已知问题降级成注释
+- **探针场景各自内嵌 XR 装配**：违反 D3，也违反 `MRSceneDirector` 里「XR Origin 层级极深，不做成 prefab」的判断；两份装配需手动同步
+- **探针包也设 `firstScene`**：需要 `BuildScript` 在构建期改写 `MRCore.unity` 的序列化值再还原，属 D14 明确否决的「以副作用方式修改项目设置资产」
+
 ## Risks / Trade-offs
 
 - **[PICO SDK 3.4 与 Unity 6000.4.4 不兼容]** → 头号闸门，M0 第一项验证。`package.json` 只写 `"unity": "2021.3"`（下限），PICO 官网仍有陈旧的「Unity 6 支持中」表述，但 3.4 代码里已有 Unity 6 + URP + GLES + Multipass 的 MSAA 检查。不通过则整个 PICO 路径需改方案（退路：评估组合 2，或降 Unity 版本 —— 后者代价极高）

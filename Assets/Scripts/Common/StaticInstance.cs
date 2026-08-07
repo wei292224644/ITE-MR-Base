@@ -10,9 +10,8 @@ public class StaticInstance<T> : MonoBehaviour where T : MonoBehaviour
     {
         // 重复实例必须自毁，不能让后来者顶掉前一个。
         //
-        // MRCore 常驻不卸载，而各 demo 场景为了能在编辑器里单独按 Play 仍带着 MRCoreLoader。
-        // 真机上从 MRCore 启动时装配已存在，loader 会跳过；
-        // 但只要有一条路径漏判，第二套装配就会进来。无条件覆盖 _instance 的写法下，
+        // 所有包（含探针包）都从 MRCore 启动，内容场景一律 Additive 进出，正常路径下不会
+        // 有第二套装配。这里仍然守着，是因为漏判的代价不对称：无条件覆盖 _instance 的写法下，
         // 旧实例随后被销毁，_instance 指向一个 Unity 伪 null 对象 ——
         // `Instance != null` 为 false 而 `Instance` 又不是真 null，排查起来极其费解。
         if (_instance != null && !ReferenceEquals(_instance, this))

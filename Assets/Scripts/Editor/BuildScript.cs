@@ -31,13 +31,17 @@ public static class BuildScript
     const string k_PicoOfficialCameraRenderingScene =
         "Packages/com.unity.xr.picoxr/Enterprise/Sample/CameraRendering/PXR/CameraRendering.unity";
 
-    // 探针场景自身不带 XR 装配，靠 MRCoreLoader 在运行时加载 MRCore，所以 MRCore 必须
-    // 一起进包 —— 否则 LoadScene("MRCore") 在真机上直接失败，表现为没有相机、没有手部追踪。
-    // 数组首项是启动场景，探针必须排在前面。
+    // 数组首项是启动场景。探针包与主包共用同一条启动路径：MRCore 先起来装配 XR，探针场景
+    // 由 MRSceneDirector 以 Additive 加载 —— 与 D3 的「一个常驻核心场景」保持一致。
     //
-    // 只有探针用这条路径：它们要保持极简来做测量，不该带上整套内容场景。demo 与测试场景
-    // 都在 MRBase/Build/Quest 的统一包里，运行时用 MRSceneDirector 的菜单切换。
-    static string[] ProbeScenes(string probeScene) => new[] { probeScene, k_MRCoreScene };
+    // 早前是反过来的：探针场景排首位，靠场景里的 MRCoreLoader 在运行时把 MRCore 拉进来。
+    // 那等于第二条启动路径，而两条路径的差异只在真机上显形 —— 装配重复带入时 StaticInstance
+    // 销毁后来者，漏判时静态 Instance 指向已销毁对象。删掉一条比给它加防护便宜。
+    //
+    // 只有探针用 sceneOverride：它们要保持极简来做测量，不该带上整套内容场景。demo 与测试
+    // 场景都在 MRBase/Build/Quest 的统一包里，运行时用 MRSceneDirector 的菜单切换。
+    // 探针包里 MRSceneDirector.firstScene 为空，起来后在菜单点一次进探针场景。
+    static string[] ProbeScenes(string probeScene) => new[] { k_MRCoreScene, probeScene };
 
     const string k_OpenXRLoader = "UnityEngine.XR.OpenXR.OpenXRLoader";
     const string k_PicoLoader = "Unity.XR.PXR.PXR_Loader";
