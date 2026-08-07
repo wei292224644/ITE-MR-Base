@@ -166,7 +166,9 @@ namespace MRBase.IceSpriteFx
                 yield break;
             }
 
-            Vanish();
+            // 不能走 Vanish()：它会 StopRunning()，把本协程自己停掉。
+            // Restart 已经收过 scale/闪光/拖尾，这里只启动溶解。
+            if (dissolver != null) dissolver.Dissolve();
 
             float total = IceSpriteTeleport.TotalDuration(s, d, flightDuration);
             IceSpriteTeleportPhase previous = IceSpriteTeleportPhase.Vanishing;
