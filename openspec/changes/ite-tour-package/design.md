@@ -545,6 +545,26 @@ D13 已裁定 ITE 不经过 `MarkerAnchorService`（那条链产出 `AnchorEntit
 
 **两个适配器都不是 MonoBehaviour**：`HeadsetPresenceAdapter` 只需要有人每帧调一次 `Poll`，`MarkerSourceAdapter` 全靠事件驱动。由 `IteHostBootstrap` 一个 MonoBehaviour 驱动，场景里少两个组件、少两处能连错的引用，且两者都能离机测。它们也不认识 `IteRuntime`——出口是 `Action<...>`，装配时接到包的推入方法上。
 
+### D33：锚定层级保留一个显式的坐标系修正节点，默认单位（2026-08-07）
+
+`anchorRoot` 与 `tourRoot` 不是并列的两个节点：`IteTourObject.ChangeTourObjectTransform` 先把 `tourRoot` 的 local 位姿设成反变换、再把 `anchorRoot` 设成标记位姿，**`tourRoot` 必须是 `anchorRoot` 的后代**，否则移动锚点对内容毫无作用。
+
+源工程的层级是三层，中间那层不是装饰：
+
+```
+Tour Group                    ← tag AnchorObject       = anchorRoot
+└── Offset With Marker        ← localRotation = (-0.5, -0.5, 0.5, 0.5)，非单位
+    └── Tour Group Anchor Offset  ← tag AnchorOffsetObject = tourRoot
+```
+
+那个四元数把局部 X→世界 Y、Y→−Z、Z→−X，是**标记坐标系到 Unity 的固定修正**，被硬编码在场景里、没有任何注释或代码痕迹。
+
+**否决「照搬这个四元数」**：源工程的位姿来自 Meta QR 的原始输出，而 MR_Base 的 `QuestMarkerProvider` 交出的是 `trackable.transform.rotation`——已经是 Unity 世界空间。两者的输入约定不同，照搬等于把一个针对**别的输入**的修正量装到这条链上。
+
+**否决「压平成两层」**：修正量到底是不是 0，离机判断不了（D7 同类问题）。压平之后如果真机上发现需要修正，就没有地方放，只能回头改层级或往包里塞平台补偿。
+
+**选定**：层级保留三层，中间节点命名 `Marker Frame Offset`，**默认单位四元数**，由任务 10.2 / 10.4 在真机上标定。这是硬件标定旋钮，不是冗余节点——真实标记的坐标约定不会因为模型更简洁就消失。
+
 ## Risks / Open Questions
 
 | 项 | 风险 | 缓解 |

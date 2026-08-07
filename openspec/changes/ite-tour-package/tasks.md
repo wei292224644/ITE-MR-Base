@@ -94,8 +94,8 @@
 
 ## 10. 场景接线与真机验证
 
-- [ ] 10.1 在核心场景挂载适配层组件，接好锚点根、Tour 根、相机 Transform 与配置资产引用
-- [ ] 10.2 Quest 真机：扫码激活 Tour、normal 切换、regionalTrigger 二次锚定、区域进出
+- [x] 10.1 在核心场景挂载适配层组件，接好锚点根、Tour 根、相机 Transform 与配置资产引用。`MRCore.unity` 新增 `-- ITE --` 根：`ITE Host`（`IteHostBootstrap`）+ `Tour Anchor / Marker Frame Offset / Tour Root` 三层锚定链（design D33——`tourRoot` 必须是 `anchorRoot` 的后代，中间那层是坐标系标定旋钮）。`markerTracking` 暂空：`MarkerTrackingBootstrapper` 目前不在此场景，接入随 10.2 一并做；空引用只是让扫码激活不可用（会告警），加载链不受影响
+- [ ] 10.2 Quest 真机：扫码激活 Tour、normal 切换、regionalTrigger 二次锚定、区域进出。**含**：把 `MarkerTrackingBootstrapper` 接进 `MRCore` 并连上 `IteHostBootstrap.markerTracking`；标定 `Marker Frame Offset` 的旋转（design D33）
 - [ ] 10.3 Quest 真机：EMW 模型加载 + 动画 + 动画音频绑定；富文本图文与音频；视频播放
 - [ ] 10.4 PICO 真机：同 10.2 的完整链路
 - [ ] 10.5 PICO 真机：验证 `userPresence` 是否上报（design D7 风险）。不可用则改平台分支实现，**分支仍限于适配层内**
