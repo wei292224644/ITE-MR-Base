@@ -171,14 +171,16 @@ public TeleportStyle style;
 4. 新场景 `Assets/Scenes/IceSpriteFxTest.unity`：地面 + 光 + 冰灵 + 两个传送锚点。
    编辑器内 Play 即可，暂不进 MRCore 场景切换菜单。
 
-### 开放项：噪声源模式
+### 决策 4：噪声源用 Guide Texture（关 Triplanar）
 
-`Standard Dissolve` 的噪声有两种模式，装配时两种都要试：
+`Standard Dissolve` 的噪声两种模式都试过：
 
-- **Triplanar**（三平面投影）—— 不依赖 UV 质量
-- **Guide Texture**（走模型 UV）—— 动画下更稳、更便宜
+- **Triplanar Object**：模板默认。Object 空间不随世界滑动，但不走 UV。
+- **Guide Texture**：关 `_USE_TRIPLANAR_UVS`，走 `_GuideTexture` + 模型 UV。
 
-冰灵是成品游戏角色模型，UV 大概率完整，预期 Guide Texture 更优。以实测为准。
+`pet_501001` 有完整 UV0（2148 顶点对应 2148 UV），URP/Lit 探针确认贴图采样正确。
+定 **Guide Texture**：动画下更稳，也更便宜。装配见 `Assets/IceSpriteFx/Materials/IceSprite_Dissolve.mat`
+（`_USE_TRIPLANAR_UVS = 0`，`_EmissionColor = 0`——模板自带的白 emission 会把本体冲成一片白）。
 
 ## 7. 验证
 
