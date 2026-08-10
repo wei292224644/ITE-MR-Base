@@ -124,8 +124,11 @@ venv/
 .worktrees/
 
 # Unity crash recovery / local capture junk (never commit)
+# 目录规则挡不住 Unity 给目录生成的同级 .meta，两者都要写
 /[Aa]ssets/_Recovery/
+/[Aa]ssets/_Recovery.meta
 /[Aa]ssets/[Ss]creenshots/
+/[Aa]ssets/[Ss]creenshots.meta
 
 # Generated debug textures (pipeline visualization, not runtime assets)
 **/DEBUG_*.png
