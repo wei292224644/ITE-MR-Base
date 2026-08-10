@@ -76,7 +76,7 @@ Material:
         m_Scale: {x: 1, y: 1}
         m_Offset: {x: 0, y: 0}
     - _GuideTexture:
-        m_Texture: {fileID: 2800000, guid: cf3d896c91f8fa54d86349074890b25f, type: 3}
+        m_Texture: {fileID: 2800000, guid: fbeb74499ff424153811328ba10b45cb, type: 3}
         m_Scale: {x: 1, y: 1}
         m_Offset: {x: 0, y: 0}
     - _Lerp_Texture:
@@ -150,7 +150,7 @@ Material:
     - _DoubleSidedNormalMode: 2
     - _DstBlend: 0
     - _DstBlendAlpha: 0
-    - _EdgeWidth: 0.0035
+    - _EdgeWidth: 0.045
     - _Ember_Hardness: 0.662
     - _Ember_Width: 0.72
     - _Emission_Strength: 500
@@ -162,8 +162,8 @@ Material:
     - _GlossyReflections: 1
     - _GuideAdjuster: 0
     - _GuideStrength: 1.64
-    - _GuideTilling: 9.16
-    - _Hardness: 0
+    - _GuideTilling: 3.6
+    - _Hardness: 0.55
     - _Lerp_Scroll_Speed: 0
     - _Lerp_Tiling: 0
     - _MaxValue: 1.08
@@ -236,7 +236,7 @@ Material:
     - _BaseColor: {r: 1, g: 1, b: 1, a: 1}
     - _Burn_Color: {r: 72.65929, g: 11.032038, b: 3.423736, a: 0}
     - _Color: {r: 1, g: 1, b: 1, a: 1}
-    - _DissolveColor: {r: 22.363522, g: 3.3955085, b: 1.0537785, a: 0}
+    - _DissolveColor: {r: 1.4, g: 7.5, b: 12, a: 0}
     - _DoubleSidedConstants: {r: 1, g: 1, b: -1, a: 0}
     - _Ember_Color: {r: 0, g: 0, b: 0, a: 0}
     - _EmissionColor: {r: 0, g: 0, b: 0, a: 1}

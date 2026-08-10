@@ -21,12 +21,15 @@ namespace MRBase.IceSpriteFx
         [Tooltip("同一个 GameObject 上的 Dissolver。duration 也从它读，避免两处配时长。")]
         [SerializeField] Dissolver dissolver;
 
-        [Header("弹性落位")]
-        [Tooltip("物质化过程中乘在基准 scale 上的倍率。末值必须回到 1，否则冰灵会越召越大。")]
-        [SerializeField] AnimationCurve scalePunch = new AnimationCurve(
-            new Keyframe(0f, 0.4f),
-            new Keyframe(0.65f, 1.15f),
-            new Keyframe(1f, 1f));
+        [Header("落位")]
+        [Tooltip("本体从落位点上方多高处降下来，米。0 = 不做下落。")]
+        [SerializeField] float dropHeight = 0.9f;
+
+        [Tooltip("下落进度曲线。横轴是物质化归一化进度，纵轴 1 = 还在最高处，0 = 已落位。\n" +
+                 "末值必须是 0，否则冰灵会停在半空。缓出（起快落慢）比弹跳自然。")]
+        [SerializeField] AnimationCurve dropCurve = new AnimationCurve(
+            new Keyframe(0f, 1f, 0f, -2.2f),
+            new Keyframe(1f, 0f, -0.15f, 0f));
 
         [Header("闪光爆点")]
         [Tooltip("留空则不打闪光。强度靠全局 Bloom 出效果。")]
@@ -63,14 +66,15 @@ namespace MRBase.IceSpriteFx
             set => teleportStyle = value;
         }
 
-        Vector3 _baseScale;
         Coroutine _running;
         Coroutine _flashing;
 
+        // 下落进行时的落位点。中途被打断要snap回它，否则冰灵停在半空。
+        Vector3 _dropRest;
+        bool _dropping;
+
         void Awake()
         {
-            _baseScale = transform.localScale;
-
             if (dissolver == null) dissolver = GetComponent<Dissolver>();
             if (skinnedRenderer == null) skinnedRenderer = GetComponentInChildren<SkinnedMeshRenderer>();
             if (flash != null) flash.intensity = 0f;
@@ -118,7 +122,12 @@ namespace MRBase.IceSpriteFx
                 _flashing = null;
             }
 
-            transform.localScale = _baseScale;
+            if (_dropping)
+            {
+                transform.position = _dropRest;
+                _dropping = false;
+            }
+
             if (flash != null) flash.intensity = 0f;
             if (trail != null) trail.Stop();
             if (convergeMotes != null) convergeMotes.Stop();
@@ -145,14 +154,17 @@ namespace MRBase.IceSpriteFx
             if (dissolver != null) dissolver.Materialize();
             StartFlash();
 
+            _dropRest = transform.position;
+            _dropping = true;
             float d = DissolveDuration;
             for (float t = 0f; t < d; t += Time.deltaTime)
             {
-                transform.localScale = _baseScale * scalePunch.Evaluate(t / d);
+                transform.position = _dropRest + Vector3.up * (dropHeight * dropCurve.Evaluate(t / d));
                 yield return null;
             }
 
-            transform.localScale = _baseScale;
+            transform.position = _dropRest;
+            _dropping = false;
             _running = null;
         }
 
@@ -205,26 +217,30 @@ namespace MRBase.IceSpriteFx
                         if (convergeMotes != null) convergeMotes.Play();
                         if (dissolver != null) dissolver.Materialize();
                         StartFlash();
+                        _dropRest = target;
+                        _dropping = true;
                     }
                     previous = phase;
                 }
 
                 Vector3 p = IceSpriteTeleport.PositionAt(s, from, target, t, d, flightDuration);
+
+                // 重组段同样从上方落下。拖尾跟的是时间轴位置，不带这段偏移。
+                if (phase == IceSpriteTeleportPhase.Appearing)
+                {
+                    float k = Mathf.Clamp01((t - (total - d)) / d);
+                    p += Vector3.up * (dropHeight * dropCurve.Evaluate(k));
+                }
+
                 transform.position = p;
                 if (trail != null && phase == IceSpriteTeleportPhase.InTransit)
                     trail.transform.position = p;
-
-                if (phase == IceSpriteTeleportPhase.Appearing)
-                {
-                    float k = (t - (total - d)) / d;
-                    transform.localScale = _baseScale * scalePunch.Evaluate(Mathf.Clamp01(k));
-                }
 
                 yield return null;
             }
 
             transform.position = target;
-            transform.localScale = _baseScale;
+            _dropping = false;
             _running = null;
         }
 
