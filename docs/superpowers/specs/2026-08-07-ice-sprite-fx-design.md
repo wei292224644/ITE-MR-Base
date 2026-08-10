@@ -229,6 +229,23 @@ Space = World。`Mesh` 属性类型是 `SkinnedMeshRenderer`，在 Inspector 里
 `VFXTransformBinder` 是 `internal` 类型，C# 里引用不到，但可以在 Inspector 里挂
 （或编辑器脚本反射挂）。挂上之后运行时零自写代码。
 
+### 决策 10：消散层是独立粒子系统，不是汇聚层反向播
+
+**选了什么**：`DisperseMotes` 与 `ConvergeMotes` 是两个 `ParticleSystem`，
+分别由 `IceSpritePresence.disperseMotes` / `convergeMotes` 持有。
+
+**替代方案**：一个粒子系统，消失时把 `velocityOverLifetime.radial` 取反重播。
+
+**为什么否决**：两者只有"径向速度符号"这一点相同，其余全不同 ——
+汇聚是**从体外球壳向心**（radius 1.05，thickness 0.2），消散是**从体内向外并上飘**
+（radius 0.42，thickness 1，`gravityModifier -0.06`）；汇聚寿命 0.4–0.55s 求"同时抵达"，
+消散 0.6–1.1s 求"慢慢化掉"；burst 时序也不同（消散随溶解推进分三批剥落）。
+共用一个系统就得在运行时改七八个模块，那比多一个场景物体脆弱得多。
+
+**Afterimage 的一帧延迟**：粒子系统是本体的子物体，`Play()` 后若立刻移位，
+该帧的发射会落在目标点而非出发点。所以先 `yield return null` 让它在原地发一帧，
+再跳走 —— 世界空间模拟保证碎冰留在原处。这是残影语义的一部分，不是权宜。
+
 ### 决策 9：测试场景破例加本地 Bloom Volume
 
 **背景**：`7a9acf5` 把 bloom 收敛为单一全局 profile。全局现值

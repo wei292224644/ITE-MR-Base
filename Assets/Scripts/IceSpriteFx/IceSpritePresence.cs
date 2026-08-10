@@ -45,6 +45,11 @@ namespace MRBase.IceSpriteFx
         [Tooltip("光点比本体早起多久，秒。派蒙那种观感靠的就是这段提前量：先在空处聚光，人再浮现。")]
         [SerializeField] float convergeLead = 0.35f;
 
+        [Tooltip("消散光点：本体溶解时向外飘散的冰晶。留空则不播。\n" +
+                 "与 convergeMotes 是两个粒子系统而非同一个反向播 —— 汇聚是向心、\n" +
+                 "消散是从体内向外并上飘，发射形状与受力都不同。")]
+        [SerializeField] ParticleSystem disperseMotes;
+
         [Header("传送")]
         [SerializeField] IceSpriteTeleportStyle teleportStyle = IceSpriteTeleportStyle.DissolveReform;
 
@@ -87,9 +92,10 @@ namespace MRBase.IceSpriteFx
 
         public void Vanish()
         {
-            // 出现动画播到一半时按消失，scale 协程还在跑，会边溶解边弹。先收干净。
+            // 出现动画播到一半时按消失，下落协程还在跑，会边溶解边落。先收干净。
             StopRunning();
             if (dissolver != null) dissolver.Dissolve();
+            if (disperseMotes != null) disperseMotes.Play();
         }
 
         public void TeleportTo(Vector3 target)
@@ -131,6 +137,7 @@ namespace MRBase.IceSpriteFx
             if (flash != null) flash.intensity = 0f;
             if (trail != null) trail.Stop();
             if (convergeMotes != null) convergeMotes.Stop();
+            if (disperseMotes != null) disperseMotes.Stop();
         }
 
         void StartFlash()
@@ -189,14 +196,26 @@ namespace MRBase.IceSpriteFx
             if (s == IceSpriteTeleportStyle.Afterimage)
             {
                 SpawnAfterimage(from);
+
+                // 粒子系统是本体的子物体，Play() 后若立刻移位，这一帧的发射会落在
+                // 目标点而不是出发点。先让它在原地发一帧 —— 世界空间模拟，跳走后碎冰留在原处。
+                if (disperseMotes != null)
+                {
+                    disperseMotes.Play();
+                    yield return null;
+                }
+
                 transform.position = target;
+                if (convergeMotes != null) convergeMotes.Play();   // 落点同时聚拢
+                StartFlash();
                 _running = null;
                 yield break;
             }
 
             // 不能走 Vanish()：它会 StopRunning()，把本协程自己停掉。
-            // Restart 已经收过 scale/闪光/拖尾，这里只启动溶解。
+            // Restart 已经收过下落/闪光/拖尾，这里只启动溶解。
             if (dissolver != null) dissolver.Dissolve();
+            if (disperseMotes != null) disperseMotes.Play();
 
             float total = IceSpriteTeleport.TotalDuration(s, d, flightDuration);
             IceSpriteTeleportPhase previous = IceSpriteTeleportPhase.Vanishing;
