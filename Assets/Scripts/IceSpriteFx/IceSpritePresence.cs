@@ -34,6 +34,14 @@ namespace MRBase.IceSpriteFx
         [SerializeField] float flashIntensity = 12f;
         [SerializeField] float flashDuration = 0.25f;
 
+        [Header("汇聚光点")]
+        [Tooltip("本体出现前在周围空间聚拢的光点。留空则不播。\n" +
+                 "这一层不绑蒙皮网格 —— 它要在还没有网格可绑的时候就存在。")]
+        [SerializeField] ParticleSystem convergeMotes;
+
+        [Tooltip("光点比本体早起多久，秒。派蒙那种观感靠的就是这段提前量：先在空处聚光，人再浮现。")]
+        [SerializeField] float convergeLead = 0.35f;
+
         [Header("传送")]
         [SerializeField] IceSpriteTeleportStyle teleportStyle = IceSpriteTeleportStyle.DissolveReform;
 
@@ -113,6 +121,7 @@ namespace MRBase.IceSpriteFx
             transform.localScale = _baseScale;
             if (flash != null) flash.intensity = 0f;
             if (trail != null) trail.Stop();
+            if (convergeMotes != null) convergeMotes.Stop();
         }
 
         void StartFlash()
@@ -126,6 +135,13 @@ namespace MRBase.IceSpriteFx
 
         IEnumerator AppearRoutine()
         {
+            // 光点先聚。本体这段时间还是全溶解态，画面上只有空处的星光。
+            if (convergeMotes != null)
+            {
+                convergeMotes.Play();
+                if (convergeLead > 0f) yield return new WaitForSeconds(convergeLead);
+            }
+
             if (dissolver != null) dissolver.Materialize();
             StartFlash();
 
@@ -184,6 +200,9 @@ namespace MRBase.IceSpriteFx
                     if (phase == IceSpriteTeleportPhase.Appearing)
                     {
                         if (trail != null) trail.Stop();
+                        // 传送里光点不带提前量：提前量会拉长时间轴，而时间轴由
+                        // IceSpriteTeleport 那三个纯函数定义，改它等于改契约。
+                        if (convergeMotes != null) convergeMotes.Play();
                         if (dissolver != null) dissolver.Materialize();
                         StartFlash();
                     }

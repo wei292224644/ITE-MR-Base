@@ -171,7 +171,7 @@ public TeleportStyle style;
 4. 新场景 `Assets/Scenes/IceSpriteFxTest.unity`：地面 + 光 + 冰灵 + 两个传送锚点。
    编辑器内 Play 即可，暂不进 MRCore 场景切换菜单。
 
-### 决策 4：噪声源用 Guide Texture（关 Triplanar）
+### 决策 6：噪声源用 Guide Texture（关 Triplanar）
 
 `Standard Dissolve` 的噪声两种模式都试过：
 
@@ -181,6 +181,64 @@ public TeleportStyle style;
 `pet_501001` 有完整 UV0（2148 顶点对应 2148 UV），URP/Lit 探针确认贴图采样正确。
 定 **Guide Texture**：动画下更稳，也更便宜。装配见 `Assets/IceSpriteFx/Materials/IceSprite_Dissolve.mat`
 （`_USE_TRIPLANAR_UVS = 0`，`_EmissionColor = 0`——模板自带的白 emission 会把本体冲成一片白）。
+
+### 决策 7：补一层不绑网格的汇聚光点 —— 修正决策 1 的映射错误
+
+**背景**：首轮实装看到画面后，判断「和派蒙差距很大」。复盘发现是设计错误，不是实装走样。
+
+**错在哪**：第 2 节把出场拆成五层，第 1 层写的是「星屑汇聚」。到了第 3 节的对照表，
+这一层被映射成 INab `Skinned Standard Materialize Template.vfx`。**这个映射不成立。**
+
+INab Materialize 的实际行为是：粒子在**贴着蒙皮网格表面**的极近处生成
+（`Random Spawn Distance`），靠 `Attractive Force` 吸附到表面。它是「本体溶解的伴生尘」，
+服务于第 3 层，不是第 1 层。两件事被写成了一件。
+
+派蒙那种观感的关键是：**光点在本体还不存在时，从周围一个大得多的空间体积里向中心聚拢**。
+这一层绑不了蒙皮网格 —— 那个时刻还没有网格可绑。整个 MasterKit 里没有这个东西，
+它做的是「已有物体的溶解 / 重组」，不是「无中生有」。
+
+**补法**：`ConvergeMotes`，一个普通 `ParticleSystem`，球壳发射 + 向心速度，
+不绑网格、不进 `DissolverVFX`。由 `IceSpritePresence.convergeMotes` 持有，
+`Appear()` 里比本体早 `convergeLead`（默认 0.35s）起播。
+
+**为什么留一个提前量**：观感全在这段时间差上 —— 先在空处聚光，人再浮现。
+没有提前量就退化成「本体和粒子同时出现」，那还是原来的样子。
+
+**传送里不带提前量**：传送时间轴由 `MRBase.Transitions.IceSpriteTeleport` 那三个纯函数定义，
+加提前量等于改契约。传送的 `Appearing` 边沿只 `Play()`，不等待。
+
+**参数**（装配值，可在 Inspector 调）：球壳半径 1.2m（模型包围盒 1.87×1.33×1.15），
+中心对齐 `SkinnedMeshRenderer.bounds.center` 的局部坐标 `(0.10, 0.94, -0.205)`
+—— **不是** IceSprite 原点，那在脚下，差了近 0.7m。
+
+### 决策 8：`Transform` 属性用原生 `VFXTransformBinder`，不自写每帧推送
+
+**选了什么**：skinned 模板的 `Transform` 属性由 Unity 内置的
+`VFXPropertyBinder` + `VFXTransformBinder`（`Unity.VisualEffectGraph.Runtime`）绑到角色根，
+Space = World。`Mesh` 属性类型是 `SkinnedMeshRenderer`，在 Inspector 里直接指到
+`pet_501001`，GPU 侧采样，配 INab `UniformMeshBaker`。
+
+**替代方案**：自写 MonoBehaviour 每帧 `BakeMesh` + 顶点矩阵变换 + 重推 `UniformMeshBuffer`
++ 手工写 `Transform_position/_angles/_scale`（首轮调试期间确实写了，约 160 行）。
+
+**为什么否决**：那 160 行的存在理由是当时手上的 VFX 资产已损坏、失去了蒙皮采样能力，
+只能手工喂静态 mesh。资产修复后它整套是多余的，而且它往一个 `SkinnedMeshRenderer`
+类型的属性里塞普通 `Mesh`，本来就塞不进去。它还把 `Particles Scale`、
+`Random Spawn Distance` 硬编码在代码里，违反本设计「观感归 Inspector」那条。
+
+`VFXTransformBinder` 是 `internal` 类型，C# 里引用不到，但可以在 Inspector 里挂
+（或编辑器脚本反射挂）。挂上之后运行时零自写代码。
+
+### 已修复的实装缺陷（非设计问题）
+
+- **VFX 资产损坏**：`IceSprite_Materialize.vfx` 与 `IceSprite_Dissolve.vfx` 在一次
+  Unity 崩溃（留下 `Assets/_Recovery/`）后被降级成静态 mesh 模板，丢掉了 `Transform`
+  属性、`Mesh` 属性从 `SkinnedMeshRenderer` 退化为 `Mesh`。已从 `37b18a8` 恢复。
+  判据：`Mesh` 属性的类型必须是 `SkinnedMeshRenderer`，用
+  `VisualEffect.HasSkinnedMeshRenderer("Mesh")` 验。
+- **场景里堆了 6 个 VFX 物体**（应为 2）：调试期间反复改父级与重复创建叠出来的。已清理重建。
+- **测试场景相机 `renderPostProcessing = False`**：bloom 整个没跑，所以 HDR 粒子和闪光
+  都不发光。已开启。这与 `baf6dff` 修过的是同一类坑，值得在新场景里当作检查项。
 
 ## 7. 验证
 
