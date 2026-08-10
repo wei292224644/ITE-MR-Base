@@ -229,6 +229,36 @@ Space = World。`Mesh` 属性类型是 `SkinnedMeshRenderer`，在 Inspector 里
 `VFXTransformBinder` 是 `internal` 类型，C# 里引用不到，但可以在 Inspector 里挂
 （或编辑器脚本反射挂）。挂上之后运行时零自写代码。
 
+### 决策 9：测试场景破例加本地 Bloom Volume
+
+**背景**：`7a9acf5` 把 bloom 收敛为单一全局 profile。全局现值
+`threshold 2 / intensity 0.2` 偏保守，HDR 粒子渲染出来是扁平色片，没有辉光，
+而辉光正是这类效果的观感来源。
+
+**选了什么**：测试场景加一个 `isGlobal` 的 Volume（`priority 10`），
+指向 `Assets/IceSpriteFx/IceSpriteFxTest_Bloom.asset`，**只覆盖 Bloom**
+（`threshold 1.2 / intensity 0.9 / scatter 0.75`），其余后处理继续继承全局默认。
+
+**替代方案**：
+
+1. 直接调全局 profile —— 影响所有场景，可能吐回 `eab3a0a` 压 App 时间的收益
+2. 不动 bloom，靠粒子材质自带一层柔光贴片假装辉光 —— 不吃后处理预算，
+   PICO 上更安全，但等于给每颗粒子多一层 overdraw
+
+**为什么这样选**：由人拍板。这是明确的破例，**只对测试场景成立**。
+本效果若转正进业务场景，必须重新评估：要么把辉光需求提给全局 profile 统一决策，
+要么改走方案 2。不要把这个 Volume 复制到别的场景。
+
+**连带的调参依据**（写下来免得下次重新试错）：
+
+- 冰晶是细线条，小尺寸 + mipmap 后单像素平均亮度被摊薄，掉到 bloom 阈值以下。
+  所以粒子颜色要比"看起来够亮"高一档。
+- **红通道一涨就趋白**。保住冰蓝色相的关键是压住红：现值
+  `R 0.25–0.8 / G 3.6–6.5 / B 6.5–10.0`。曾试过 `(4, 12, 16)`，辉光有了但全白。
+- `colorOverLifetime` 的颜色键会**乘**在 `startColor` 上。早先那版用了
+  `(0.55, 0.85, 1.0)` 做色键，等于把亮度又压暗一档，白费了 HDR。现在颜色键全白，
+  该模块只负责 alpha 淡入淡出。
+
 ### 已修复的实装缺陷（非设计问题）
 
 - **VFX 资产损坏**：`IceSprite_Materialize.vfx` 与 `IceSprite_Dissolve.vfx` 在一次
