@@ -141,3 +141,6 @@ venv/
 # XR Simulation temporary copies (editor-local)
 /[Aa]ssets/XR/[Tt]emp/
 /[Aa]ssets/XR/[Tt]emp.meta
+
+# Large 3DGS PLY models (too big for git; keep .meta for stable GUIDs)
+/[Aa]ssets/[Aa]ssets/3dgs/*.ply
