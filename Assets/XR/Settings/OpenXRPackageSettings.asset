@@ -280,7 +280,7 @@ MonoBehaviour:
     XR_META_hand_tracking_wide_motion_mode2 XR_METAX1_agentic_external_tool
   company: Meta
   priority: 0
-  targetOpenXRApiVersion: 1.1.53
+  targetOpenXRApiVersion: 1.1.45
   required: 0
   customRuntimeLoaderName: 
 --- !u!114 &-6979352328930482343
