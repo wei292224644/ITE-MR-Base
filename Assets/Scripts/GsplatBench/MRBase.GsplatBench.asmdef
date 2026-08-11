@@ -5,7 +5,8 @@
         "Gsplat",
         "Unity.InputSystem",
         "Unity.TextMeshPro",
-        "Unity.RenderPipelines.Universal.Runtime"
+        "Unity.RenderPipelines.Universal.Runtime",
+        "Oculus.VR"
     ],
     "includePlatforms": [],
     "excludePlatforms": [],

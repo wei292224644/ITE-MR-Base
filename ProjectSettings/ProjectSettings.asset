@@ -149,8 +149,6 @@ PlayerSettings:
   preloadedAssets:
   - {fileID: 11400000, guid: f8a442de0c8906f4d9c00184993fc289, type: 2}
   - {fileID: 11400000, guid: 341e348852cca41b386d361f522f4f5a, type: 2}
-  - {fileID: -1536177517007817266, guid: 136958f90a130274b8b70a31eed352fb, type: 2}
-  - {fileID: -3728528452315536981, guid: 2462f957eee75f940a3393fd6f039795, type: 2}
   metroInputSource: 0
   wsaTransparentSwapchain: 0
   xboxOneDisableKinectGpuReservation: 1
@@ -170,7 +168,7 @@ PlayerSettings:
   androidMaxAspectRatio: 2.4
   androidMinAspectRatio: 1
   applicationIdentifier:
-    Android: com.uality.xiaotangshan
+    Android: com.uality.xiaotangshan.gsplatbench
     Standalone: com.unity.template.mr
   buildNumber:
     Standalone: 0

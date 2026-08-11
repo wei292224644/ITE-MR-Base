@@ -99,6 +99,20 @@ namespace MRBase.GsplatBench
             XRSettings.renderViewportScale = scale;
         }
 
+        /// <summary>
+        /// 注视点渲染从「锁定条件」改成了可调旋钮（推翻 design D2 的原判）。
+        ///
+        /// 原判理由是测量纯净度：FFR 浮动会让档间不可比。但真机数据出来后，88 万 splats
+        /// 距 72fps 差 3.6 倍，FFR 那 15~30% 已经不是噪声而是必须动用的杠杆。
+        /// 折中：它仍然逐帧回读、逐档写进 CSV，所以任何一行数据都能看出当时开到几级 ——
+        /// 可比性由**记录**保证，而不是由**冻结**保证。
+        /// </summary>
+        public void SetFoveationLevel(float level)
+        {
+            LockedFoveationLevel = level;
+            TrySetFoveation(level);
+        }
+
         public void ClearDrift()
         {
             Drifted = false;
@@ -168,10 +182,13 @@ namespace MRBase.GsplatBench
                 Mathf.Abs(FoveationLevel - LockedFoveationLevel) > 0.05f,
                 $"foveation {LockedFoveationLevel:F2}→{FoveationLevel:F2}");
 
-            // 动态分辨率必须恒为 1；不为 1 说明系统在偷偷缩放。
+            // 动态分辨率应当跟随我们自己设的 viewport scale，而不是恒为 1 ——
+            // `XRSettings.renderViewportScale` 本来就会带动 ScalableBufferManager。
+            // 早前拿它跟 1 比，于是只要 viewScale 旋钮不是 1.0 就误报漂移，
+            // sweep 的最后一档（+viewscale-0.7）会被无条件标成 invalid。
             MarkDrift(Slot.DynamicRes,
-                DynamicResScale > 0f && Mathf.Abs(DynamicResScale - 1f) > 0.001f,
-                $"dynamicRes {DynamicResScale:F2}");
+                DynamicResScale > 0f && Mathf.Abs(DynamicResScale - LockedViewportScale) > 0.02f,
+                $"dynamicRes {DynamicResScale:F2} != viewScale {LockedViewportScale:F2}");
 
             MarkDrift(Slot.HalfRate,
                 HalfRateSuspected,

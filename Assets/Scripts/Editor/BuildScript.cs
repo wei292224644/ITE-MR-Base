@@ -27,6 +27,7 @@ public static class BuildScript
     const string k_MRCoreScene = "Assets/Scenes/MRCore.unity";
     const string k_MarkerProbeScene = "Assets/Scenes/MarkerProbe.unity";
     const string k_PicoQrCameraProbeScene = "Assets/Scenes/PicoQrCameraProbe.unity";
+    const string k_GsplatBenchScene = "Assets/Scenes/GsplatBench.unity";
 
     const string k_PicoOfficialCameraRenderingScene =
         "Packages/com.unity.xr.picoxr/Enterprise/Sample/CameraRendering/PXR/CameraRendering.unity";
@@ -124,6 +125,43 @@ public static class BuildScript
             applicationIdSuffix: ".qrcamprobe");
     }
 
+    /// <summary>
+    /// 3DGS 性能实测装置（openspec: gsplat-quest-bench）。
+    ///
+    /// 与其它探针不同，场景列表里**没有 MRCore** —— 这套装置刻意不走产品启动路径，
+    /// 否则 MRCore 的常驻装配会把开销混进被测数字。它是可整体删除的一次性探针，
+    /// 删除时连同本菜单项一起移除。
+    ///
+    /// 也与其它探针不同：**不加 Development / AllowDebugging**。
+    /// 其它探针要的是能连 Profiler、能断点；这套要的是「测出来的数等于将来产品跑出来的数」。
+    /// AllowDebugging 会让 IL2CPP 插入调试钩子——既拖慢构建，也污染被测运行时。
+    /// 装置自己有 HUD 和 .log，不依赖 Profiler 连接；Debug.Log 在 release 包里照样进 logcat。
+    ///
+    /// 构建成功后自动 adb 安装并拉起（<c>installAfterBuild</c>）—— 这套装置的用法是
+    /// 「改一个旋钮、出一次包、戴上看数」，每轮都手动装机会把十几分钟的循环再拉长。
+    /// 没插设备时只警告，不影响构建结果。
+    /// </summary>
+    [MenuItem("MRBase/Build/Gsplat Bench/Quest")]
+    public static void BuildGsplatBenchQuest()
+    {
+        Build(
+            k_QuestProfilePath,
+            "MRBASE_QUEST",
+            k_OpenXRLoader,
+            "Builds/GsplatBench/GsplatBench-Quest.apk",
+            excludePluginRoot: k_PicoPackageRoot,
+            sceneOverride: new[] { k_GsplatBenchScene },
+            buildOptions: BuildOptions.None,
+            applicationIdSuffix: ".gsplatbench",
+            installAfterBuild: true);
+    }
+
+    [MenuItem("MRBase/Build/Gsplat Bench/Queue Quest")]
+    public static void QueueGsplatBenchQuest()
+    {
+        QueueBuild(BuildGsplatBenchQuest, "Quest Gsplat Bench");
+    }
+
     [MenuItem("MRBase/Build/PICO Official CameraRendering Sample")]
     public static void BuildPicoOfficialCameraRenderingSample()
     {
@@ -197,7 +235,8 @@ public static class BuildScript
         bool dryRun = false,
         string[] sceneOverride = null,
         BuildOptions buildOptions = BuildOptions.None,
-        string applicationIdSuffix = null)
+        string applicationIdSuffix = null,
+        bool installAfterBuild = false)
     {
         var profile = AssetDatabase.LoadAssetAtPath<BuildProfile>(profilePath);
         if (profile == null)
@@ -276,6 +315,13 @@ public static class BuildScript
                     $"[BuildScript] 构建失败：{summary.result}，{summary.totalErrors} 个错误。");
 
             Debug.Log($"[BuildScript] 构建成功：{outputPath}（{summary.totalTime}）");
+
+            // 装机放在 try 内、finally 之前：此时包名仍是本次构建实际写进 APK 的那个。
+            // 刻意不用 BuildOptions.AutoRunPlayer —— 那条路会把「没插设备」算成构建失败，
+            // 于是一次十几分钟的构建被一个 adb 问题判成白跑。这里安装失败只是警告，
+            // APK 已经在磁盘上，可以手动装。
+            if (installAfterBuild)
+                InstallAndLaunch(outputPath, PlayerSettings.GetApplicationIdentifier(androidTarget));
         }
         finally
         {
@@ -291,6 +337,100 @@ public static class BuildScript
             if (!string.IsNullOrEmpty(applicationIdSuffix))
                 PlayerSettings.SetApplicationIdentifier(androidTarget, previousApplicationId);
         }
+    }
+
+    // ---- 装机 ----
+
+    /// <summary>adb 单条命令的上限。134MB 的 APK 走 USB 装机约 10~20 秒，留足余量。</summary>
+    const int k_AdbTimeoutMs = 180_000;
+
+    static void InstallAndLaunch(string apkPath, string packageName)
+    {
+        var adb = ResolveAdb();
+        if (adb == null)
+        {
+            Debug.LogWarning("[BuildScript] 找不到 adb，跳过装机。APK 已生成，可手动安装。");
+            return;
+        }
+
+        // -r 覆盖安装，-d 允许版本号回退（本地反复出包时 versionCode 常常不递增）。
+        if (!RunAdb(adb, $"install -r -d \"{Path.GetFullPath(apkPath)}\"", out var installLog))
+        {
+            Debug.LogWarning($"[BuildScript] 安装失败（APK 已生成，可手动安装）：\n{installLog}");
+            return;
+        }
+
+        Debug.Log($"[BuildScript] 已安装 {packageName}");
+
+        // monkey 拉起 LAUNCHER 入口，不必知道 Activity 名。
+        if (RunAdb(adb, $"shell monkey -p {packageName} -c android.intent.category.LAUNCHER 1", out var launchLog))
+            Debug.Log($"[BuildScript] 已启动 {packageName}");
+        else
+            Debug.LogWarning($"[BuildScript] 启动失败（已安装，可在头显里手动打开）：\n{launchLog}");
+    }
+
+    /// <summary>
+    /// 优先用用户在 External Tools 里指定的 SDK；没指定时回落到编辑器自带的 AndroidPlayer SDK。
+    /// 后者在 macOS 的 Hub 安装里位于编辑器根目录（Unity.app 的**同级**），
+    /// 在 Windows / Linux 上位于 Data 目录内 —— 两种布局都探一遍。
+    /// </summary>
+    static string ResolveAdb()
+    {
+        var exe = Application.platform == RuntimePlatform.WindowsEditor ? "adb.exe" : "adb";
+        var contents = EditorApplication.applicationContentsPath;
+        var editorRoot = Directory.GetParent(contents)?.Parent?.FullName;
+
+        var roots = new[]
+        {
+            EditorPrefs.GetString("AndroidSdkRoot"),
+            editorRoot == null ? null : Path.Combine(editorRoot, "PlaybackEngines", "AndroidPlayer", "SDK"),
+            Path.Combine(contents, "PlaybackEngines", "AndroidPlayer", "SDK"),
+        };
+
+        foreach (var root in roots)
+        {
+            if (string.IsNullOrEmpty(root))
+                continue;
+
+            var candidate = Path.Combine(root, "platform-tools", exe);
+            if (File.Exists(candidate))
+                return candidate;
+        }
+
+        return null;
+    }
+
+    static bool RunAdb(string adb, string arguments, out string log)
+    {
+        var info = new System.Diagnostics.ProcessStartInfo(adb, arguments)
+        {
+            RedirectStandardOutput = true,
+            RedirectStandardError = true,
+            UseShellExecute = false,
+            CreateNoWindow = true,
+        };
+
+        using var process = System.Diagnostics.Process.Start(info);
+        if (process == null)
+        {
+            log = "无法启动 adb 进程。";
+            return false;
+        }
+
+        var stdout = process.StandardOutput.ReadToEnd();
+        var stderr = process.StandardError.ReadToEnd();
+
+        if (!process.WaitForExit(k_AdbTimeoutMs))
+        {
+            process.Kill();
+            log = $"adb {arguments} 超时（>{k_AdbTimeoutMs / 1000}s）。";
+            return false;
+        }
+
+        log = (stdout + stderr).Trim();
+
+        // 退出码不够：部分 adb 版本装机失败仍返回 0，只在 stdout 里写 "Failure [...]"。
+        return process.ExitCode == 0 && !log.Contains("Failure");
     }
 
     // ---- OpenXR package compatibility ----

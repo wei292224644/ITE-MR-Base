@@ -27,6 +27,12 @@ namespace MRBase.GsplatBench
         /// <summary>HUD 文本硬上限。正常报告约 1.2k 字符，留足余量后仍然有界。</summary>
         const int k_MaxReportChars = 4000;
 
+        /// <summary>左摇杆推满时绕世界 Y 轴的转速（度/秒）。推杆量线性映射，便于微调角度。</summary>
+        const float k_RotateDegPerSec = 90f;
+
+        /// <summary>旋转输入死区。低于此值视为回中 —— 否则摇杆的静态偏置会让模型一直缓慢漂移。</summary>
+        const float k_RotateDeadzone = 0.15f;
+
         [Header("渲染配置")]
         [Tooltip("bench 专属 URP Asset。运行时切过去，绝不改动产品用的渲染配置。")]
         [SerializeField] UniversalRenderPipelineAsset benchPipeline;
@@ -37,6 +43,10 @@ namespace MRBase.GsplatBench
 
         [Tooltip("承载 GsplatRenderer 的模板对象。副本按其包围盒尺寸在 XZ 平面上排格子。")]
         [SerializeField] GsplatRenderer rendererTemplate;
+
+        [Tooltip("裁掉离群 splat 的立方体。由 cutout 旋钮控制边长，关闭时组件被禁用。" +
+                 "挂在 rendererTemplate 之下，Target=Parent。")]
+        [SerializeField] GsplatCutout outlierCutout;
 
         [Tooltip("大于 0 时把资产按包围盒缩放到这个米数再摆到相机前方。扫描件的包围盒常被离群 " +
                  "splat 撑大，自动缩放会把主体缩没 —— 所以默认关闭（0），需要时再开。")]
@@ -77,12 +87,14 @@ namespace MRBase.GsplatBench
         InputAction m_ToggleSweep;
         InputAction m_SingleVariableSweep;
         InputAction m_NextAsset;
+        InputAction m_RotateStick;
 
         int m_AssetIndex;
         int m_StickLatchX;
         int m_StickLatchY;
         float m_NextReportTime;
         float m_NextLogTime;
+        bool m_Rotating;
 
         public BenchKnobs Knobs { get; } = new();
         public BenchMetrics Metrics { get; } = new();
@@ -135,6 +147,7 @@ namespace MRBase.GsplatBench
             m_ToggleSweep.Enable();
             m_SingleVariableSweep.Enable();
             m_NextAsset.Enable();
+            m_RotateStick.Enable();
         }
 
         void OnDisable()
@@ -146,6 +159,7 @@ namespace MRBase.GsplatBench
             m_ToggleSweep.Disable();
             m_SingleVariableSweep.Disable();
             m_NextAsset.Disable();
+            m_RotateStick.Disable();
         }
 
         void OnDestroy()
@@ -157,6 +171,7 @@ namespace MRBase.GsplatBench
             m_ToggleSweep?.Dispose();
             m_SingleVariableSweep?.Dispose();
             m_NextAsset?.Dispose();
+            m_RotateStick?.Dispose();
         }
 
         IEnumerator Start()
@@ -183,6 +198,7 @@ namespace MRBase.GsplatBench
             Conditions.Poll(Metrics.DisplayIntervalMedianMs);
 
             HandleInput();
+            ApplyRotation();
             Report();
         }
 
@@ -223,6 +239,13 @@ namespace MRBase.GsplatBench
             m_NextAsset = new InputAction("bench/nextAsset", InputActionType.Button);
             m_NextAsset.AddBinding("<XRController>{RightHand}/thumbstickClicked");
             m_NextAsset.AddBinding("<Keyboard>/n");
+
+            // 左摇杆横轴转模型。右摇杆已经被旋钮和切资产占满，左摇杆此前只用了「按下」。
+            m_RotateStick = new InputAction("bench/rotate", InputActionType.Value, expectedControlType: "Axis");
+            m_RotateStick.AddBinding("<XRController>{LeftHand}/thumbstick/x");
+            m_RotateStick.AddCompositeBinding("1DAxis")
+                .With("Negative", "<Keyboard>/q")
+                .With("Positive", "<Keyboard>/e");
         }
 
         void HandleInput()
@@ -296,6 +319,44 @@ namespace MRBase.GsplatBench
             return 0;
         }
 
+        /// <summary>
+        /// 左摇杆横轴绕**世界** Y 轴转模型，转速与推杆量成正比。
+        ///
+        /// 绕各 renderer 自身原点自转（<c>Space.World</c> 只约束轴向，不改位置），
+        /// 所以副本方阵的格子布局不会被搅乱 —— <see cref="LayoutRenderers"/> 只写位置。
+        ///
+        /// 转动期间强制重排序。包里的 <c>RefreshOnCameraMove</c> 只盯**相机**变换，
+        /// 模型自己转不会触发重排 —— 于是在 sort 1/30 下转模型会看到深度序每 30 帧
+        /// 跳一次。相机转和模型转对深度序的影响完全等价，只补一边是包的触发条件漏了一项，
+        /// 不是一个值得保留下来测量的行为。代价是转动期间 sort 1/N 失效，
+        /// 所以 HUD 会标 rotating，避免有人拿转动中的数字去和静止档比较。
+        /// </summary>
+        void ApplyRotation()
+        {
+            // 与手动调旋钮同一条纪律：sweep 期间不许动，否则改的是正在被采样的那一档。
+            if (m_Sweep.Running)
+            {
+                m_Rotating = false;
+                return;
+            }
+
+            var axis = m_RotateStick.ReadValue<float>();
+            m_Rotating = Mathf.Abs(axis) >= k_RotateDeadzone;
+            if (!m_Rotating)
+                return;
+
+            var delta = axis * k_RotateDegPerSec * Time.unscaledDeltaTime;
+
+            foreach (var renderer in m_Renderers)
+            {
+                if (renderer == null)
+                    continue;
+
+                renderer.transform.Rotate(Vector3.up, delta, Space.World);
+                renderer.ForceRefresh();
+            }
+        }
+
         // —— 状态变更 ——
 
         void ToggleSweep(BenchSweep.Mode mode)
@@ -336,6 +397,47 @@ namespace MRBase.GsplatBench
         {
             SyncRendererCopies();
             Knobs.Apply(UniversalRenderPipeline.asset, m_Renderers, Conditions);
+            ApplyCutout();
+        }
+
+        /// <summary>
+        /// 裁剪盒按世界尺寸设定，所以要先除掉 renderer 的缩放 —— 否则一个被缩到 0.01 的
+        /// 扫描件上，"50 米的盒子" 实际只有半米。
+        ///
+        /// 关掉时禁用组件而不是把盒子放到无穷大：裁剪本身要跑一遍 compute prepass，
+        /// 「不裁」必须是真的不跑，否则测出来的 off 档带着裁剪的固定开销。
+        /// </summary>
+        void ApplyCutout()
+        {
+            if (outlierCutout == null)
+                return;
+
+            var meters = Knobs.CutoutMeters;
+            var enable = meters > 0f;
+            if (outlierCutout.enabled != enable)
+                outlierCutout.enabled = enable;
+
+            if (!enable)
+                return;
+
+            var parentScale = outlierCutout.transform.parent != null
+                ? outlierCutout.transform.parent.lossyScale
+                : Vector3.one;
+
+            outlierCutout.transform.localScale = new Vector3(
+                meters / Mathf.Max(1e-6f, parentScale.x),
+                meters / Mathf.Max(1e-6f, parentScale.y),
+                meters / Mathf.Max(1e-6f, parentScale.z));
+
+            // 以**相机**为中心，不是以资产包围盒中心 —— 包围盒本身就是被离群点撑歪的，
+            // 拿它当锚点可能把主体裁掉。语义定为「只保留身边 N 米内的 splat」，
+            // 这样无论内容在哪，看着的东西都还在。
+            //
+            // 只在旋钮变动时重定位，不每帧跟随：cutout 一动就要重跑 compute prepass，
+            // 每帧跟随等于把装置自己的开销加进被测数字。
+            var camera = Camera.main;
+            if (camera != null)
+                outlierCutout.transform.position = camera.transform.position;
         }
 
         void SyncRendererCopies()
@@ -466,6 +568,44 @@ namespace MRBase.GsplatBench
             }
         }
 
+        /// <summary>
+        /// 输入自诊断。没有这一段，「旋钮没变」有两种完全不同的原因分不开：
+        /// 人没按到，还是 binding 在这台设备上根本没解析出控件。
+        /// 直接把「认到哪些设备」和「每个 action 当前绑到哪个控件」摆出来。
+        /// </summary>
+        void AppendInput(StringBuilder builder)
+        {
+            builder.Append("== input ==\n  devices ");
+            var any = false;
+            foreach (var device in InputSystem.devices)
+            {
+                if (device.layout.IndexOf("XR", System.StringComparison.OrdinalIgnoreCase) < 0 &&
+                    device.layout.IndexOf("Controller", System.StringComparison.OrdinalIgnoreCase) < 0)
+                    continue;
+
+                builder.Append(device.layout).Append(' ');
+                any = true;
+            }
+
+            if (!any)
+                builder.Append("(no XR controller layouts!)");
+            builder.Append('\n');
+
+            AppendAction(builder, "knob+", m_NextKnob);
+            AppendAction(builder, "adjust", m_AdjustStick);
+            AppendAction(builder, "rotate", m_RotateStick);
+            AppendAction(builder, "sweep", m_ToggleSweep);
+        }
+
+        static void AppendAction(StringBuilder builder, string label, InputAction action)
+        {
+            var control = action.activeControl;
+            builder.Append("  ").Append(label.PadRight(7))
+                .Append(control != null ? control.path : "(idle)")
+                .Append("  ctrls=").Append(action.controls.Count)
+                .Append('\n');
+        }
+
         string BuildReport()
         {
             m_Builder.Clear();
@@ -479,10 +619,25 @@ namespace MRBase.GsplatBench
                 .Append(CurrentAsset != null ? CurrentAsset.SHBands : 0).Append(")\n");
             m_Builder.Append("  live    ").Append(SplatTotal).Append(" splats in ")
                 .Append(RendererCount).Append(" renderer(s)\n");
-            m_Builder.Append("  mem     sys ").Append(SystemInfo.systemMemorySize).Append("MB")
-                .Append("  gfx ").Append(SystemInfo.graphicsMemorySize).Append("MB\n");
+            // 角度要报出来：调完参数换个角度再看，得能回到同一个角度才谈得上对比。
+            m_Builder.Append("  yaw     ")
+                .Append(rendererTemplate != null
+                    ? rendererTemplate.transform.eulerAngles.y.ToString("F0")
+                    : "n/a")
+                .Append("deg  (L-stick X)");
+            if (m_Rotating)
+                m_Builder.Append("   <-- ROTATING (forced re-sort, sort 1/N bypassed)");
+            m_Builder.Append('\n');
+            // 报**用量**不报设备总量。GetAllocatedMemoryForGraphicsDriver 在 release 包里
+            // 没有 profiler 计数器、恒返回 0，所以为 0 时直接标 n/a，不摆一个假零出来。
+            var gfx = UnityEngine.Profiling.Profiler.GetAllocatedMemoryForGraphicsDriver() / 1048576;
+            m_Builder.Append("  mem     gfxDriver ")
+                .Append(gfx > 0 ? gfx + "MB" : "n/a (release)")
+                .Append("  reserved ")
+                .Append(UnityEngine.Profiling.Profiler.GetTotalReservedMemoryLong() / 1048576).Append("MB\n");
 
             Knobs.AppendTo(m_Builder);
+            AppendInput(m_Builder);
             Conditions.AppendTo(m_Builder);
             m_Sweep.AppendTo(m_Builder);
 

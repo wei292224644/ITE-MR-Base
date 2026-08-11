@@ -25,6 +25,8 @@ namespace MRBase.GsplatBench
             SortInterval,
             ViewportScale,
             RendererCopies,
+            Foveation,
+            CutoutMeters,
         }
 
         static readonly int[] k_MsaaSteps = { 1, 2, 4, 8 };
@@ -33,16 +35,28 @@ namespace MRBase.GsplatBench
         static readonly int[] k_SortSteps = { 1, 2, 5, 10, 30, 60 };
         static readonly float[] k_ViewportSteps = { 0.5f, 0.6f, 0.7f, 0.8f, 0.9f, 1f };
         static readonly int[] k_CopySteps = { 1, 2, 4, 8, 16 };
+        static readonly float[] k_FoveationSteps = { 0f, 0.33f, 0.66f, 1f };
+
+        // 0 = 关闭裁剪盒。其余是立方体边长（米）：从「几乎不裁」一路收到「只留眼前一小块」，
+        // 用来量化离群 splat 到底吃掉多少 —— 扫描件的包围盒常被它们撑到几公里。
+        static readonly float[] k_CutoutSteps = { 0f, 200f, 100f, 50f, 20f, 10f, 5f };
 
         // 各旋钮当前所处的档位下标。
-        int m_Msaa = 2; // 4x
-        int m_Sh = 3; // degree 3
-        int m_Downscale;
-        int m_Sort;
-        int m_Viewport = 5; // 1.0
-        int m_Copies;
+        //
+        // 启动值 = **推荐配置**，不是 sweep 的 baseline。两者刻意分开：
+        // sweep 的 baseline 故意配成最贵档（MSAA 4x / SH3 / 每帧排序 / 全分辨率），
+        // 因为它要测的是「从最差往下每开一项还能省多少」的边际收益；
+        // 而人戴着头显手动看的时候，从最差档起步只意味着先拧五次才到能看的状态。
+        int m_Msaa;             // off
+        int m_Sh;               // degree 0
+        int m_Downscale = 3;    // 0.25
+        int m_Sort = 4;         // 1/30
+        int m_Viewport = 2;     // 0.7
+        int m_Copies;           // x1
+        int m_Foveation = 2;    // 0.66
+        int m_Cutout;           // off
 
-        public const int KnobCount = 6;
+        public const int KnobCount = 8;
 
         public int Selected { get; private set; }
 
@@ -52,6 +66,10 @@ namespace MRBase.GsplatBench
         public int SortInterval => k_SortSteps[m_Sort];
         public float ViewportScale => k_ViewportSteps[m_Viewport];
         public int RendererCopies => k_CopySteps[m_Copies];
+        public float FoveationLevel => k_FoveationSteps[m_Foveation];
+
+        /// <summary>裁剪盒边长（米）。0 表示不启用裁剪。</summary>
+        public float CutoutMeters => k_CutoutSteps[m_Cutout];
 
         public void SelectNext() => Selected = (Selected + 1) % KnobCount;
         public void SelectPrevious() => Selected = (Selected + KnobCount - 1) % KnobCount;
@@ -68,6 +86,8 @@ namespace MRBase.GsplatBench
                 case Knob.SortInterval: m_Sort = Step(m_Sort, direction, k_SortSteps.Length); break;
                 case Knob.ViewportScale: m_Viewport = Step(m_Viewport, direction, k_ViewportSteps.Length); break;
                 case Knob.RendererCopies: m_Copies = Step(m_Copies, direction, k_CopySteps.Length); break;
+                case Knob.Foveation: m_Foveation = Step(m_Foveation, direction, k_FoveationSteps.Length); break;
+                case Knob.CutoutMeters: m_Cutout = Step(m_Cutout, direction, k_CutoutSteps.Length); break;
             }
         }
 
@@ -82,17 +102,35 @@ namespace MRBase.GsplatBench
                 case Knob.SortInterval: m_Sort = NearestInt(k_SortSteps, value); break;
                 case Knob.ViewportScale: m_Viewport = NearestFloat(k_ViewportSteps, value); break;
                 case Knob.RendererCopies: m_Copies = NearestInt(k_CopySteps, value); break;
+                case Knob.Foveation: m_Foveation = NearestFloat(k_FoveationSteps, value); break;
+                case Knob.CutoutMeters: m_Cutout = NearestFloat(k_CutoutSteps, value); break;
             }
         }
 
+        /// <summary>sweep 的第 0 档：全部最贵。手动模式下按重置键也回到这里，用来做对照。</summary>
         public void ResetToBaseline()
         {
-            m_Msaa = 2;
-            m_Sh = 3;
+            m_Msaa = 2;      // 4x
+            m_Sh = 3;        // degree 3
             m_Downscale = 0;
-            m_Sort = 0;
-            m_Viewport = 5;
+            m_Sort = 0;      // 1/1
+            m_Viewport = 5;  // 1.0
             m_Copies = 0;
+            m_Foveation = 0; // 关：sweep 的边际收益要在同一 FFR 下比较
+            m_Cutout = 0;    // 关
+        }
+
+        /// <summary>推荐配置：五项省电旋钮全开。启动时即此状态。</summary>
+        public void ResetToRecommended()
+        {
+            m_Msaa = 0;
+            m_Sh = 0;
+            m_Downscale = 3;
+            m_Sort = 4;
+            m_Viewport = 2;
+            m_Copies = 0;
+            m_Foveation = 2; // 0.66
+            m_Cutout = 0;    // 关：合适的盒子大小得在设备上现调
         }
 
         static int Step(int index, int direction, int length) => Mathf.Clamp(index + direction, 0, length - 1);
@@ -131,8 +169,13 @@ namespace MRBase.GsplatBench
             if (urp != null && urp.msaaSampleCount != MsaaSamples)
                 urp.msaaSampleCount = MsaaSamples;
 
-            if (conditions != null && !Mathf.Approximately(conditions.LockedViewportScale, ViewportScale))
-                conditions.SetViewportScale(ViewportScale);
+            if (conditions != null)
+            {
+                if (!Mathf.Approximately(conditions.LockedViewportScale, ViewportScale))
+                    conditions.SetViewportScale(ViewportScale);
+                if (!Mathf.Approximately(conditions.LockedFoveationLevel, FoveationLevel))
+                    conditions.SetFoveationLevel(FoveationLevel);
+            }
 
             for (var i = 0; i < renderers.Count; ++i)
             {
@@ -168,6 +211,8 @@ namespace MRBase.GsplatBench
             Knob.SortInterval => "sort 1/N",
             Knob.ViewportScale => "viewScale",
             Knob.RendererCopies => "copies",
+            Knob.Foveation => "FFR",
+            Knob.CutoutMeters => "cutout m",
             _ => "?"
         };
 
@@ -179,6 +224,8 @@ namespace MRBase.GsplatBench
             Knob.SortInterval => "1/" + SortInterval,
             Knob.ViewportScale => ViewportScale.ToString("F2", CultureInfo.InvariantCulture),
             Knob.RendererCopies => "x" + RendererCopies,
+            Knob.Foveation => FoveationLevel.ToString("F2", CultureInfo.InvariantCulture),
+            Knob.CutoutMeters => CutoutMeters <= 0f ? "off" : CutoutMeters.ToString("F0", CultureInfo.InvariantCulture),
             _ => "?"
         };
 
@@ -194,7 +241,8 @@ namespace MRBase.GsplatBench
             }
         }
 
-        public const string CsvHeader = "msaa,sh_degree,downscale,sort_interval,viewport_scale,renderer_copies";
+        public const string CsvHeader =
+            "msaa,sh_degree,downscale,sort_interval,viewport_scale,renderer_copies,ffr_knob,cutout_m";
 
         public string CsvRow() => string.Join(",",
             MsaaSamples.ToString(CultureInfo.InvariantCulture),
@@ -202,6 +250,8 @@ namespace MRBase.GsplatBench
             Downscale.ToString("F2", CultureInfo.InvariantCulture),
             SortInterval.ToString(CultureInfo.InvariantCulture),
             ViewportScale.ToString("F2", CultureInfo.InvariantCulture),
-            RendererCopies.ToString(CultureInfo.InvariantCulture));
+            RendererCopies.ToString(CultureInfo.InvariantCulture),
+            FoveationLevel.ToString("F2", CultureInfo.InvariantCulture),
+            CutoutMeters.ToString("F0", CultureInfo.InvariantCulture));
     }
 }

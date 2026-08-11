@@ -96,8 +96,9 @@ namespace MRBase.GsplatBench
 
             WriteContextHeader(mode);
             AppendLine("step_index,step_name,mode,valid," + BenchKnobs.CsvHeader +
-                       ",splat_total,renderer_count,gpu_median_ms,gpu_p99_ms,cpu_median_ms," +
-                       "display_interval_ms,budget_ms,refresh_hz,stereo,foveation,eye_res_scale,samples,drift");
+                       ",splat_total,renderer_count,gpu_source,gpu_median_ms,gpu_p99_ms,compositor_gpu_ms," +
+                       "cpu_median_ms,display_interval_ms,budget_ms,refresh_hz,stereo,foveation,eye_res_scale," +
+                       "samples,drift");
 
             for (StepIndex = 0; StepIndex < k_Sequence.Length; ++StepIndex)
             {
@@ -177,7 +178,10 @@ namespace MRBase.GsplatBench
             var valid = !conditions.Drifted && metrics.HasGpuData && metrics.SampleCount > 0;
             var drift = conditions.Drifted ? conditions.DriftReason.Replace(',', ';') : string.Empty;
             if (!metrics.HasGpuData)
-                drift = string.IsNullOrEmpty(drift) ? "no-gpu-timing" : drift + "; no-gpu-timing";
+            {
+                var reason = "no-gpu-timing (" + metrics.GpuUnavailableReason.Replace(',', ';') + ")";
+                drift = string.IsNullOrEmpty(drift) ? reason : drift + "; " + reason;
+            }
 
             var row = string.Join(",",
                 StepIndex.ToString(CultureInfo.InvariantCulture),
@@ -187,8 +191,10 @@ namespace MRBase.GsplatBench
                 m_Rig.Knobs.CsvRow(),
                 m_Rig.SplatTotal.ToString(CultureInfo.InvariantCulture),
                 m_Rig.RendererCount.ToString(CultureInfo.InvariantCulture),
+                metrics.GpuSource.ToString(),
                 metrics.GpuMedianMs.ToString("F3", CultureInfo.InvariantCulture),
                 metrics.GpuLow1Ms.ToString("F3", CultureInfo.InvariantCulture),
+                metrics.CompositorGpuMs.ToString("F3", CultureInfo.InvariantCulture),
                 metrics.CpuMedianMs.ToString("F3", CultureInfo.InvariantCulture),
                 metrics.DisplayIntervalMedianMs.ToString("F3", CultureInfo.InvariantCulture),
                 conditions.BudgetMs.ToString("F3", CultureInfo.InvariantCulture),
