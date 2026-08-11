@@ -468,13 +468,12 @@
       "hash": "c93a59bab88d337fe0d54140499712897cedbe52"
     },
     "wu.yize.gsplat": {
-      "version": "https://github.com/wuyize25/gsplat-unity.git#v1.4.0",
+      "version": "file:wu.yize.gsplat",
       "depth": 0,
-      "source": "git",
+      "source": "embedded",
       "dependencies": {
         "com.unity.mathematics": "1.3.2"
-      },
-      "hash": "36fd2cdfaf988c7e688f7f5e78bde50db402dd46"
+      }
     },
     "com.unity.modules.accessibility": {
       "version": "1.0.0",
