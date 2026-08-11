@@ -40,11 +40,15 @@ MonoBehaviour:
   m_RendererFeatures:
   - {fileID: -3179252185640544889}
   - {fileID: 507384579033929373}
-  m_RendererFeatureMap: 87d58247fb06e1d39d16d41d96970a07
+  - {fileID: 8989918088664843590}
+  m_RendererFeatureMap: 87d58247fb06e1d39d16d41d96970a074605bafade9ac27c
   m_UseNativeRenderPass: 1
   xrSystemData: {fileID: 11400000, guid: 60e1133243b97e347b653163a8c01b64, type: 2}
   postProcessData: {fileID: 11400000, guid: 41439944d30ece34e96484bdb6645b55, type: 2}
-  m_AssetVersion: 2
+  m_AssetVersion: 3
+  m_PrepassLayerMask:
+    serializedVersion: 2
+    m_Bits: 4294967295
   m_OpaqueLayerMask:
     serializedVersion: 2
     m_Bits: 4294967295
@@ -78,4 +82,17 @@ MonoBehaviour:
   m_Script: {fileID: 11500000, guid: 01b019caa33e147829f48e2b15958f84, type: 3}
   m_Name: ARCommandBufferSupportRendererFeature
   m_EditorClassIdentifier: 
+  m_Active: 1
+--- !u!114 &8989918088664843590
+MonoBehaviour:
+  m_ObjectHideFlags: 1
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 0}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: efbf998eb66045d5813ca6bd148cf83c, type: 3}
+  m_Name: GsplatURPFeature
+  m_EditorClassIdentifier: Gsplat::Gsplat.GsplatURPFeature
   m_Active: 1

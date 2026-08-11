@@ -103,10 +103,38 @@
 
 **暂不做**：不给格式开旋钮。等 C2 有了分辨率 scale 再一起开，那时才有可 sweep 的组合。
 
+### D007：offscreen 缩放为相机分辨率的 0.5，并为 splat 绘制覆盖 `_ScreenParams`
+
+**选了什么**：`GsplatSettings.OffscreenScale`（0.25–1，默认 0.5）决定 offscreen 的边长。pass 在 splat 绘制期间把 `_ScreenParams` 覆盖为 offscreen 尺寸，绘制结束还原。
+
+**为什么必须覆盖**：splat 是**按目标像素定尺寸**的。`InitCorner` 用 `_ScreenParams.x * projMat00` 求 focal、用 `min(_ScreenParams.xy)` 限核大小、用 `proj.ww / _ScreenParams.xy` 把偏移换回裁剪空间；`GsplatOccluded` 也用它把 `SV_Position` 归一化。留在相机值上，splat 会按一个这张 RT 并不具备的分辨率排布。
+
+**顺带拿到的几何缩减**：`InitCorner` 里「小于 2 像素直接丢弃」的早退，现在是在 **offscreen 像素**上判的。0.5 缩放下，原本 2.5 相机像素的 splat 变成 1.25 目标像素 → 被丢掉。这不是取巧 —— 低于目标分辨率的东西本来就不该画。它减的是**顶点和三角形**，与 fill 的收益不重叠。
+
+**深度纹理的坐标桥**：`_CameraDepthTexture` 仍是相机分辨率，且作为 RTHandle 可能比在用区域更大。归一化坐标跨接两种分辨率，再乘 pass 传入的 `_GsplatDepthUvScale`（= `RTHandles.rtHandleProperties.rtHandleScale`）落进在用区域。**显式传值而不是假设它等于 1。**
+
+**替代方案与否决理由**：
+
+- *不覆盖 `_ScreenParams`，让 splat 按相机像素排布再缩放*：splat 会画得比目标能表达的更细，等于先算后扔。**否决。**
+- *把 offscreen 尺寸单独发一个全局，不动 `_ScreenParams`*：要在 `InitCorner` 的四处引用逐个替换，且和上游分叉更深。覆盖再还原的作用域更小、更好审阅。**否决。**
+
 ## Risks
 
 | 风险 | 现状 |
 |---|---|
-| `cmd.DrawMeshInstancedProcedural` 在 XR 单通道立体下的 instance 展开 | 未在设备验证。编辑器编译通过。掉了会表现为单眼缺失或画两遍 |
-| `_ScreenParams` 在 offscreen pass 里仍是相机尺寸 | C1 全分辨率下两者相等，正确。C2 必须显式覆盖 —— `InitCorner` 的 focal 项也读它。已在 `Gsplat.hlsl` 标 `ponytail:` 注释 |
-| `GsplatURPFeature` 未加进 Performant / Balanced renderer config | 编辑器非播放态下 bench 场景的 splat 会不显示（运行时 `BenchRig` 会切到 Bench URP Asset，不受影响）。见 D002 已知后果 |
+| ASW 在两次实测里都报 `half-rate x1.70` | **未解决，且它使任何跨条件比较失效**（见 `gsplat-quest-bench` D2）。取受控数字前必须先关掉 |
+| C2 的半分辨率对边缘质量的影响 | 未评估。composite 走 bilinear 上采样，`OffscreenScale` 可回到 1 直接对比 |
+| 遮挡测试从未被真正验证 | bench 场景没有挡在 splat 前面的不透明几何，D005 那条路径在真机上只是没报错，不等于对 |
+
+## Verified
+
+| 项 | 结论 |
+|---|---|
+| `cmd.DrawMeshInstancedProcedural` 的立体展开 | **通过**。设备为 `SinglePassMultiview`，眼睛索引走 `gl_ViewID_OVR` 内建而非 instance ID，双眼均正常渲染 |
+| offscreen + composite 确实在跑 | **通过（逻辑必然）**。`DeferDraws=true` 时 `SubmitImmediate` 永不被调用，splat 上屏的唯一通路就是 offscreen pass 的 `RecordDraws` + composite |
+| 颜色 | 观感正常，无瑕疵 |
+| `GsplatURPFeature` 装配 | 已加入 Performant / Balanced renderer config，`m_RendererFeatureMap` 由 `ValidateRendererFeatures` 重算 |
+
+## 尚无有效数据
+
+改前/改后两份设备日志的快照均为自由走动采集，视角与朝向不同，且 sweep 从未运行（全程 `sweep (idle)`）。改后聚在 7.5–8.2ms、改前聚在 10–17ms，**但这不是受控对比，不构成结论**。有效的 Δ 需要：关闭 ASW，跑 bench 自带的 sweep，并重建一次改前的包作为 baseline。

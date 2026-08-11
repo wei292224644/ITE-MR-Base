@@ -26,11 +26,15 @@ MonoBehaviour:
     probeVolumeBlendStatesCS: {fileID: 0}
   m_RendererFeatures:
   - {fileID: 6378320747397945018}
-  m_RendererFeatureMap: ba96280ced588458
+  - {fileID: 9071847664832277310}
+  m_RendererFeatureMap: ba96280ced5884583eebc8ee62ade57d
   m_UseNativeRenderPass: 0
   xrSystemData: {fileID: 11400000, guid: 60e1133243b97e347b653163a8c01b64, type: 2}
   postProcessData: {fileID: 11400000, guid: 41439944d30ece34e96484bdb6645b55, type: 2}
-  m_AssetVersion: 2
+  m_AssetVersion: 3
+  m_PrepassLayerMask:
+    serializedVersion: 2
+    m_Bits: 4294967295
   m_OpaqueLayerMask:
     serializedVersion: 2
     m_Bits: 4294967295
@@ -64,4 +68,17 @@ MonoBehaviour:
   m_Script: {fileID: 11500000, guid: 0ae4d376c05df421b98c5b39b25b0d29, type: 3}
   m_Name: ARBackgroundRendererFeature
   m_EditorClassIdentifier: 
+  m_Active: 1
+--- !u!114 &9071847664832277310
+MonoBehaviour:
+  m_ObjectHideFlags: 1
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 0}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: efbf998eb66045d5813ca6bd148cf83c, type: 3}
+  m_Name: GsplatURPFeature
+  m_EditorClassIdentifier: Gsplat::Gsplat.GsplatURPFeature
   m_Active: 1

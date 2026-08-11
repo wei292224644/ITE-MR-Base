@@ -15,6 +15,7 @@ MonoBehaviour:
   ComputeShader: {fileID: 7200000, guid: 0aa082656a496ff4f82ecc9d720802b8, type: 3}
   GlobalMaterial: {fileID: 11400000, guid: c0d1e2f3a4b5c6d7e8f9a0b1c2d3e4f5, type: 2}
   CompositeShader: {fileID: 4800000, guid: 0451ef51e2d6d40488acb7e94df5cccd, type: 3}
+  OffscreenScale: 0.5
   EnableGlobalSort: 0
   SplatInstanceSize: 128
   UploadBatchSize: 100000
