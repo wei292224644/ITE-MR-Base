@@ -109,8 +109,6 @@
 
 **为什么必须覆盖**：splat 是**按目标像素定尺寸**的。`InitCorner` 用 `_ScreenParams.x * projMat00` 求 focal、用 `min(_ScreenParams.xy)` 限核大小、用 `proj.ww / _ScreenParams.xy` 把偏移换回裁剪空间；`GsplatOccluded` 也用它把 `SV_Position` 归一化。留在相机值上，splat 会按一个这张 RT 并不具备的分辨率排布。
 
-**顺带拿到的几何缩减**：`InitCorner` 里「小于 2 像素直接丢弃」的早退，现在是在 **offscreen 像素**上判的。0.5 缩放下，原本 2.5 相机像素的 splat 变成 1.25 目标像素 → 被丢掉。这不是取巧 —— 低于目标分辨率的东西本来就不该画。它减的是**顶点和三角形**，与 fill 的收益不重叠。
-
 **深度纹理的坐标桥**：`_CameraDepthTexture` 仍是相机分辨率，且作为 RTHandle 可能比在用区域更大。归一化坐标跨接两种分辨率，再乘 pass 传入的 `_GsplatDepthUvScale`（= `RTHandles.rtHandleProperties.rtHandleScale`）落进在用区域。**显式传值而不是假设它等于 1。**
 
 **替代方案与否决理由**：
@@ -118,12 +116,28 @@
 - *不覆盖 `_ScreenParams`，让 splat 按相机像素排布再缩放*：splat 会画得比目标能表达的更细，等于先算后扔。**否决。**
 - *把 offscreen 尺寸单独发一个全局，不动 `_ScreenParams`*：要在 `InitCorner` 的四处引用逐个替换，且和上游分叉更深。覆盖再还原的作用域更小、更好审阅。**否决。**
 
+### D008：删掉尺寸剔除，渲染器不做「画哪些高斯点」的决定
+
+**选了什么**：移除 `InitCorner` 里 upstream 的 `if (l1 < 2.0 && l2 < 2.0) return false;`。同时把 composite 的丢弃阈值从 `a < 1/255` 收紧到 `a <= 0`。保留视锥剔除与相机背后剔除。
+
+**为什么成立**：
+
+1. **职责**：哪些高斯点存在，是资源的决定 —— 离线剪枝、LOD、重训。渲染器擅自丢，等于把一个资源问题藏进 shader 里，而且藏在一个没人会去读的早退分支里。
+2. **它污染测量**（决定性的一条）：D007 覆盖 `_ScreenParams` 之后，这个阈值变成以 offscreen 像素计。于是 `OffscreenScale` 一动，**被画的高斯点集合跟着动** —— 一个旋钮同时改 fill 和点数，测出来的 Δ 无法归因到任何一个。这直接违反 `gsplat-quest-bench` D2「系统在你背后改变工作量」的禁令，而这次那个系统就是我们自己。
+
+composite 的 `a < 1/255` 同理：它的理由是「8-bit 下低于一步无法改变目标」，但 bench 管线 `m_SupportsHDR: 1`，相机色不是 8-bit，前提不成立。而 premultiplied 下 `rgb <= a`，`rgb/a` 天然有界，fp16 里也不需要下限保护。
+
+**代价**：投影到亚像素的高斯点现在会走完顶点段并生成退化四边形。fill 接近零（光栅化不出片元），但顶点与 binning 的成本要付。**这笔成本是显式的、可测的，而且应该由资源侧的剪枝来消除，不是由渲染器偷偷吃掉。**
+
+**尚未处理，待定**：upstream 还有两处基于 alpha 而非尺寸的丢弃 —— `Gsplat.shader` 的 `alpha < 1/255 discard`，以及 `ClipCorner` 按 alpha 收缩四边形。两者都是「贡献低于可见阈值」而不是「按尺寸取舍」，且 `ClipCorner` 一旦移除，每个 splat 的四边形都会变成全尺寸，fill 成本大涨。归入同一原则与否，留待决定。
+
 ## Risks
 
 | 风险 | 现状 |
 |---|---|
 | ASW 在两次实测里都报 `half-rate x1.70` | **未解决，且它使任何跨条件比较失效**（见 `gsplat-quest-bench` D2）。取受控数字前必须先关掉 |
 | C2 的半分辨率对边缘质量的影响 | 未评估。composite 走 bilinear 上采样，`OffscreenScale` 可回到 1 直接对比 |
+| 删掉尺寸剔除后亚像素高斯点的顶点/binning 成本 | 未测。D008 明确接受它作为显式成本，由资源侧剪枝消除 |
 | 遮挡测试从未被真正验证 | bench 场景没有挡在 splat 前面的不透明几何，D005 那条路径在真机上只是没报错，不等于对 |
 
 ## Verified
