@@ -59,6 +59,7 @@ namespace MRBase.GsplatBench
             new("+sh0", BenchKnobs.Knob.ShDegree, 0),
             new("+downscale-0.25", BenchKnobs.Knob.Downscale, 0.25f),
             new("+viewscale-0.7", BenchKnobs.Knob.ViewportScale, 0.7f),
+            new("+offscreen-0.5", BenchKnobs.Knob.OffscreenScale, 0.5f),
         };
 
         readonly BenchRig m_Rig;

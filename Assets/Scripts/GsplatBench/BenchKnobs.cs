@@ -27,6 +27,7 @@ namespace MRBase.GsplatBench
             RendererCopies,
             Foveation,
             CutoutMeters,
+            OffscreenScale,
         }
 
         static readonly int[] k_MsaaSteps = { 1, 2, 4, 8 };
@@ -36,6 +37,10 @@ namespace MRBase.GsplatBench
         static readonly float[] k_ViewportSteps = { 0.5f, 0.6f, 0.7f, 0.8f, 0.9f, 1f };
         static readonly int[] k_CopySteps = { 1, 2, 4, 8, 16 };
         static readonly float[] k_FoveationSteps = { 0f, 0.33f, 0.66f, 1f };
+
+        // splat 专属 RT 的边长占相机分辨率的比例。1 表示与相机同分辨率，也就是只做 gamma
+        // 合成、不降载 —— 那一档是这个旋钮自己的对照组。
+        static readonly float[] k_OffscreenSteps = { 0.25f, 0.35f, 0.5f, 0.7f, 1f };
 
         // 0 = 关闭裁剪盒。其余是立方体边长（米）：从「几乎不裁」一路收到「只留眼前一小块」，
         // 用来量化离群 splat 到底吃掉多少 —— 扫描件的包围盒常被它们撑到几公里。
@@ -55,8 +60,9 @@ namespace MRBase.GsplatBench
         int m_Copies;           // x1
         int m_Foveation = 2;    // 0.66
         int m_Cutout;           // off
+        int m_Offscreen = 2;    // 0.5
 
-        public const int KnobCount = 8;
+        public const int KnobCount = 9;
 
         public int Selected { get; private set; }
 
@@ -70,6 +76,9 @@ namespace MRBase.GsplatBench
 
         /// <summary>裁剪盒边长（米）。0 表示不启用裁剪。</summary>
         public float CutoutMeters => k_CutoutSteps[m_Cutout];
+
+        /// <summary>splat 专属 RT 的边长占相机分辨率的比例。</summary>
+        public float OffscreenScale => k_OffscreenSteps[m_Offscreen];
 
         public void SelectNext() => Selected = (Selected + 1) % KnobCount;
         public void SelectPrevious() => Selected = (Selected + KnobCount - 1) % KnobCount;
@@ -88,6 +97,9 @@ namespace MRBase.GsplatBench
                 case Knob.RendererCopies: m_Copies = Step(m_Copies, direction, k_CopySteps.Length); break;
                 case Knob.Foveation: m_Foveation = Step(m_Foveation, direction, k_FoveationSteps.Length); break;
                 case Knob.CutoutMeters: m_Cutout = Step(m_Cutout, direction, k_CutoutSteps.Length); break;
+                case Knob.OffscreenScale:
+                    m_Offscreen = Step(m_Offscreen, direction, k_OffscreenSteps.Length);
+                    break;
             }
         }
 
@@ -104,6 +116,7 @@ namespace MRBase.GsplatBench
                 case Knob.RendererCopies: m_Copies = NearestInt(k_CopySteps, value); break;
                 case Knob.Foveation: m_Foveation = NearestFloat(k_FoveationSteps, value); break;
                 case Knob.CutoutMeters: m_Cutout = NearestFloat(k_CutoutSteps, value); break;
+                case Knob.OffscreenScale: m_Offscreen = NearestFloat(k_OffscreenSteps, value); break;
             }
         }
 
@@ -118,6 +131,7 @@ namespace MRBase.GsplatBench
             m_Copies = 0;
             m_Foveation = 0; // 关：sweep 的边际收益要在同一 FFR 下比较
             m_Cutout = 0;    // 关
+            m_Offscreen = 4; // 1.0：与相机同分辨率，splat 只走 gamma 合成不降载
         }
 
         /// <summary>推荐配置：五项省电旋钮全开。启动时即此状态。</summary>
@@ -131,6 +145,7 @@ namespace MRBase.GsplatBench
             m_Copies = 0;
             m_Foveation = 2; // 0.66
             m_Cutout = 0;    // 关：合适的盒子大小得在设备上现调
+            m_Offscreen = 2; // 0.5
         }
 
         static int Step(int index, int direction, int length) => Mathf.Clamp(index + direction, 0, length - 1);
@@ -168,6 +183,11 @@ namespace MRBase.GsplatBench
         {
             if (urp != null && urp.msaaSampleCount != MsaaSamples)
                 urp.msaaSampleCount = MsaaSamples;
+
+            // 包侧每帧从这里读，所以运行时改立即生效，不用重装。
+            var gsplatSettings = GsplatSettings.Instance;
+            if (gsplatSettings != null && !Mathf.Approximately(gsplatSettings.OffscreenScale, OffscreenScale))
+                gsplatSettings.OffscreenScale = OffscreenScale;
 
             if (conditions != null)
             {
@@ -213,6 +233,7 @@ namespace MRBase.GsplatBench
             Knob.RendererCopies => "copies",
             Knob.Foveation => "FFR",
             Knob.CutoutMeters => "cutout m",
+            Knob.OffscreenScale => "offscreen",
             _ => "?"
         };
 
@@ -226,6 +247,7 @@ namespace MRBase.GsplatBench
             Knob.RendererCopies => "x" + RendererCopies,
             Knob.Foveation => FoveationLevel.ToString("F2", CultureInfo.InvariantCulture),
             Knob.CutoutMeters => CutoutMeters <= 0f ? "off" : CutoutMeters.ToString("F0", CultureInfo.InvariantCulture),
+            Knob.OffscreenScale => OffscreenScale.ToString("F2", CultureInfo.InvariantCulture),
             _ => "?"
         };
 
@@ -242,7 +264,7 @@ namespace MRBase.GsplatBench
         }
 
         public const string CsvHeader =
-            "msaa,sh_degree,downscale,sort_interval,viewport_scale,renderer_copies,ffr_knob,cutout_m";
+            "msaa,sh_degree,downscale,sort_interval,viewport_scale,renderer_copies,ffr_knob,cutout_m,offscreen_scale";
 
         public string CsvRow() => string.Join(",",
             MsaaSamples.ToString(CultureInfo.InvariantCulture),
@@ -252,6 +274,7 @@ namespace MRBase.GsplatBench
             ViewportScale.ToString("F2", CultureInfo.InvariantCulture),
             RendererCopies.ToString(CultureInfo.InvariantCulture),
             FoveationLevel.ToString("F2", CultureInfo.InvariantCulture),
-            CutoutMeters.ToString("F0", CultureInfo.InvariantCulture));
+            CutoutMeters.ToString("F0", CultureInfo.InvariantCulture),
+            OffscreenScale.ToString("F2", CultureInfo.InvariantCulture));
     }
 }
