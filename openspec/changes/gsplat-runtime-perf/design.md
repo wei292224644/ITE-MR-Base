@@ -131,6 +131,49 @@ composite 的 `a < 1/255` 同理：它的理由是「8-bit 下低于一步无法
 
 **尚未处理，待定**：upstream 还有两处基于 alpha 而非尺寸的丢弃 —— `Gsplat.shader` 的 `alpha < 1/255 discard`，以及 `ClipCorner` 按 alpha 收缩四边形。两者都是「贡献低于可见阈值」而不是「按尺寸取舍」，且 `ClipCorner` 一旦移除，每个 splat 的四边形都会变成全尺寸，fill 成本大涨。归入同一原则与否，留待决定。
 
+### D009：前到后 + under 算子；两个 pass 从 unsafe 改 raster
+
+**选了什么**：`_OrderBuffer` 倒着走（前到后），混合改 `Blend OneMinusDstAlpha One`，offscreen 与 composite 两个 pass 都改成 `AddRasterRenderPass` + `SetRenderAttachment`。
+
+**输出等价**：over 算子满足结合律。后到前的 `dst = src + dst(1-src.a)` 与前到后的 `dst += (1-dst.a)·src` 得到同一个 (rgb, a)。composite 完全不用改，D003 的 gamma 链尾结构原样成立。
+
+**为什么要翻方向**：前到后是**唯一**能让「累积 alpha 饱和后停止着色」成立的顺序。后到前时 dst.a 直到最后一层才接近 1，没有可利用的早停点。
+
+**为什么 pass 要转 raster**（实测驱动）：unsafe pass 自己 `SetRenderTarget`，对 RenderGraph 是不透明的，图只能按最坏情况把 attachment 在内存里往返一趟。两个 renderer config 都是 `m_UseNativeRenderPass: 1`。sweep 实测 `+msaa-off` 一档省了 **19.2ms（baseline 的 38%）** —— 4×MSAA 的全分辨率颜色缓冲 store+load 正是这个量级。这是 C1 引入的缺陷，不是 MSAA 的固有成本。
+
+raster pass 同时是 E-B 的硬前置：input attachment 只有 raster pass 能声明。
+
+**分级**：E-A（本条，无 framebuffer fetch，输出等价）与 E-B（早停）分开。E-A 若图像出错，问题必在排序方向或混合算子；E-B 那轮唯一的新机制就是 fetch。同 D004 的理由。
+
+**E-B 的可行性已查，未验**：`IRasterRenderGraphBuilder.SetInputAttachment` 与 `LOAD_FRAMEBUFFER_INPUT_X` 存在，且 RenderGraph 未禁止同一张纹理既作 color attachment 又作 input attachment（`colorBufferAccess` 与 `fragmentInputAccess` 是两个独立数组）。Vulkan 侧自读本就是 subpass input 的合法用法。仍有两处未验：Unity 是否接受同一 pass 内对同一资源的读写版本、以及 UnityCG 与 SRP core 的 include 是否冲突。
+
+## Measurements
+
+### 2026-08-11 Quest 3，Cumulative sweep，Model_30w（286358 splats）
+
+`gsplat-bench-20260811-133956.csv`。C1+C2+D008 之后。
+
+| 档 | GPU 中位 | Δ |
+|---|---:|---:|
+| baseline（MSAA4x SH3 ds0 sort1/1 vs1.0 off1.0） | 50.19ms | — |
+| `+msaa-off` | 30.98 | **−19.21** |
+| `+sort-1/30` | 27.81 | −3.17 |
+| `+sh0` | 27.98 | **+0.17** |
+| `+downscale-0.25` | 19.29 | −8.69 |
+| `+viewscale-0.7` | 11.59 | −7.71 |
+| `+offscreen-0.5` | 7.74 | −3.85 |
+
+**第 3、4 行的 `invalid` 是误报。** 漂移检测器只在比例接近 2 时判「折半」（`BenchConditions.cs:18`），而全部七行的 `display_interval_ms` 紧跟 `cpu_median_ms` —— 是帧太慢，不是合成器折半。真 ASW 会把 display_interval 锁在 27.8ms。
+
+**fill / 地板分解**。设 `T = F·p + K`，p 为 splat 像素相对量。由 `+downscale`（p=1.00，19.29）与 `+viewscale`（p=0.49，11.59）解得 `F=15.1`、**`K≈4.2ms`**；代回 `+offscreen`（p=0.12）预测 6.04 对实测 7.74，模型偏粗（viewScale 也改了相机缓冲成本），取 **K≈4~6ms**。代回无损画质档（27.81ms）：**fill 约 22~24ms（八成），地板约 4~6ms（两成）**。
+
+**结论**：全画质下 fill 主导 → E 是主药。但 K≈5ms 已占 13.9ms 预算的 36%，A+B 也不能不做。offscreen 拉到可接受的 0.7 后仍约 15.8ms，**单靠降分辨率到不了 72fps**。
+
+### 已被证伪的两条推断
+
+1. **「MSAA 现在应该很小」** —— 错，它是最大的一项。原因见 D009，是 pass 类型缺陷。
+2. **「`+sh0` 归零说明 SH 免费」** —— 不成立。`InitSH` 的 3 次 buffer 读 + 位拆解由 shader 关键字（资产 SHBands）控制，与 `_SHDegree` 无关，七行里一次都没省掉。该旋钮只测到 SH 的 ALU。**B 的收益至今未被测量**，它在 K 里面。
+
 ## Risks
 
 | 风险 | 现状 |
