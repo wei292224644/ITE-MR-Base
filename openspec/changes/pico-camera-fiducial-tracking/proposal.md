@@ -22,12 +22,12 @@
 - 只使用该包的 `AprilTag.Interop` 底层（`Detector` / `Family` / `ImageU8` / `DetectionArray`），**不使用** `AprilTag.TagDetector` 封装：后者的 `PoseEstimationJob` 走 Unity Job System 且写死 `fx = fy = height/2/tan(fov/2)`、`cx,cy = 图像中心`。
 - 位姿由 `Detection` 的四个真角点喂入既有 `PlanarPoseSolver`，使用 `GetCameraParametersNewfor4U` 返回的实测 `fx/fy/cx/cy`。
 - 删除 ZXing 解码路径与第 4 点外插；采集分辨率由 2048×1536 改为 **1280×960**——按最远工作距离 2 m 反推，不是退回某个固定值。
-- 取帧路径由 `SetCameraFrameBufferfor4U` + `StartGetImageDatafor4U`（原始畸变帧）改为 `AcquireVSTCameraFrameAntiDistortion`（去畸变帧）。`PicoQrCameraProbe.cs:34` 的 `useAntiDistortion` 是声明后从未被读取的死字段，当前实际吃的是畸变帧；而 `RGBCameraParamsNew` 不含 `k1/k2/p1/p2`，既拿不到去畸变的图也拿不到系数，`PlanarPoseSolver` 的针孔假设不成立。该切换排成独立可回退的一步。
-- 新增 RGB24 → `ImageU8` 灰度转换（去畸变帧为每像素 3 字节），不复用该包的 `ImageConverter`（其只接受 `Color32`，且取 `.g` 通道并按行倒序写入）。
+- 取帧保持官方 CameraRendering 样例的 4U 路径（`OpenCameraAsyncfor4U` + `SetCameraFrameBufferfor4U` + `StartGetImageDatafor4U`，RGB32）。**不**改走 `AcquireVSTCameraFrameAntiDistortion`：该接口依赖 `OpenVSTCamera` 置位的 `camOpenned`，与 4U 不是同一会话，真机混用连续 `result=-1`。去畸变若仍需要，只对四个角点做自行标定校正。
+- 灰度转换按 4U 的 RGB32（4 字节/像素）写入 `ImageU8`，不复用包内只接受 `Color32` 的 `ImageConverter`。
 - 检测器调参（`QuadDecimate`、`QuadSigma`、`RefineEdges`、`DecodeSharpening`、`ThreadCount`）暴露为可序列化旋钮，不写死。
 - 检测核心抽为单一组件，`PicoQrCameraProbe`（度量台架）与 `PicoMarkerProvider`（生产）共用。
 - `PicoMarkerProvider` 更换快照来源：由 `PXR_Enterprise.SetMarkerInfoCallback` 改为当帧 AprilTag 检测结果，保留"全量快照 + 差集"的既有实现与公共契约；并为 `MarkerLost` 增加 **1.0 s 时间滞回**，使其在两端表达同一件事（"marker 真的不在了"）而非"这一帧没看见"。
-- 世界位姿改用帧自带的 `frame.pose`（施加官方样例中被注释掉的 Z 翻转转换）合成，替换现有的 `Camera.main` 当前位姿快照——后者与图像不同时刻，帧龄 100–200 ms 在常见头部转速下即可产生超出 5° 判据的角度误差。相机外参在此基础上应用。
+- 世界位姿用该帧的 `frame.pose` 经 `(x,y,-z)` / `(x,y,-z,-w)` 翻进 Unity 追踪系后再与 `markerInCamera` 合成，替换 `Camera.main` 当前位姿快照。样例给 `FrameTarget` 赋原样只约束预览物体，不约束这条合成链（design D14）。不把 `GetCameraExtrinsicsfor4U` 乘进合成。
 - Registry 的 `picoArUcoId` 字段更名以承载 AprilTag ID —— 键类型已是 `int`（`MarkerProbeRegistry.cs:17`），故为字段重命名而非 schema 扩展；沿用 ID 0 与 250 则映射内容不变。Quest 的 `QrPayload → 业务 ID` 不变。
 - 夹具生成器把原 ArUco 的 160 mm 槽位改绘 `tagStandard41h12`。注意 `width_at_border=5` 而 `total_width=9`，**检测器认的四边形只有图幅的 5/9**：160 mm 图幅 → module 17.8 mm、检测框 88.9 mm（原 ArUco 在同槽位是 160 mm）。凑满 160 mm 检测框需 288 mm 图幅，同页加 QR 共 448 mm，A3 横版 420 mm 放不下，故接受 88.9 mm。同页 QR 保留，供 Quest 与人工核对使用。
 - Quest 侧不变，继续走 MRUK QR Trackable。跨平台的非对称性收敛在 `IMarkerTrackingProvider` 之内，几何差异由既有 `PlatformOffsetConfig` 的两个 per-platform offset 吸收。

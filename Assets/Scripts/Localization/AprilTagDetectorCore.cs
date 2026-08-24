@@ -123,12 +123,8 @@ public sealed class AprilTagDetectorCore : IDisposable
     /// <summary>
     /// 在一帧 RGB32 图上做检测。可在工作线程调用。
     /// </summary>
-    /// <param name="rgb32">每像素 4 字节。取自 <c>SetCameraFrameBufferfor4U</c> 推送式回调
-    /// 缓冲区——已在真机验证可用的取帧路径。曾切换到 <c>AcquireVSTCameraFrameAntiDistortion</c>
-    /// 拉取式去畸变帧（RGB24），但那条路径依赖的 <c>OpenVSTCamera()</c> 与这里用的
-    /// <c>OpenCameraAsyncfor4U</c> 是互不相通的两个开关，真机上 <c>AcquireFrame</c> 连续
-    /// 120 次全部 <c>result=-1</c>。去畸变是真实需求但和换检测器是两件事，
-    /// 迁移应保持行为等价，因此退回这条已证明可用的路径，去畸变单独记为待办。</param>
+    /// <param name="rgb32">每像素 4 字节。取自官方 CameraRendering 样例同一条 4U 推送缓冲
+    /// （<c>SetCameraFrameBufferfor4U</c>）。不接受 VST 去畸变帧（RGB24）；那条路径已关闭（design D13）。</param>
     /// <param name="results">复用的输出列表，调用方持有；本方法会先清空它。</param>
     public void Detect(byte[] rgb32, List<TagObservation> results)
     {

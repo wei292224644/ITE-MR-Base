@@ -227,9 +227,8 @@ public class AprilTagDetectorCoreTests
     /// 反向映射渲染：对每个相机像素反投影到 marker 平面，再采样标图。
     /// 正向 splat 会留洞，反向不会。
     ///
-    /// 输出 RGB32（4 字节/像素），与生产路径 <c>SetCameraFrameBufferfor4U</c> 推送式回调
-    /// 缓冲区的格式一致——探针在真机上已验证这条路径可用，不是 design D11 一度切换到的
-    /// 去畸变拉取路径（RGB24），后者依赖真机不可用的 <c>OpenVSTCamera()</c> 已被退回。
+    /// 输出 RGB32（4 字节/像素），与官方 CameraRendering 样例 / 生产路径
+    /// <c>SetCameraFrameBufferfor4U</c> 一致（design D13）。VST 去畸变拉取（RGB24）已关闭。
     /// </summary>
     static byte[] RenderFrame(Matrix4x4 markerToCamera)
     {

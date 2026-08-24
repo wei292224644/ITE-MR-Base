@@ -28,7 +28,7 @@ PICO 4 Ultra Enterprise（A9210，PICO OS 5.15.5，PICO Unity Integration SDK 3.
 - 不改 Quest 侧（继续 MRUK QR Trackable）。
 - 不实现生产级生命周期、多目标管理、业务对象创建、一次性触发或重复扫描定位模式。
 - 不引入 OpenCV 运行时。
-- 不自行实现镜头去畸变算法，也不做棋盘格标定（改用 SDK 的去畸变帧路径，见 D11；自行标定是其退路，不是本 change 的默认工作）。
+- 不把去畸变做成整幅图算法，也不改走 VST 取流。若针孔倾角不够，只对四个角点做标定校正（D13）。
 
 ## Decisions
 
@@ -159,6 +159,8 @@ CLAUDE.md 把"同一份代码因数据不同走出不同语义（而非不同结
 
 因此：用 `frame.pose` 并施加该转换；位姿与图像同时刻，时间不对齐问题消失。相机外参（≈8 cm 平移）挂在 `frame.pose` 上，而不是挂在一个时刻不对的位姿上。
 
+**D13 推翻本条的转换公式与外参叠加。** 样例里正在跑的代码把 `FrameTarget` 赋成 `frame.pose` 原样，Z 翻转是注释掉的试探，不是现行标准。外参只查询打印。世界合成改为 `Compose(frame.pose, markerInCamera)`。时间对齐这一条仍成立：必须用该帧的 `frame.pose`，禁止 `Camera.main`。
+
 ### D11. 改用 SDK 的去畸变帧路径，自行标定为退路
 
 `PicoQrCameraProbe.cs:34` 的 `useAntiDistortion` 是**死字段**——声明后全文件再无引用，取帧实际走 `:190`/`:195` 的原始路径。所以当前吃的是**畸变帧**。
@@ -187,6 +189,8 @@ public struct RGBCameraParamsNew {
 
 因此排成**独立可回退的一步**：先只换取帧路径、不换检测器，确认能拿到帧与位姿再往下。若该路径不通，回退点干净，直接转退路方案，届时只需改角点这一处。
 
+**D13 关闭本条作为默认路径。** 「门槛相同、不需另开相机」读错了：`camOpenned` 只由 `OpenVSTCamera` 置位，`OpenCameraAsyncfor4U` 不写它。混用后 `AcquireVSTCameraFrameAntiDistortion` 连续 120 次 `result=-1`。官方 CameraRendering 样例从不调用 VST 取流。去畸变退回路仍有效：留在 4U RGB32 上，只对四个角点做自行标定校正。
+
 ### D12. 用真检测器在 EditMode 里验证，不只靠真机
 
 `Plugin/macOS/AprilTag.bundle` 是 universal binary（x86_64 + arm64），`.meta` 中 `Editor: Editor / enabled: 1 / OS: OSX / CPU: AnyCPU`——**原生检测器可在 macOS Unity Editor 内运行**。
@@ -203,17 +207,61 @@ public struct RGBCameraParamsNew {
 
 **限制**：仅 macOS Editor 可跑（Windows/Linux 的 plugin 分别是 dll/so），其它平台需条件跳过。
 
+### D13. 取流与世界合成以官方 CameraRendering 样例为标准；关闭 VST 取流
+
+标准文件：`Packages/com.unity.xr.picoxr/Enterprise/Sample/CameraRendering/PXR/EnterpriseAPI.cs`（工程为 PXR 模式 1，不对照 OpenXR 那份）。后续 PICO 相机改动与样例冲突则改我们的代码，不另起一条取流。
+
+样例现行代码（不是注释）规定：
+
+| 事项 | 标准 |
+|---|---|
+| 开相机 / 取帧 | `Configurefor4U` → `OpenCameraAsyncfor4U` → `SetCameraFrameBufferfor4U` → `StartGetImageDatafor4U`，RGB32 |
+| 内参 | `GetCameraParametersNewfor4U(width, height)`，宽高与缓冲区相同 |
+| 外参 | `GetCameraExtrinsicsfor4U` 只打印，不乘进 `FrameTarget` |
+| 帧位姿 | `FrameTarget.position/rotation = frame.pose` **原样** |
+| 透视显示 | `PXR_Manager.EnableVideoSeeThrough = true`（合成器，不是 VST 取流） |
+| 全局位姿 | `UseGlobalPose(true)` |
+
+否决：
+
+- `OpenVSTCamera` / `AcquireVSTCameraFrameAntiDistortion` / `GetCameraParameters()`（VST 栈，`libpxr_xrsdk_native`）。文档写的是 PICO 4 Enterprise；设备是 4 Ultra A9210。与 4U 的 `CameraRenderingPlugin` 不是同一会话。
+- 把样例注释掉的 Z 翻转当成 `FrameTarget` 的现行赋值（D10 后半）。**世界合成**需要该转换，见 D14。
+- 用 `Camera.main` 当前位姿顶替 `frame.pose`（时间不对齐，且不是样例路径）。
+- 把 `GetCameraExtrinsicsfor4U` 直接乘进 Unity 头矩阵（样例不做；真机曾把相机摆到脑后）。
+
+允许相对样例保留的偏离（有独立结构理由，不是另选取流）：
+
+- `InitEnterpriseService(true)`：Ultra 上要 `getCameraInfo` token，否则 SELinux 拒 `pxrcaptureservice`。
+- `OpenCameraAsyncfor4U` 回调只置位，取流在主线程 `Update` 里开：binder 线程上再进插件会 `CheckJNI` abort。样例是按钮在主线程才 `StartGetImageData`，同一约束。
+- 分辨率 1280×960 而不是样例的 2048×1536（D4）；内参查询必须仍用缓冲区的宽高。
+
+畸变：样例也不去畸变，只把 RGB32 贴纹理。针孔求解要过倾角判据，只能在 4U 四角点上做标定校正，禁止再切 VST。
+
+### D14. 世界合成前把 `frame.pose` 翻进 Unity 追踪系；D13 的取流标准不变
+
+D13 把样例对 `FrameTarget` 的原样赋值当成世界合成契约。真机部署后绿盒子前后反了。
+
+两条链不是同一件事：
+
+| | 样例 `FrameTarget` | 我们的绿盒子 |
+|---|---|---|
+| 用途 | 预览四边形/叠加层，挂传感器位姿即可 | Unity XR Origin 里的世界物体 |
+| 局部偏移 | 无 | `markerInCamera`，已经过 `ToUnityCameraSpace`（Y-up / Z-forward） |
+| 父位姿 | `frame.pose` 原样 | 必须同一套 Unity 约定 |
+
+`Camera.main` 路径不反，是因为头显位姿已经是 Unity 追踪系，与 `markerInCamera` 同构。`frame.pose` 原样与它相乘，等于把 Unity 相机系的局部平移接到传感器系的父上——真机同一时刻 `unityCam z=-0.186` / `sensorCam z=+0.186`，盒子落到观察者背后。
+
+因此：取流仍按 D13（4U RGB32，禁止 VST，外参只打印）。世界合成改为 `Compose(ToUnityTrackingPose(frame.pose), markerInCamera)`，转换即样例注释掉的 `(x,y,-z)` / `(x,y,-z,-w)`。禁止退回 `Camera.main`。
+
 ## Risks / Trade-offs
 
 - **`Detect()` 在 worker thread 上的安全性未验证**。理论上是纯 P/Invoke，但此前已有一次 binder 线程上误用 UnityMain 的 `JNIEnv` 导致 `CheckJNI` abort 的教训，须显式验证一次而非假定。
-- **相机↔头部外参尚未应用**。真机日志中的平移约 `(-0.02055, 0.08227, -0.01658)`（≈8 cm），当前靠 `Camera.main` 位姿快照绕开。本 change 须或者正确应用，或者把它作为已知偏置显式记录，不得隐式留着。
+- **4U 帧仍是畸变图**。`PlanarPoseSolver` 按针孔工作；倾角偏差仍可能很大。校正只允许在四个角点上做，禁止切 VST。未校正前，角度精度判据不得当作已通过。
+- **`frame.pose` 翻进 Unity 追踪系后，绿盒子是否贴纸、是否随转速漂，仍要真机看（D14）**。不得再退回 `Camera.main`。若贴纸但整体漂在另一套原点上，记为坐标系差异。
 - **AprilTag 报告位姿的原点与轴向未确认**。须以已知方向的移动/旋转在真机上确认，未确认前位姿验收标记为阻塞，不得用手调 offset 掩盖。
 - **识别距离上限估算未验证**。88.9 mm 黑框在 640×480 下推算约 1.5–2 m，需实测。
 - **新增外部依赖**。`jp.keijiro.apriltag` 为个人维护包；已固定版本 1.0.3，BSD-2 允许必要时内联源码。
 - **夹具需重新打印**，旧夹具的 ArUco 半边作废，QR 半边仍供 Quest 使用。
-- **去畸变帧路径与 4U 开相机流程的兼容性未验证**（D11）。由门槛同为 `token` + `camOpenned` 推断，须实测；不通则转退路方案。
-- **该路径返回的图是否确已去畸变、是否与 `GetCameraParametersNewfor4U` 属同一成像模型，未验证**。若二者不一致，全部精度判据失效。
-- **切换取帧路径会丢掉已调通的 4U 缓冲路径**，包括 binder 线程崩溃的修法。故排成独立可回退的一步。
 - **EditMode 集成测试仅 macOS 可跑**（D12），其它平台须条件跳过，CI 不能默认依赖它。
 
 ## Migration Plan
@@ -227,13 +275,13 @@ public struct RGBCameraParamsNew {
 
 以下项目只能由真机日志或实测关闭：
 
-- 去畸变帧路径（D11）是否与 4U 开相机流程兼容，返回的图是否确已去畸变且与内参同模型；
 - PICO 相机缓冲区行序（D6）——D12 的 EditMode 测试会把两种行序的表现钉成可执行事实，真机上只剩确认是哪一种；
 - AprilTag 报告位姿相对夹具的原点与轴向（D3）——同样由 D12 先在 Editor 收敛；
 - `Interop.Detector.Detect()` 在非主线程的实际安全性（D2）；
 - 1280×960 下的实际距离与角度上限（D4）；若距离不足，决定加大印刷尺寸还是收窄工作距离。
 
-已由阅读关闭：
+已由阅读 / 真机关闭：
 
+- **VST 去畸变帧与 4U 开相机是否同一会话** —— 否。`camOpenned` 只由 `OpenVSTCamera` 置位；混用后 Acquire 连续 `result=-1`。官方样例不走 VST。D11 默认路径关闭（D13）。
 - **ZXing 的使用者** —— 全项目只有 `PicoQrCameraProbe.cs` 一处，移除干净。
 - **Registry 是否需要扩 schema** —— `MarkerProbeRegistry.cs:17` 的键已是 `public int picoArUcoId`，AprilTag ID 同为 int。这是**字段重命名**，不是 schema 扩展。ID 0 与 250 在 `tagStandard41h12` 的 2115 个码内均合法（`tagStandard41h12.c:2153`），沿用则 Registry 内容不变。

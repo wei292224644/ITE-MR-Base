@@ -11,20 +11,20 @@
 - [x] 1.3 确认 `com.unity.burst` 现有版本满足包依赖（`1.6.5`），不引入版本降级
 - [x] 1.4 记录包版本与 BSD-2 许可归属；确认必要时可内联源码的退路
 
-## 2a. 取帧路径切换（段一，独立可回退，先于检测核心）
+## 2a. 取帧路径（段一）
 
-> 先只换取帧路径、不换检测器，确认能拿到帧与位姿再往下（design D11）。此步不通则转退路方案（自行标定 + 只校正四个角点），回退点干净。
+> 以官方 CameraRendering 样例为标准（design D13）。VST 去畸变帧已证伪，不再作为本 change 的默认路径。
 
-- [x] 2a.1 把取帧从 `SetCameraFrameBufferfor4U` + `StartGetImageDatafor4U` 改为 `AcquireVSTCameraFrameAntiDistortion`（拉取式，`PXR_Enterprise.cs:2017`）
-- [x] 2a.2 缓冲区按 **RGB24**（`width * height * 3`）处理，不再是 RGB32
+- [x] 2a.1 取帧保持 `SetCameraFrameBufferfor4U` + `StartGetImageDatafor4U`（RGB32）。曾试 `AcquireVSTCameraFrameAntiDistortion`，因与 4U 不是同一会话（`camOpenned` 不共享）连续 `result=-1`，已退回并关闭
+- [x] 2a.2 缓冲区按 **RGB32**（`width * height * 4`）处理，与官方样例一致
 - [x] 2a.3 移除死字段 `useAntiDistortion`（`PicoQrCameraProbe.cs:34`）及其场景序列化值——它从未被读取，留着会继续误导
-- [x] 2a.4 确认新路径的 `frame.pose` / `six_dof_pose` 字段可用，供第 5 节的时间对齐使用
-- [ ] 2a.5 真机确认该路径与既有开相机流程兼容（同为 `token` + `camOpenned` 门槛，不需另开相机）；不兼容则停在此处转退路方案
-- [ ] 2a.6 真机确认该路径返回的图确已去畸变，且与 `GetCameraParametersNewfor4U` 的内参属同一成像模型；不一致则后续精度数字全部不予采信
+- [x] 2a.4 确认 4U 回调里的 `frame.pose` 可用，供第 5 节的时间对齐使用
+- [x] 2a.5 真机确认 VST 去畸变帧与 4U 开相机不兼容；结论记入 design D13，转四角点校正退路（不在本段实现）
+- [ ] 2a.6 四角点去畸变校正：在 4U RGB32 上自行标定后只校正四个角点再求解。未完成前角度精度判据不得标为通过
 
 ## 2. 检测核心（段一）
 
-- [x] 2.1 实现 RGB24 → `ImageU8` 灰度转换（3 字节/像素），行序由第 4a 节的 EditMode 测试钉死约定，不复用包内 `ImageConverter`（其只接受 `Color32`）
+- [x] 2.1 实现 RGB32 → `ImageU8` 灰度转换（4 字节/像素，4U 推送缓冲），行序由第 4a 节的 EditMode 测试钉死约定，不复用包内 `ImageConverter`（其只接受 `Color32`）
 - [x] 2.2 封装 `AprilTag.Interop` 的 `Detector` / `Family` / `ImageU8` / `DetectionArray` 生命周期（创建、AddFamily、Dispose），确保异常路径不泄漏原生句柄
 - [x] 2.3 把 `QuadDecimate`、`QuadSigma`、`RefineEdges`、`DecodeSharpening`、`ThreadCount` 暴露为可序列化字段，记录默认值
 - [x] 2.4 从 `Detection` 取 `Corner1`–`Corner4` 构造 `imagePoints`，模型点用黑框四角（边长 = `width_at_border` × module），调用 `PlanarPoseSolver.TrySolve`
@@ -71,8 +71,8 @@
 - [ ] 5.8 量端到端延迟：从帧到达到世界位姿可用的耗时分布
 - [ ] 5.9 量位姿精度：静止 marker 的世界位姿抖动与相对真值的偏差，判据位置 ≤5 cm、角度 ≤5°
 - [ ] 5.10 调参轮：扫 `QuadDecimate` / `RefineEdges` / `QuadSigma`，记录选定值及其对命中率与延迟的影响
-- [ ] 5.11 用帧自带的 `frame.pose` 替换 `Camera.main` 当前位姿快照，施加 `EnterpriseAPI.cs:155-156` 的 Z 翻转转换（位置 `(x, y, -z)`、旋转 `(x, y, -z, -w)`）
-- [ ] 5.11b 在 `frame.pose` 基础上应用相机外参（实测平移约 `(-0.02055, 0.08227, -0.01658)`），并验证残余偏置；不得隐式遗留
+- [x] 5.11 用帧自带的 `frame.pose` 替换 `Camera.main` 当前位姿快照；合成前按 `(x,y,-z)` / `(x,y,-z,-w)` 翻进 Unity 追踪系（design D14）。样例 `FrameTarget` 原样赋值不作为本合成契约
+- [x] 5.11b **不**把 `GetCameraExtrinsicsfor4U` 乘进合成（官方样例只打印外参；直接乘曾把相机摆到脑后）。外参查询保留为日志
 - [ ] 5.11c 头部持续转动而 marker 静止时量世界位姿漂移，确认不随转速系统性增大——这是 5.11 是否真正生效的判据
 - [ ] 5.12 汇总段一数字；任一判据未达成则把数字与原因写回 design 并停在此处，不启动段二
 

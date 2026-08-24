@@ -97,10 +97,6 @@ public sealed class PicoQrCameraProbe : MonoBehaviour
 
     private float cameraFx, cameraFy, cameraCx, cameraCy;
     private bool intrinsicsValid;
-    // 头→左目相机的固定偏移，头本地系。用于把 Camera.main 的位姿（眼位置）修正成物理相机的
-    // 实际位姿——两者差几厘米，不修正的话，头一转，这个偏移就被误当成"标在动"（见 Update()）。
-    private Matrix4x4 headToCameraMatrix = Matrix4x4.identity;
-    private bool headToCameraValid;
 
     private string detectorStatus = "(未启动)";
     private string lastDetection = "(未检出)";
@@ -155,10 +151,8 @@ public sealed class PicoQrCameraProbe : MonoBehaviour
         Debug.Log($"[PicoFiducialProbe] BindEnterpriseService={bound}");
         if (!bound) return;
 
-        // 4U 推送式取流——已在真机验证可用，含 binder 线程 JNI 崩溃的修法（见 OnCameraOpened）。
-        // 曾切换到 AcquireVSTCameraFrameAntiDistortion 拉取式去畸变帧，但它依赖的
-        // OpenVSTCamera() 与这里的 OpenCameraAsyncfor4U 是互不相通的两个开关，真机验证
-        // AcquireFrame 连续失败 result=-1。去畸变是独立需求，和换检测器分开处理，见 design 未决问题。
+        // 4U 推送式取流，与官方 CameraRendering 样例同一条栈（design D13）。
+        // 不走 OpenVSTCamera / AcquireVSTCameraFrameAntiDistortion：camOpenned 不共享，混用连续 result=-1。
         cameraStarting = true;
         PXR_Enterprise.Configurefor4U(new Dictionary<string, string>
         {
@@ -212,27 +206,17 @@ public sealed class PicoQrCameraProbe : MonoBehaviour
         cameraCx = (float)p.cx;
         cameraCy = (float)p.cy;
         intrinsicsValid = cameraFx > 0f && cameraFy > 0f;
-        Debug.Log($"[PicoFiducialProbe] intrinsics fx={p.fx:F2} fy={p.fy:F2} cx={p.cx:F2} cy={p.cy:F2}");
+        Debug.Log($"[PicoFiducialProbe] intrinsics fx={p.fx:F2} fy={p.fy:F2} cx={p.cx:F2} cy={p.cy:F2} " +
+                  $"l_pos={p.l_pos} l_rot={p.l_rot}");
 
-        // 外参：GetCameraExtrinsicsfor4U 是 4U 族 API（能用），不是 GetCameraParameters()
-        // 那个依赖缺失原生库、必崩的非 4U 接口。文档写"the position and rotation of the
-        // left-eye camera"——相对头的固定偏移，真机曾记录约 (-0.02, 0.08, -0.02) 米量级。
-        //
-        // 不套这个偏移的表现：头不动时标的位姿是稳的，头一转（哪怕标本身没动）算出来的世界
-        // 位置就跟着晃——因为把物理相机的位姿当成了眼位置，两者差的这几厘米在头转动时会被
-        // 错误地投影成"标在移动"。这正是转视角时位置定不住的直接原因。
-        if (PXR_Enterprise.GetCameraExtrinsicsfor4U(out Matrix4x4 leftExtrinsics, out _))
+        // 官方样例只打印外参，不乘进 FrameTarget（design D13）。这里同样只记日志。
+        if (PXR_Enterprise.GetCameraExtrinsicsfor4U(out Matrix4x4 leftExtrinsics, out Matrix4x4 rightExtrinsics))
         {
-            headToCameraMatrix = leftExtrinsics;
-            headToCameraValid = true;
-            Debug.Log(
-                $"[PicoFiducialProbe] headToCamera t=({leftExtrinsics.GetColumn(3):F5}) " +
-                $"valid={headToCameraValid}");
+            Debug.Log($"[PicoFiducialProbe] extrinsics L=\n{leftExtrinsics}\nR=\n{rightExtrinsics}");
         }
         else
         {
-            headToCameraValid = false;
-            Debug.LogWarning("[PicoFiducialProbe] GetCameraExtrinsicsfor4U 失败，不叠加头到相机的偏移。");
+            Debug.LogWarning("[PicoFiducialProbe] GetCameraExtrinsicsfor4U 失败（只影响日志，不参与合成）");
         }
 
         detector = new AprilTagDetectorCore(
@@ -263,9 +247,12 @@ public sealed class PicoQrCameraProbe : MonoBehaviour
         frameHeight = (int)frame.height;
         frameStatus = frame.status;
         lastFrameTimestamp = (long)frame.timestamp;
-        // frame.pose 是这一帧曝光时刻的头位姿，右手系。用它而不是 Camera.main 的当前位姿：
-        // 后者与图像差一个帧龄，快速转头时足以打穿 5° 判据（design D10）。
-        latestFramePose = frame.pose;
+        // 锁存该帧曝光时刻的传感器位姿。合成时由 PicoEnterpriseCameraPose 翻进 Unity 追踪系，
+        // 不在这里转，也不套外参。Pose 不是原子写入，读写必须同一把锁。
+        lock (gate)
+        {
+            latestFramePose = frame.pose;
+        }
         frameAvailable = true;
     }
 
@@ -288,6 +275,7 @@ public sealed class PicoQrCameraProbe : MonoBehaviour
         if (sampleHz <= 0 || Time.unscaledTime < nextSampleTime) return;
         nextSampleTime = Time.unscaledTime + 1f / sampleHz;
 
+        Pose framePose;
         lock (gate)
         {
             if (workerBusy)
@@ -296,6 +284,7 @@ public sealed class PicoQrCameraProbe : MonoBehaviour
                 return;
             }
             workerBusy = true;
+            framePose = latestFramePose;
         }
 
         long copyStart = stopwatch.ElapsedTicks;
@@ -303,37 +292,18 @@ public sealed class PicoQrCameraProbe : MonoBehaviour
         // 不能像拉取式那样直接把 cameraBuffer 传给 worker——那样会跟下一帧的原生写入撞车。
         Buffer.BlockCopy(cameraBuffer, 0, frameBuffer, 0, cameraBuffer.Length);
         frameAvailable = false;
-
-        // design D10 曾改用 frame.pose 合成（ToRGBCameraPose/ToUnityPose）以修正帧龄导致的
-        // 时间不对齐。真机验证：frame.pose 的"全局"参考系不是 Unity 的 XR Origin——
-        // 连续多次采样头部 Y 坐标恒在 0.27–0.36 m，是不可能的头部高度。这正是 AprilTag 迁移前
-        // 就记录过、又在这次改动里被重新引入的旧问题，现在退回去用 Camera.main 的头位姿。
-        // 代价：图像与位姿之间有几十毫秒帧龄（ponytail: 静止目标够用）。
-        if (mainCamera == null) mainCamera = Camera.main;
-        Pose headPose = mainCamera != null
-            ? new Pose(mainCamera.transform.position, mainCamera.transform.rotation)
-            : Pose.identity;
-        // 头位姿不是相机位姿——两者差 headToCameraMatrix 这个头本地系的固定偏移，不叠加会让
-        // 静止的标在头转动时被算出"在动"。但真机验证：直接用这个矩阵合成，相机被摆到了脑后——
-        // GetCameraExtrinsicsfor4U 返回的是 SDK 文档里写的右手系矩阵，直接乘进 Unity 左手系的
-        // 头矩阵，旋转部分的手性是反的。正确做法需要做右手转左手的相似变换（比如用 Z 轴翻转矩阵
-        // 夹住原矩阵），不是简单左乘/右乘换个顺序就能修——这里先退回不叠加，只用头位姿，
-        // 避免在真机上继续用错误方向的猜测浪费测试轮次。偏移量修正留作后续任务，
-        // 需要先在 EditMode 用已知的右手系样例验证转换公式，再回真机测。
-        Pose cameraPose = headPose;
         lastCopyMs = (stopwatch.ElapsedTicks - copyStart) * 1000.0 / Stopwatch.Frequency;
 
-        // frame.pose 只作诊断，不参与合成——留着方便下次真机验证两个坐标系的偏移量。
-        // 节流到与命中率同一个频率，不需要每帧都打。
+        if (mainCamera == null) mainCamera = Camera.main;
         if (sampledFrames % 30 == 0)
         {
             Debug.Log(
-                $"[PicoFiducialProbe] unityCam={mainCamera?.transform.position:F3} " +
-                $"framePose={latestFramePose.position:F3}（诊断用，不参与合成）");
+                $"[PicoFiducialProbe] framePose={framePose.position:F3} " +
+                $"unityCam={mainCamera?.transform.position:F3}（对照用；合成走 ToUnityTrackingPose(frame.pose)）");
         }
 
         sampledFrames++;
-        DispatchDetection(cameraPose);
+        DispatchDetection(framePose);
     }
 
     /// <summary>
@@ -432,7 +402,7 @@ public sealed class PicoQrCameraProbe : MonoBehaviour
             return false;
         }
 
-        worldPose = PoseMath.Compose(cameraPose, markerInCamera);
+        worldPose = PicoEnterpriseCameraPose.ComposeWorld(cameraPose, markerInCamera);
         Debug.Log(
             $"[PicoFiducialProbe] cam={cameraPose.position:F3} marker@cam={markerInCamera.position:F3} " +
             $"dist={markerInCamera.position.magnitude:F3}m world={worldPose.position:F3}");

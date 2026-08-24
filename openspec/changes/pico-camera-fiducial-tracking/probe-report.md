@@ -32,14 +32,17 @@
 - **Question**: 世界位姿现在用 `Camera.main` 的**当前**位姿合成，而帧是更早采的。要不要改用帧自带位姿？
 - **AI recommendation**: 改用 `frame.pose` 并按官方转换修正 Z 翻转。证据：`EnterpriseAPI.cs:155-156` 有被注释掉的 `new Vector3(x, y, -z)` / `new Quaternion(x, y, -z, -w)`；真机实测同一时刻 `unityCam z=-0.186` / `sensorCam z=+0.186` 与之吻合。时间不对齐的量级：帧龄 100–200 ms × 头部转动 60°/s（一般假设）= 6–12°，已超 5° 判据。外参（≈8 cm 平移）也须挂在 `frame.pose` 上而非时刻不对的位姿上。
 - **User confirmation**: 加。
+- **后续推翻（D13）**: 样例**正在跑**的代码把 `FrameTarget` 赋成 `frame.pose` 原样；Z 翻转是注释掉的试探，不是现行标准。改为 `Compose(frame.pose, markerInCamera)`，禁止再施加该转换，也禁止把外参乘进合成。时间对齐仍成立：必须用该帧的 `frame.pose`，禁止 `Camera.main`。
 
 - **Question**: design Non-Goals 称"采集侧 `useAntiDistortion` 已开启"——实为死字段。畸变怎么处理？
 - **AI recommendation**: 改用 `AcquireVSTCameraFrameAntiDistortion`（SDK 去畸变帧），退路是自己标定后只对四个角点去畸变。证据：`PicoQrCameraProbe.cs:34` 声明 `useAntiDistortion` 后全文件再无引用，取帧走 `:190`/`:195` 的原始路径；`RGBCameraStruct.cs:108-120` 的 `RGBCameraParamsNew` 只有 `fx/fy/cx/cy` + 外参，**无 `k1/k2/p1/p2`**，说明 SDK 的意图是"要针孔就用去畸变帧"。`PlanarPoseSolver` 假设纯针孔；76° HFOV 下边缘径向位移是**系统性偏置**，调参盖不住。
 - **User confirmation**: 1（走去畸变帧路径）。
+- **后续推翻（D13）**: VST 与 4U 不是同一会话（`camOpenned` 只由 `OpenVSTCamera` 置位）；混用后 Acquire 连续 `result=-1`。官方 CameraRendering 样例不走 VST。畸变退回：留在 4U RGB32 上，只对四个角点做自行标定校正。
 
 - **Question**: 走去畸变帧路径的三个具体后果（RGB24、拉取式、丢掉已调通的 4U 缓冲路径）确认后，如何排任务？
 - **AI recommendation**: 排成独立可回退的一步——先只换取帧路径、不换检测器，确认能拿到帧与位姿再往下。证据：`PXR_EnterprisePlugin.cs:1502-1535`，`size = width*height*3`（RGB24）、`Acquire` 语义（拉取）、门槛同为 `token` + `camOpenned`（`:1506-1517`，不需另开相机）、且带 `six_dof_pose`（D10 所需）。回退点干净则可直接转路线 2。
 - **User confirmation**: 认可。
+- **后续推翻（D13）**: 独立换取帧那一步已证伪，不再作为本 change 的默认路径。任务 2a 保持 4U。
 
 ### Success criteria
 
@@ -51,8 +54,6 @@
 
 - [ ] `[ASSUMED]` `Interop.Detector.Detect()` 在非主线程安全 —— 由"纯 P/Invoke、不触碰 Unity API"推断，未验证。影响：design D2、tasks 5.2
 - [ ] `[ASSUMED]` AprilTag 检出四边形的实用像素下限约 20–25 px —— 经验值，无出处。影响：D4 的分辨率推导、tasks 5.7
-- [ ] `[ASSUMED]` `AcquireVSTCameraFrameAntiDistortion` 与 4U 开相机流程兼容 —— 由门槛同为 `token` + `camOpenned` 推断，未验证。影响：D11、tasks 中的取帧路径切换步骤
-- [ ] `[ASSUMED]` 该路径返回的图确已去畸变，且与 `GetCameraParametersNewfor4U` 的内参属同一成像模型 —— 未验证。影响：D11、全部精度判据
 - [ ] `[ASSUMED]` PICO 相机缓冲区行序 —— 未确定。影响：D6、tasks 5.3
 - [ ] `[ASSUMED]` AprilTag 报告位姿相对夹具的原点与各轴符号 —— 未确定。影响：D3、tasks 5.4
 - [ ] `[ASSUMED]` 头部转动 60°/s 作为典型速度 —— 一般假设，用于估算时间不对齐的量级。影响：D10 的论证强度（结论方向不依赖该数）
@@ -63,6 +64,7 @@
 
 - ZXing 在项目中**只有一个使用者**（`PicoQrCameraProbe.cs`），移除干净。原 design Open Questions 中该项可关闭。
 - Registry 键已是 `int`（`MarkerProbeRegistry.cs:17` `public int picoArUcoId`），AprilTag ID 同为 int —— 这是**字段重命名**而非 schema 扩展。原 proposal 称"增加映射"需修正。
+- `AcquireVSTCameraFrameAntiDistortion` 与 4U **不兼容**（D13）：`camOpenned` 只由 `OpenVSTCamera` 置位，混用连续 `result=-1`。去畸变帧是否与 4U 内参同一模型不再需要验证。
 
 ## Suggested next step
 

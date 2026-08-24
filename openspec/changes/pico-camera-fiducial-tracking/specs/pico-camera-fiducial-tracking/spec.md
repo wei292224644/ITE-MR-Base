@@ -142,31 +142,31 @@ RGB32 相机缓冲区到灰度图的转换 SHALL 使用经真机确认的行序�
 
 ### Requirement: 成像模型与取帧路径一致
 
-系统 SHALL 使用去畸变帧，使 `PlanarPoseSolver` 的针孔假设成立；在用的取帧路径与所用内参 MUST 对应同一成像模型。
+系统 SHALL 使用 PICO 官方 CameraRendering 样例的 4U 取帧路径采集 RGB32 帧，内参 MUST 来自同一宽高的 `GetCameraParametersNewfor4U`。MUST NOT 调用 `OpenVSTCamera`、`AcquireVSTCameraFrameAntiDistortion` 或 VST 的 `GetCameraParameters()`。
 
-#### Scenario: 取帧路径提供去畸变图像
+#### Scenario: 取帧路径为官方 4U 样例
 
 - **WHEN** 系统采集一帧用于检测
-- **THEN** 该帧来自 SDK 的去畸变帧接口，而非原始畸变帧路径
+- **THEN** 该帧来自 `SetCameraFrameBufferfor4U` + `StartGetImageDatafor4U`，像素格式为 RGB32，所用内参与缓冲区宽高相同
 
-#### Scenario: 成像模型一致性经验证
+#### Scenario: 禁止 VST 取流
 
-- **WHEN** 首次接通取帧路径
-- **THEN** 验证该路径的图像与 `GetCameraParametersNewfor4U` 返回的内参属同一成像模型，验证结果被记录；不一致时精度判据不予采信
+- **WHEN** 设备为 PICO 4 Ultra
+- **THEN** 系统不打开 VST 相机会话，不拉取去畸变帧
 
-#### Scenario: 去畸变路径不可用时的退路
+#### Scenario: 去畸变不得改走 VST
 
-- **WHEN** 去畸变帧路径被证明不可用
-- **THEN** 系统改用原始帧并对四个角点施加自行标定的畸变校正，MUST NOT 在未校正的角点上直接求解
+- **WHEN** 畸变导致位姿倾角超出判据
+- **THEN** 系统只对四个角点施加自行标定的畸变校正后再求解，MUST NOT 为此切换到 VST 取流
 
 ### Requirement: 位姿与图像时间对齐
 
-世界位姿 SHALL 由该帧自带的位姿合成，MUST NOT 使用消费时刻的相机位姿快照。
+世界位姿 SHALL 由该帧自带的 `frame.pose` 先翻进 Unity 追踪系（位置 `(x,y,-z)`，旋转 `(x,y,-z,-w)`）再与 marker 在 Unity 相机坐标系下的位姿合成，MUST NOT 使用消费时刻的 `Camera.main` 位姿快照，MUST NOT 把 `GetCameraExtrinsicsfor4U` 乘进该合成。官方样例对 `FrameTarget` 的原样赋值不作为本合成的契约。
 
 #### Scenario: 使用帧自带位姿
 
 - **WHEN** 一帧检测出 marker
-- **THEN** 世界位姿由该帧的 `frame.pose`（施加坐标系转换后）与 marker 在相机坐标系下的位姿合成
+- **THEN** 世界位姿为 `PoseMath.Compose(ToUnityTrackingPose(frame.pose), markerInCamera)`
 
 #### Scenario: 头部运动下位姿不漂移
 
