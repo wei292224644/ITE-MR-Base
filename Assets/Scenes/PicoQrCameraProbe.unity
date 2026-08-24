@@ -164,9 +164,8 @@ MonoBehaviour:
   m_Name: 
   m_EditorClassIdentifier: 
   sampleHz: 6
-  requestedWidth: 640
-  requestedHeight: 480
-  useAntiDistortion: 1
+  requestedWidth: 1280
+  requestedHeight: 960
 --- !u!1660057539 &9223372036854775807
 SceneRoots:
   m_ObjectHideFlags: 0

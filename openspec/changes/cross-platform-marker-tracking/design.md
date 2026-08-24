@@ -261,6 +261,27 @@ PICO 系统 QR 扫描不属于本 change；需要运行时读取 QR 时必须另
 
 探针不实现“暂停 Tracking”“并发开关”或自动恢复策略。后续 production change 根据日志选择顺序、暂停或并发架构。
 
+### D12. PICO 半边结论：D4 基线被真机证伪，本 change 的 PICO 路径判定 not_feasible
+
+**这条决策推翻 D4，并关闭 Open Questions 的第 1、2、4 项。**
+
+真机事实（PICO 4 Ultra Enterprise A9210，PICO OS 5.15.5，PICO Unity Integration SDK 3.4.0）：
+
+- `PXR_Enterprise.GetSwitchSystemFunctionStatus(SystemFunctionSwitchEnum.SFS_TRACKING_ENABLE_DYNAMIC_MARKER, ...)` 读回 `0`（关闭，状态语义 `0: off / 1: on / 2: not supported`）。该开关未开启时 `SetMarkerInfoCallback` 不产生回调。
+- 该能力必须在完成**大空间扫描**之后才能工作。未扫描时不识别。这与 D4 所设的"操作者显式启动即可连续观察"前提直接冲突，也不满足 proposal 所要求的"非侵入式、不接管独立体验"。
+
+因此：
+
+- 本 change 的 **PICO 半边结论为 `not_feasible`**（对应 task 10.6 的分类）。
+- tasks 9.1–9.8 按原文不可执行，不作为未完成工作遗留，而是随本结论关闭。
+- **Quest 半边不受影响**，MRUK QR Trackable 路径的证据继续有效。
+
+**替代路线不在本 change 内实现。** PICO 改走企业相机流 + 自有检测器（AprilTag）+ 单目平面位姿求解的方案，前提与本 change 的 proposal 约束（"不接入相机帧、自定义视觉算法"）冲突，因此另立 change 承接：`pico-camera-fiducial-tracking`。
+
+**为什么记成决策而不是删掉 D4**：D4 被证伪本身是花了多轮真机验证换来的负面证据。删除会让后续再次评估 PICO 原生 ArUco 时无从得知它已被排除以及排除的原因。
+
+**中间路线也已排除。** 在确认 D4 不可行后曾用企业相机流 + ZXing 解 QR 取得位姿，解码可用（真机稳定读出载荷 `0` 与 `250`），但位姿不可用：QR Version 1 无 alignment pattern，ZXing 只返回 3 个 `ResultPoint`，第 4 点靠平行四边形外插补齐，把透视信息在进求解器前抹除。该细节与后续方案一并记在 `pico-camera-fiducial-tracking` 的 proposal 中。
+
 ## Risks / Trade-offs
 
 - **[探针行为被误当成生产契约]** → 类型、场景和日志均使用 Probe/Diagnostic 命名；proposal/spec 明确不承诺生产生命周期。

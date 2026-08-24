@@ -80,6 +80,12 @@
 
 ## 9. PICO 真机矩阵与设备闸门
 
+> **本节按 design D12 关闭，结论 `not_feasible`。** `SFS_TRACKING_ENABLE_DYNAMIC_MARKER` 真机读回 `0`，
+> 且该能力需先完成大空间扫描，与本 change 的非侵入式前提冲突。9.1–9.8 按原文不可执行，
+> 不作为未完成工作遗留。PICO 的替代路线由 change `pico-camera-fiducial-tracking` 承接。
+> Quest 半边（第 4、8 节）不受影响。
+
+
 - [ ] 9.1 在 PICO 上对 static ID 0 完成 10 轮独立 ArUco 识别与 Registry 命中，每轮保存有效 6DOF Pose 和闭合 JSONL
 - [ ] 9.2 在 PICO 上对 dynamic ID 250 完成 10 轮独立 ArUco 识别与 Registry 命中，每轮保存有效 6DOF Pose 和闭合 JSONL
 - [ ] 9.3 对 static/dynamic 分别执行静止、缓慢平移、缓慢旋转、短暂遮挡和重新入镜，比较实际有效标志、Pose、回调节奏与静默表现

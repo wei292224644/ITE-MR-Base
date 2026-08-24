@@ -111,8 +111,20 @@ public sealed class PicoMarkerProbeAdapter : MonoBehaviour
 
         try
         {
-            bool initialized = PXR_Enterprise.InitEnterpriseService(false);
-            entry.RecordPicoEnterpriseInitResult(initialized);
+            // isCamera=true additionally acquires the "getCameraInfo" auth token. Marker tracking
+            // runs on pxrcaptureservice, and before PICO OS 5.15.5 that token could not be issued
+            // at all -- SetMarkerInfoCallback then returned 0 but never delivered a single sample.
+            // Try the camera-authorized path first and fall back, so one run tells us which of the
+            // two init modes the marker callback actually needs.
+            bool cameraAuthorized = PXR_Enterprise.InitEnterpriseService(true);
+            UnityEngine.Debug.Log($"[MarkerProbe] InitEnterpriseService(isCamera:true)={cameraAuthorized}");
+            bool initialized = cameraAuthorized;
+            if (!initialized)
+            {
+                initialized = PXR_Enterprise.InitEnterpriseService(false);
+                UnityEngine.Debug.Log($"[MarkerProbe] InitEnterpriseService(isCamera:false)={initialized}");
+            }
+            entry.RecordPicoEnterpriseInitResult(initialized, cameraAuthorized);
             if (!initialized)
             {
                 return false;
@@ -180,6 +192,20 @@ public sealed class PicoMarkerProbeAdapter : MonoBehaviour
             {
                 return;
             }
+
+            // Registering the callback does not start the detector. Dynamic marker tracking is a
+            // system function switch that is off by default, which is why SetMarkerInfoCallback
+            // could return 0 while the callback never fired even once (not even an empty snapshot).
+            PXR_Enterprise.GetSwitchSystemFunctionStatus(
+                SystemFunctionSwitchEnum.SFS_TRACKING_ENABLE_DYNAMIC_MARKER,
+                status => UnityEngine.Debug.Log(
+                    $"[MarkerProbe] SFS_TRACKING_ENABLE_DYNAMIC_MARKER before={status}"));
+            PXR_Enterprise.SwitchSystemFunction(
+                SystemFunctionSwitchEnum.SFS_TRACKING_ENABLE_DYNAMIC_MARKER, SwitchEnum.S_ON);
+            PXR_Enterprise.GetSwitchSystemFunctionStatus(
+                SystemFunctionSwitchEnum.SFS_TRACKING_ENABLE_DYNAMIC_MARKER,
+                status => UnityEngine.Debug.Log(
+                    $"[MarkerProbe] SFS_TRACKING_ENABLE_DYNAMIC_MARKER after={status}"));
 
             var trackingMode = (TrackingOriginModeFlags)registration.trackingMode;
             int result = PXR_Enterprise.SetMarkerInfoCallback(

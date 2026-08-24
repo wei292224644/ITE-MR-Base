@@ -2,7 +2,8 @@
     "name": "MRBase.Localization",
     "rootNamespace": "",
     "references": [
-        "MRBase.Common"
+        "MRBase.Common",
+        "AprilTag.Runtime"
     ],
     "includePlatforms": [],
     "excludePlatforms": [],

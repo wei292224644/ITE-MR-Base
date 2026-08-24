@@ -73,7 +73,7 @@
     },
     "com.unity.burst": {
       "version": "1.8.29",
-      "depth": 2,
+      "depth": 1,
       "source": "registry",
       "dependencies": {
         "com.unity.mathematics": "1.2.1",
@@ -466,6 +466,15 @@
         "com.unity.xr.core-utils": "2.3.0"
       },
       "hash": "c93a59bab88d337fe0d54140499712897cedbe52"
+    },
+    "jp.keijiro.apriltag": {
+      "version": "1.0.3",
+      "depth": 0,
+      "source": "registry",
+      "dependencies": {
+        "com.unity.burst": "1.6.5"
+      },
+      "url": "https://registry.npmjs.com"
     },
     "wu.yize.gsplat": {
       "version": "file:wu.yize.gsplat",

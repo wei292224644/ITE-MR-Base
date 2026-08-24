@@ -23,6 +23,7 @@
     "com.unity.xr.management": "4.5.4",
     "com.unity.xr.meta-openxr": "2.5.1",
     "com.unity.xr.openxr": "1.16.1",
+    "jp.keijiro.apriltag": "1.0.3",
     "com.unity.xr.picoxr": "https://github.com/Pico-Developer/PICO-Unity-Integration-SDK.git#c93a59bab88d337fe0d54140499712897cedbe52",
     "com.unity.modules.accessibility": "1.0.0",
     "com.unity.modules.adaptiveperformance": "1.0.0",
@@ -65,6 +66,13 @@
       "url": "https://npm.developer.oculus.com",
       "scopes": [
         "com.meta.xr"
+      ]
+    },
+    {
+      "name": "Keijiro",
+      "url": "https://registry.npmjs.com",
+      "scopes": [
+        "jp.keijiro"
       ]
     }
   ],

@@ -290,7 +290,7 @@ public sealed class MarkerProbeEntry : MonoBehaviour
             $"result={result}");
     }
 
-    public void RecordPicoEnterpriseInitResult(bool succeeded)
+    public void RecordPicoEnterpriseInitResult(bool succeeded, bool isCamera)
     {
         if (!IsSessionActive || currentSession.picoMarkerRegistration == null)
         {
@@ -303,16 +303,17 @@ public sealed class MarkerProbeEntry : MonoBehaviour
         snapshot.enterpriseServiceSupport = succeeded
             ? MarkerProbeAvailability.Available
             : MarkerProbeAvailability.Error;
+        string initCall = isCamera ? "InitEnterpriseService(true)" : "InitEnterpriseService(false)";
         snapshot.enterpriseServiceDetail = succeeded
-            ? "InitEnterpriseService(false) succeeded; feature-specific device support remains unproven until runtime callbacks."
-            : "InitEnterpriseService(false) failed before BindEnterpriseService.";
+            ? initCall + " succeeded; feature-specific device support remains unproven until runtime callbacks."
+            : initCall + " failed before BindEnterpriseService.";
 
         MarkerProbeLogEvent logEvent = CreateLogEvent("pico_enterprise_init", includeSessionSnapshot: true);
         logEvent.nativeEventKind = "PXR_Enterprise.InitEnterpriseService";
         logEvent.sdkResult = new MarkerProbeSdkResult
         {
             available = true,
-            operation = "InitEnterpriseService(false)",
+            operation = initCall,
             success = succeeded,
             resultCode = succeeded ? 0 : 1,
             detail = snapshot.enterpriseServiceDetail

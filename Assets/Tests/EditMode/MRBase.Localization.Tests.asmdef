@@ -6,7 +6,8 @@
         "MRBase.Localization.Native",
         "MRBase.Common",
         "UnityEngine.TestRunner",
-        "UnityEditor.TestRunner"
+        "UnityEditor.TestRunner",
+        "AprilTag.Runtime"
     ],
     "includePlatforms": [
         "Editor"

@@ -12,8 +12,12 @@ private let pageSize = CGSize(width: 210.0 * pointsPerMillimeter,
                               height: 297.0 * pointsPerMillimeter)
 private let a3LandscapeSize = CGSize(width: pageSize.width * 2.0,
                                      height: pageSize.height)
-private let sourceMarkerRect = CGRect(x: 70.87, y: 271.84, width: 453.54, height: 453.54)
+// tagStandard41h12：图幅 total_width = 9 模块，而检测器认的四边形只有 width_at_border = 5 模块。
+// 检测框只占图幅的 5/9——160 mm 图幅对应 88.9 mm 检测框。位姿求解用的是后者，不是前者。
+private let tagTotalWidthModules = 9.0
+private let tagWidthAtBorderModules = 5.0
 private let markerSize = 160.0 * pointsPerMillimeter
+private let tagDetectionSizeMillimeters = 160.0 * tagWidthAtBorderModules / tagTotalWidthModules
 private let qrOuterSize = 160.0 * pointsPerMillimeter
 private let codeBottom = (pageSize.height - markerSize) / 2.0
 private let previewPageWidth = 2480
@@ -75,7 +79,7 @@ private let qrModuleRows: [String: [String]] = [
 private struct Fixture {
     let markerID: String
     let kind: String
-    let sourcePDF: URL
+    let sourceTag: URL
     let outputStem: String
 }
 
@@ -86,8 +90,8 @@ private enum FixtureLayout {
 
 private enum FixtureError: Error, CustomStringConvertible {
     case usage
-    case unreadablePDF(URL)
-    case missingPage(URL)
+    case unreadableTagImage(URL)
+    case tagVerificationFailed(URL)
     case qrGeneration(String)
     case contextCreation(URL)
     case imageCreation(URL)
@@ -97,11 +101,11 @@ private enum FixtureError: Error, CustomStringConvertible {
     var description: String {
         switch self {
         case .usage:
-            return "Usage: generate_pico_qr_aruco_fixtures.swift <A4_0_static.pdf> <A4_250_dynamic.pdf> <output-directory>"
-        case .unreadablePDF(let url):
-            return "Cannot open source PDF: \(url.path)"
-        case .missingPage(let url):
-            return "Source PDF has no first page: \(url.path)"
+            return "Usage: generate_pico_qr_apriltag_fixtures.swift <output-directory>"
+        case .unreadableTagImage(let url):
+            return "Cannot read AprilTag image: \(url.path)"
+        case .tagVerificationFailed(let url):
+            return "Rendered tag does not match the source image (mirrored or misplaced): \(url.path)"
         case .qrGeneration(let payload):
             return "Cannot generate QR for payload: \(payload)"
         case .contextCreation(let url):
@@ -169,21 +173,68 @@ private func drawQRCode(payload: String, in outerRect: CGRect, context: CGContex
     }
 }
 
-private func drawSourceMarker(from page: CGPDFPage, context: CGContext) {
+private func loadTagImage(_ url: URL) throws -> CGImage {
+    guard let source = CGImageSourceCreateWithURL(url as CFURL, nil),
+          let image = CGImageSourceCreateImageAtIndex(source, 0, nil) else {
+        throw FixtureError.unreadableTagImage(url)
+    }
+    return image
+}
+
+/// 把 9x9 标图读成模块矩阵，第 0 行是视觉顶部，true = 黑。
+private func loadTagModules(_ url: URL) throws -> [[Bool]] {
+    let image = try loadTagImage(url)
+    let width = image.width, height = image.height
+    guard width == Int(tagTotalWidthModules), height == Int(tagTotalWidthModules) else {
+        throw FixtureError.unreadableTagImage(url)
+    }
+
+    var pixels = [UInt8](repeating: 0, count: width * height)
+    guard let context = CGContext(data: &pixels,
+                                  width: width,
+                                  height: height,
+                                  bitsPerComponent: 8,
+                                  bytesPerRow: width,
+                                  space: CGColorSpaceCreateDeviceGray(),
+                                  bitmapInfo: CGImageAlphaInfo.none.rawValue) else {
+        throw FixtureError.unreadableTagImage(url)
+    }
+    context.draw(image, in: CGRect(x: 0, y: 0, width: width, height: height))
+
+    return (0..<height).map { row in
+        (0..<width).map { column in pixels[row * width + column] <= 127 }
+    }
+}
+
+/// 逐模块填矩形，**不嵌位图**。
+///
+/// 9x9 的位图拉到 160 mm 等效约 1.4 DPI。`interpolationQuality = .none` 只会在 PDF 里写一个
+/// `/Interpolate false`，阅读器和打印机 RIP 完全可以不理——一旦被平滑，糊掉的正是角点精修
+/// 要吃的那条边。矢量在任何打印分辨率下边缘都精确，且没有插值的余地。QR 那半边本来就是
+/// 这么画的（见 drawQRCode），两边保持一致。
+private func drawAprilTag(_ modules: [[Bool]], context: CGContext) {
     let targetRect = CGRect(
         x: (pageSize.width - markerSize) / 2.0,
         y: codeBottom,
         width: markerSize,
         height: markerSize
     )
-    let scale = markerSize / sourceMarkerRect.width
+    let moduleSize = markerSize / CGFloat(tagTotalWidthModules)
 
     context.saveGState()
-    context.clip(to: targetRect)
-    context.translateBy(x: targetRect.minX, y: targetRect.minY)
-    context.scaleBy(x: scale, y: scale)
-    context.translateBy(x: -sourceMarkerRect.minX, y: -sourceMarkerRect.minY)
-    context.drawPDFPage(page)
+    context.setFillColor(NSColor.black.cgColor)
+    for (rowIndex, row) in modules.enumerated() {
+        for (columnIndex, isBlack) in row.enumerated() where isBlack {
+            // 页面坐标 y 轴朝上，而模块第 0 行是视觉顶部：从 maxY 往下排。
+            let rect = CGRect(
+                x: targetRect.minX + CGFloat(columnIndex) * moduleSize,
+                y: targetRect.maxY - CGFloat(rowIndex + 1) * moduleSize,
+                width: moduleSize,
+                height: moduleSize
+            )
+            context.fill(rect)
+        }
+    }
     context.restoreGState()
 }
 
@@ -206,8 +257,8 @@ private func drawQrSheet(_ fixture: Fixture,
 
     let locationName = layout == .dualA4 ? "LEFT SHEET" : "LEFT PANEL"
     let mountInstruction = layout == .dualA4
-        ? "Join this RIGHT page edge to the ArUco sheet ->"
-        : "A3 single sheet / QR left of ArUco / center distance 210 mm"
+        ? "Join this RIGHT page edge to the AprilTag sheet ->"
+        : "A3 single sheet / QR left of AprilTag / center distance 210 mm"
     let printInstruction = layout == .dualA4
         ? "A4 portrait / 100% Actual Size / disable Fit or Scale"
         : "A3 landscape / 100% Actual Size / disable Fit or Scale"
@@ -234,34 +285,38 @@ private func drawQrSheet(_ fixture: Fixture,
                  context: context)
 }
 
-private func drawArUcoSheet(_ fixture: Fixture,
-                            layout: FixtureLayout,
-                            context: CGContext) throws {
-    guard let document = CGPDFDocument(fixture.sourcePDF as CFURL) else {
-        throw FixtureError.unreadablePDF(fixture.sourcePDF)
-    }
-    guard let page = document.page(at: 1) else {
-        throw FixtureError.missingPage(fixture.sourcePDF)
-    }
+private func drawAprilTagSheet(_ fixture: Fixture,
+                               layout: FixtureLayout,
+                               context: CGContext) throws {
+    let modules = try loadTagModules(fixture.sourceTag)
 
     clearPage(context: context)
-    drawSourceMarker(from: page, context: context)
+    drawAprilTag(modules, context: context)
 
     let locationName = layout == .dualA4 ? "RIGHT SHEET" : "RIGHT PANEL"
     let mountInstruction = layout == .dualA4
         ? "<- Join this LEFT page edge to the QR sheet"
-        : "A3 single sheet / ArUco right of QR / center distance 210 mm"
+        : "A3 single sheet / AprilTag right of QR / center distance 210 mm"
     let printInstruction = layout == .dualA4
         ? "A4 portrait / 100% Actual Size / disable Fit or Scale"
         : "A3 landscape / 100% Actual Size / disable Fit or Scale"
 
-    centeredText("\(locationName) / ArUco / MarkerID \(fixture.markerID)",
+    centeredText("\(locationName) / AprilTag / MarkerID \(fixture.markerID)",
                  topMillimeters: 20,
                  fontSize: 14,
                  weight: .semibold,
                  context: context)
-    centeredText("\(fixture.kind.uppercased()) / DICT_4X4_1000 / outer size 160 mm",
+    centeredText("\(fixture.kind.uppercased()) / tagStandard41h12 / image 160 mm",
                  topMillimeters: 30,
+                 fontSize: 11,
+                 weight: .medium,
+                 context: context)
+    // 位姿求解吃的是检测四边形，不是图幅。把要量的那条边和标称值一并印在纸上，
+    // 免得现场量错对象——这是 88.9 mm，不是 160 mm。
+    centeredText(String(format:
+        "MEASURE the white ring outer-to-outer square: %.1f mm nominal (5/9 of image)",
+        tagDetectionSizeMillimeters),
+                 topMillimeters: 40,
                  fontSize: 11,
                  weight: .medium,
                  context: context)
@@ -287,7 +342,7 @@ private func writeDualA4PDF(_ fixture: Fixture, to url: URL) throws {
     try drawQrSheet(fixture, layout: .dualA4, context: context)
     context.endPDFPage()
     context.beginPDFPage(nil)
-    try drawArUcoSheet(fixture, layout: .dualA4, context: context)
+    try drawAprilTagSheet(fixture, layout: .dualA4, context: context)
     context.endPDFPage()
     context.closePDF()
 }
@@ -302,7 +357,7 @@ private func writeA3LandscapePDF(_ fixture: Fixture, to url: URL) throws {
     try drawQrSheet(fixture, layout: .a3Landscape, context: context)
     context.saveGState()
     context.translateBy(x: pageSize.width, y: 0)
-    try drawArUcoSheet(fixture, layout: .a3Landscape, context: context)
+    try drawAprilTagSheet(fixture, layout: .a3Landscape, context: context)
     context.restoreGState()
     context.endPDFPage()
     context.closePDF()
@@ -327,7 +382,7 @@ private func writePNG(_ fixture: Fixture,
     try drawQrSheet(fixture, layout: layout, context: context)
     context.saveGState()
     context.translateBy(x: pageSize.width, y: 0)
-    try drawArUcoSheet(fixture, layout: layout, context: context)
+    try drawAprilTagSheet(fixture, layout: layout, context: context)
     context.restoreGState()
 
     guard let image = context.makeImage() else {
@@ -348,24 +403,107 @@ private func writePNG(_ fixture: Fixture,
     }
 }
 
+/// 把标图按模块采成 0/1 位图。用于把"印出来的标和源图一致"变成可执行的检查。
+/// 按模块采样，第 0 行是视觉顶部。
+///
+/// `CGContext.draw(_:in:)` 画进位图上下文后，内存第 0 行就是图像顶行——源标图和预览 PNG
+/// 都一样，不需要区别对待。这一点由不经 CoreGraphics 的独立 PNG 解码器核对过：
+/// PNG 的行本来就是自顶向下的。
+private func sampleModules(_ image: CGImage,
+                           originMillimeters: CGPoint,
+                           sideMillimeters: CGFloat,
+                           pageWidthMillimeters: CGFloat) -> [String] {
+    let width = image.width, height = image.height
+    var pixels = [UInt8](repeating: 0, count: width * height)
+    let gray = CGColorSpaceCreateDeviceGray()
+    guard let context = CGContext(data: &pixels,
+                                  width: width,
+                                  height: height,
+                                  bitsPerComponent: 8,
+                                  bytesPerRow: width,
+                                  space: gray,
+                                  bitmapInfo: CGImageAlphaInfo.none.rawValue) else {
+        return []
+    }
+    context.draw(image, in: CGRect(x: 0, y: 0, width: width, height: height))
+
+    let pixelsPerMillimeter = CGFloat(width) / pageWidthMillimeters
+    let step = sideMillimeters * pixelsPerMillimeter / CGFloat(tagTotalWidthModules)
+    let x0 = originMillimeters.x * pixelsPerMillimeter
+    let y0 = originMillimeters.y * pixelsPerMillimeter
+
+    var rows: [String] = []
+    for row in 0..<Int(tagTotalWidthModules) {
+        var line = ""
+        for column in 0..<Int(tagTotalWidthModules) {
+            let x = Int(x0 + (CGFloat(column) + 0.5) * step)
+            let y = Int(y0 + (CGFloat(row) + 0.5) * step)
+            line += pixels[y * width + x] > 127 ? "." : "#"
+        }
+        rows.append(line)
+    }
+    return rows
+}
+
+/// 自检：从刚写出的预览 PNG 里把标采回来，和源标图逐模块比。
+///
+/// 这道守卫存在的理由很具体：CG 的 y 轴朝上而位图第 0 行在顶部，画的时候少翻一次坐标系，
+/// 标就是**上下镜像**的。镜像不是旋转，apriltag 解不了——印出来一个都检不出，而纸面上
+/// 肉眼完全看不出哪里不对。这个错误的代价是一次白打印加一轮白测。
+private func verifyRenderedTag(previewURL: URL, sourceTag: URL) throws {
+    let preview = try loadTagImage(previewURL)
+    let source = try loadTagImage(sourceTag)
+
+    let expected = sampleModules(source,
+                                 originMillimeters: .zero,
+                                 sideMillimeters: 9.0,
+                                 pageWidthMillimeters: 9.0)
+    let tagOriginX = pageSize.width / pointsPerMillimeter + (210.0 - 160.0) / 2.0
+    // 采样按视觉自顶向下，所以这里要的是标顶边到页面顶边的距离，
+    // 而 codeBottom 是从页面底边量的。A4 上下对称使两者数值相同，写全式子免得靠对称蒙对。
+    let tagOriginY = 297.0 - codeBottom / pointsPerMillimeter - 160.0
+    let rendered = sampleModules(preview,
+                                 originMillimeters: CGPoint(x: tagOriginX, y: tagOriginY),
+                                 sideMillimeters: 160.0,
+                                 pageWidthMillimeters: 420.0)
+
+    guard !expected.isEmpty, rendered == expected else {
+        FileHandle.standardError.write(Data("""
+        Tag verification FAILED for \(previewURL.lastPathComponent)
+        expected:
+        \(expected.joined(separator: "\n"))
+        rendered:
+        \(rendered.joined(separator: "\n"))
+
+        """.utf8))
+        throw FixtureError.tagVerificationFailed(previewURL)
+    }
+}
+
 private func run() throws {
-    guard CommandLine.arguments.count == 4 else {
+    guard CommandLine.arguments.count == 2 else {
         throw FixtureError.usage
     }
 
-    let outputDirectory = URL(fileURLWithPath: CommandLine.arguments[3], isDirectory: true)
+    let outputDirectory = URL(fileURLWithPath: CommandLine.arguments[1], isDirectory: true)
     try FileManager.default.createDirectory(at: outputDirectory,
                                             withIntermediateDirectories: true)
+
+    // 标图随仓库走，不再从命令行传：它们是 AprilRobotics/apriltag-imgs 的官方 9x9 位图，
+    // 已逐模块比对过原生库 apriltag_to_image 的输出。当参数传等于每次都要记住哪张图配哪个 ID。
+    let tagDirectory = URL(fileURLWithPath: CommandLine.arguments[0])
+        .deletingLastPathComponent()
+        .appendingPathComponent("tags", isDirectory: true)
 
     let fixtures = [
         Fixture(markerID: "0",
                 kind: "static",
-                sourcePDF: URL(fileURLWithPath: CommandLine.arguments[1]),
-                outputStem: "pico_qr_aruco_static_id0_a4"),
+                sourceTag: tagDirectory.appendingPathComponent("tag41_12_00000.png"),
+                outputStem: "pico_qr_apriltag_static_id0_a4"),
         Fixture(markerID: "250",
                 kind: "dynamic",
-                sourcePDF: URL(fileURLWithPath: CommandLine.arguments[2]),
-                outputStem: "pico_qr_aruco_dynamic_id250_a4")
+                sourceTag: tagDirectory.appendingPathComponent("tag41_12_00250.png"),
+                outputStem: "pico_qr_apriltag_dynamic_id250_a4")
     ]
 
     for fixture in fixtures {
@@ -379,10 +517,16 @@ private func run() throws {
         try writePNG(fixture, layout: .dualA4, to: pngURL)
         try writeA3LandscapePDF(fixture, to: a3PdfURL)
         try writePNG(fixture, layout: .a3Landscape, to: a3PngURL)
+        // 两种版式各验一次：预览 PNG 走的是和 PDF 同一条绘制路径，
+        // 所以它验过就等于 PDF 也对。
+        try verifyRenderedTag(previewURL: pngURL, sourceTag: fixture.sourceTag)
+        try verifyRenderedTag(previewURL: a3PngURL, sourceTag: fixture.sourceTag)
+
         print("Wrote \(pdfURL.path)")
         print("Wrote \(pngURL.path)")
         print("Wrote \(a3PdfURL.path)")
         print("Wrote \(a3PngURL.path)")
+        print("  tag verified against \(fixture.sourceTag.lastPathComponent)")
     }
 }
 
