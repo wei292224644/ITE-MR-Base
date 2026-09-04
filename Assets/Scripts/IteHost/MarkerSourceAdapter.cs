@@ -1,3 +1,8 @@
+// 旧"标记 → 内容"生产链下线(unified-marker-tracking-contract change,task 5.4)。
+// IMarkerTrackingProvider 与 MarkerTrackingBootstrapper 已删除,本适配器暂时整体注释,
+// 不补兼容层。ITE 导览若要重新接入标记扫描,应基于新的 MarkerTrackingSession /
+// MarkerObservation 契约重写,而不是修补这份代码。
+#if false
 using System;
 using UnityEngine;
 
@@ -61,3 +66,4 @@ namespace MRBase.Ite.Host
         }
     }
 }
+#endif

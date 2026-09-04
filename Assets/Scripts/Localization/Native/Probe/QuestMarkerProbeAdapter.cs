@@ -89,7 +89,7 @@ public sealed class QuestMarkerProbeAdapter : MonoBehaviour
         observationDeadline = Time.unscaledTime + ObserverStartupTimeoutSeconds;
         nextObservationAttempt = Time.unscaledTime;
 
-        QuestMarkerProbeRuntimeBootstrap.EnsureInitialized(out string bootstrapDetail);
+        QuestMrukRuntimeInstaller.EnsureInitialized(out string bootstrapDetail);
         return TryStartObservation(bootstrapDetail);
     }
 

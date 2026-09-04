@@ -10,9 +10,9 @@ using Debug = UnityEngine.Debug;
 /// <summary>
 /// Explicit, development-build-only entry point for the isolated marker probe.
 ///
-/// This component deliberately does not create an <see cref="IMarkerTrackingProvider"/>,
-/// call <see cref="MarkerAnchorService"/>, or alter the production marker lifecycle.
-/// Platform observation is attached behind this boundary by the diagnostic probe only.
+/// This component deliberately does not create a <c>MarkerTrackingSession</c> or alter the
+/// production marker lifecycle. Platform observation is attached behind this boundary by the
+/// diagnostic probe only.
 /// </summary>
 [AddComponentMenu("MR Base/Diagnostics/Marker Probe Entry")]
 [DisallowMultipleComponent]
@@ -125,16 +125,9 @@ public sealed class MarkerProbeEntry : MonoBehaviour
             return false;
         }
 
-        if (TryGetProductionConflict(out MarkerTrackingBootstrapper productionBootstrapper))
-        {
-            LastStartFailure =
-                $"Refusing to start because production {nameof(MarkerTrackingBootstrapper)} " +
-                $"'{productionBootstrapper.name}' is loaded in scene '{productionBootstrapper.gameObject.scene.name}'. " +
-                "PICO exposes a single set-only marker callback slot, so the probe must run in an isolated scene.";
-            Debug.LogError($"{LogPrefix} {LastStartFailure}", this);
-            return false;
-        }
-
+        // 旧生产链的 MarkerTrackingBootstrapper 冲突守卫已随其一并删除
+        // (unified-marker-tracking-contract change,design D1:标记追踪的唯一生产入口
+        // 现在是 MarkerTrackingSession,不再是可能与探针共存的单例 provider)。
         LastStartFailure = null;
         IsProbeRunning = true;
         Debug.Log($"{LogPrefix} Diagnostic entry started. Production marker services were not modified.", this);
@@ -992,17 +985,6 @@ public sealed class MarkerProbeEntry : MonoBehaviour
 
         selectedFixture = fixture;
         Debug.Log($"{LogPrefix} Selected fixture: {selectedFixture}", this);
-    }
-
-    private static bool TryGetProductionConflict(out MarkerTrackingBootstrapper productionBootstrapper)
-    {
-        // The current production provider has only one construction path: MarkerTrackingBootstrapper.Start.
-        // Include inactive objects because disabling the bootstrapper does not stop the provider it created.
-        MarkerTrackingBootstrapper[] bootstrappers =
-            UnityEngine.Object.FindObjectsByType<MarkerTrackingBootstrapper>(FindObjectsInactive.Include);
-
-        productionBootstrapper = bootstrappers.Length > 0 ? bootstrappers[0] : null;
-        return productionBootstrapper != null;
     }
 
     private static string CreateSessionId()

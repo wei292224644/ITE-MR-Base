@@ -28,10 +28,13 @@ namespace MRBase.Ite.Host
         [Tooltip("用于识别谁进出触发体积，通常是 XR Origin 的主相机")]
         private Transform xrCamera;
 
-        [Header("标记来源")]
-        [SerializeField]
-        [Tooltip("留空则不接标记源，只能靠 ActivateTour 手动激活")]
-        private MarkerTrackingBootstrapper markerTracking;
+        // 标记来源字段与 MarkerSourceAdapter 一并下线(unified-marker-tracking-contract change,
+        // task 5.4)：MarkerTrackingBootstrapper 已删除,ITE 导览的扫码激活暂时不可用,
+        // 只能靠 ActivateTour 手动激活。重新接入见新契约(MarkerTrackingSession)。
+        // [Header("标记来源")]
+        // [SerializeField]
+        // [Tooltip("留空则不接标记源，只能靠 ActivateTour 手动激活")]
+        // private MarkerTrackingBootstrapper markerTracking;
 
         [Header("行为")]
         [SerializeField]
@@ -39,7 +42,7 @@ namespace MRBase.Ite.Host
         private bool networkAvailable = true;
 
         private IteRuntime _ite;
-        private MarkerSourceAdapter _markerSource;
+        // private MarkerSourceAdapter _markerSource; // 见上方 markerTracking 字段注释
         private HeadsetPresenceAdapter _headsetPresence;
 
         /// <summary>装配好的运行时。启动失败时为 null。</summary>
@@ -63,15 +66,9 @@ namespace MRBase.Ite.Host
                 return;
             }
 
-            // 标记源可选：没有它也能靠 ActivateTour 在编辑器里验证内容管线（design D30）
-            if (markerTracking != null)
-            {
-                _markerSource = new MarkerSourceAdapter(markerTracking.Provider, _ite.SubmitMarkerScan);
-            }
-            else
-            {
-                Debug.LogWarning("[ITE Host] 未接标记源，扫码激活不可用");
-            }
+            // 标记源已随旧生产链下线,扫码激活暂不可用,只能靠 ActivateTour 手动激活
+            // （unified-marker-tracking-contract change,task 5.4）。
+            Debug.LogWarning("[ITE Host] 未接标记源，扫码激活不可用");
 
             _headsetPresence = new HeadsetPresenceAdapter(_ite.SetHeadsetMounted);
 
@@ -88,12 +85,6 @@ namespace MRBase.Ite.Host
 
         private void OnDestroy()
         {
-            if (_markerSource != null)
-            {
-                _markerSource.Dispose();
-                _markerSource = null;
-            }
-
             if (_ite != null)
             {
                 _ite.Shutdown();

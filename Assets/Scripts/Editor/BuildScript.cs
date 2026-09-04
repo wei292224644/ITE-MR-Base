@@ -26,6 +26,7 @@ public static class BuildScript
     const string k_PicoProfilePath = "Assets/Settings/Build Profiles/PICO.asset";
     const string k_MRCoreScene = "Assets/Scenes/MRCore.unity";
     const string k_MarkerProbeScene = "Assets/Scenes/MarkerProbe.unity";
+    const string k_MarkerHookTestScene = "Assets/Scenes/MarkerHookTest.unity";
     const string k_PicoQrCameraProbeScene = "Assets/Scenes/PicoQrCameraProbe.unity";
     const string k_GsplatBenchScene = "Assets/Scenes/GsplatBench.unity";
 
@@ -109,6 +110,46 @@ public static class BuildScript
             sceneOverride: ProbeScenes(k_MarkerProbeScene),
             buildOptions: BuildOptions.Development | BuildOptions.AllowDebugging,
             applicationIdSuffix: ".markerprobe");
+    }
+
+    [MenuItem("MRBase/Build/Marker Hook Test/Quest Development")]
+    public static void BuildMarkerHookTestQuest()
+    {
+        Build(
+            k_QuestProfilePath,
+            "MRBASE_QUEST",
+            k_OpenXRLoader,
+            "Builds/MarkerHookTest/Quest/MarkerHookTest-Quest.apk",
+            excludePluginRoot: k_PicoPackageRoot,
+            sceneOverride: ProbeScenes(k_MarkerHookTestScene),
+            buildOptions: BuildOptions.Development | BuildOptions.AllowDebugging,
+            applicationIdSuffix: ".markerhook");
+    }
+
+    [MenuItem("MRBase/Build/Marker Hook Test/Queue Quest Development")]
+    public static void QueueMarkerHookTestQuest()
+    {
+        QueueBuild(BuildMarkerHookTestQuest, "Quest Marker Hook Test");
+    }
+
+    [MenuItem("MRBase/Build/Marker Hook Test/PICO Development")]
+    public static void BuildMarkerHookTestPico()
+    {
+        Build(
+            k_PicoProfilePath,
+            "MRBASE_PICO",
+            k_PicoLoader,
+            "Builds/MarkerHookTest/PICO/MarkerHookTest-PICO.apk",
+            excludePluginRoot: k_MetaPackageRoot,
+            sceneOverride: ProbeScenes(k_MarkerHookTestScene),
+            buildOptions: BuildOptions.Development | BuildOptions.AllowDebugging,
+            applicationIdSuffix: ".markerhook");
+    }
+
+    [MenuItem("MRBase/Build/Marker Hook Test/Queue PICO Development")]
+    public static void QueueMarkerHookTestPico()
+    {
+        QueueBuild(BuildMarkerHookTestPico, "PICO Marker Hook Test");
     }
 
     [MenuItem("MRBase/Build/PICO QR Camera Probe Development")]

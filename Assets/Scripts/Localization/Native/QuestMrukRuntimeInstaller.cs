@@ -4,10 +4,13 @@ using Meta.XR.MRUtilityKit;
 using UnityEngine;
 
 /// <summary>
-/// Installs the Meta runtime objects required by MRUK only for the isolated Quest probe scene.
+/// Installs the Meta runtime objects required by MRUK. Runs for the isolated Quest probe scene
+/// AND the <c>MarkerHookTest</c> scene (design D10) — promoted from the probe-only
+/// <c>QuestMarkerProbeRuntimeBootstrap</c> so the new contract's Quest observation source does
+/// not need its own copy of this bring-up logic.
 /// The shared scene intentionally contains no vendor prefab, so PICO builds never create these objects.
 /// </summary>
-internal static class QuestMarkerProbeRuntimeBootstrap
+public static class QuestMrukRuntimeInstaller
 {
     private const string RuntimeObjectName = "Quest Marker Probe Runtime";
 
@@ -17,7 +20,11 @@ internal static class QuestMarkerProbeRuntimeBootstrap
     [RuntimeInitializeOnLoadMethod(RuntimeInitializeLoadType.AfterSceneLoad)]
     private static void InstallForProbeScene()
     {
-        if (UnityEngine.Object.FindFirstObjectByType<MarkerProbeEntry>() != null)
+        bool needsInstall =
+            UnityEngine.Object.FindFirstObjectByType<MarkerProbeEntry>() != null ||
+            UnityEngine.Object.FindFirstObjectByType<MarkerHookTestRig>() != null;
+
+        if (needsInstall)
         {
             EnsureInitialized(out _);
         }
@@ -84,7 +91,7 @@ internal static class QuestMarkerProbeRuntimeBootstrap
 
             if (ready)
             {
-                Debug.Log($"[MarkerProbe] Quest MRUK runtime ready: {detail}");
+                Debug.Log($"[QuestMrukRuntimeInstaller] Quest MRUK runtime ready: {detail}");
             }
 
             return ready;
@@ -92,7 +99,7 @@ internal static class QuestMarkerProbeRuntimeBootstrap
         catch (Exception exception)
         {
             detail = $"{exception.GetType().FullName}: {exception.Message}";
-            Debug.LogError($"[MarkerProbe] Quest MRUK runtime bootstrap failed: {exception}");
+            Debug.LogError($"[QuestMrukRuntimeInstaller] Quest MRUK runtime bootstrap failed: {exception}");
             return false;
         }
     }
@@ -146,7 +153,7 @@ internal static class QuestMarkerProbeRuntimeBootstrap
 
         permissionRequestAttempted = true;
         OVRPermissionsRequester.Request(new[] { OVRPermissionsRequester.Permission.Scene });
-        Debug.Log("[MarkerProbe] Requested Meta Scene permission for MRUK QR tracking.");
+        Debug.Log("[QuestMrukRuntimeInstaller] Requested Meta Scene permission for MRUK QR tracking.");
     }
 }
 #endif
