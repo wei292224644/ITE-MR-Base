@@ -24,8 +24,8 @@ EditorBuildSettings:
     path: Assets/Scenes/Diagnostics.unity
     guid: 585a0f96530074d368079baaaedc9965
   - enabled: 1
-    path: Assets/Scenes/LocalizationDemo.unity
-    guid: 2db5c105a64274da699106a51aba38e4
+    path: Assets/Scenes/MarkerHookTest.unity
+    guid: 21b33329cd4b44b8da5a5cf15140dccf
   m_configObjects:
     Unity.XR.Oculus.Settings: {fileID: 11400000, guid: bfa1182bd221b4ca89619141f66f1260, type: 2}
     Unity.XR.PXR.Settings: {fileID: 11400000, guid: 63ec217c84bee4bd6abe544fff356c1a, type: 2}

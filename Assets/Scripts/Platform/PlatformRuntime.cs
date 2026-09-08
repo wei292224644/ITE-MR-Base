@@ -79,6 +79,13 @@ public static class PlatformRuntime
         Debug.Log("[PlatformRuntime] Quest passthrough 已装配。");
 #elif MRBASE_PICO && MRBASE_HAS_PICO_SDK
         PXR_Manager.EnableVideoSeeThrough = true;
+        // PXR_Manager 组件本身没有放进场景（同一个"零场景专属对象"理由），它 Awake() 里下发的
+        // usePremultipliedAlpha 配置从没生效，合成器停在自己的启动默认值上。世界空间半透明物体
+        // （如控制器射线的渐隐渐变）用的是 Unity 标准直通 alpha 混合，与合成器默认值不一致时，
+        // 在 passthrough 底上会被合成成近乎全透明——UI 走 Overlay 不经过这条路径，不受影响。
+        // 真机验证过 false（跟渲染侧假设的直通 alpha 对齐）不解决问题，说明合成器默认反而是
+        // 直通、Unity 侧对 XR 交换链做了预乘转换——改传 true 让合成器按预乘处理。
+        PXR_Plugin.Render.UPxr_EnablePremultipliedAlpha(true);
         Debug.Log("[PlatformRuntime] PICO video see-through 已开启。");
 #elif MRBASE_PICO
         Debug.LogError("[PlatformRuntime] 构建意图为 PICO，但未安装 com.unity.xr.picoxr，passthrough 未开启。");

@@ -14,11 +14,37 @@ public sealed class QuestObservationSource : IMarkerObservationSource
     private readonly List<MarkerObservation> pollBuffer = new List<MarkerObservation>();
     private bool paused;
     private bool subscribed;
+    private bool opened;
+    private bool warnedUnavailable;
 
     public void Open()
     {
-        if (subscribed || MRUK.Instance == null || MRUK.Instance.SceneSettings == null)
+        opened = true;
+        TrySubscribe();
+    }
+
+    /// <summary>
+    /// MRUK 可能比本源晚一两帧才就绪(安装器建出的 GameObject 要走一次 Awake),所以订阅
+    /// 不能是一次性的:Open 试一次,之后每次 Poll 再试,直到成功。失败必须出声——
+    /// 此前这里是静默 return,真机上表现为"完全没反应",分不清是没扫到还是没订阅。
+    /// </summary>
+    private void TrySubscribe()
+    {
+        if (subscribed || !opened)
         {
+            return;
+        }
+
+        if (MRUK.Instance == null || MRUK.Instance.SceneSettings == null)
+        {
+            if (!warnedUnavailable)
+            {
+                warnedUnavailable = true;
+                Debug.LogWarning(
+                    "[QuestObservationSource] MRUK 尚未就绪,订阅推迟到后续 Poll 重试。" +
+                    "若此后一直没有 '已订阅' 日志,说明 QuestMrukRuntimeInstaller 没有把 MRUK 装起来。");
+            }
+
             return;
         }
 
@@ -26,6 +52,7 @@ public sealed class QuestObservationSource : IMarkerObservationSource
         settings.TrackableAdded.AddListener(HandleTrackableAdded);
         settings.TrackableRemoved.AddListener(HandleTrackableRemoved);
         subscribed = true;
+        Debug.Log("[QuestObservationSource] 已订阅 MRUK TrackableAdded / TrackableRemoved");
     }
 
     public void Close()
@@ -43,6 +70,8 @@ public sealed class QuestObservationSource : IMarkerObservationSource
         }
 
         subscribed = false;
+        opened = false;
+        warnedUnavailable = false;
         active.Clear();
     }
 
@@ -57,6 +86,8 @@ public sealed class QuestObservationSource : IMarkerObservationSource
         {
             return pollBuffer;
         }
+
+        TrySubscribe();
 
         for (int i = 0; i < active.Count; i++)
         {

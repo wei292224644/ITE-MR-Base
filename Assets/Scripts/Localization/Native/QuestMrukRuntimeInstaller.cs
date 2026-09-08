@@ -4,10 +4,17 @@ using Meta.XR.MRUtilityKit;
 using UnityEngine;
 
 /// <summary>
-/// Installs the Meta runtime objects required by MRUK. Runs for the isolated Quest probe scene
-/// AND the <c>MarkerHookTest</c> scene (design D10) — promoted from the probe-only
-/// <c>QuestMarkerProbeRuntimeBootstrap</c> so the new contract's Quest observation source does
-/// not need its own copy of this bring-up logic.
+/// Installs the Meta runtime objects required by MRUK. Promoted out of the (since deleted)
+/// Quest probe so the contract's Quest observation source does not need its own copy of this
+/// bring-up logic — design D10 / D13.
+///
+/// Callers must invoke <see cref="EnsureInitialized"/> themselves from their own
+/// <c>Start()</c>. There is deliberately no <c>[RuntimeInitializeOnLoadMethod]</c> trigger:
+/// every consumer scene is loaded additively by <c>MRSceneDirector</c> on top of
+/// <c>MRCore</c>, so an <c>AfterSceneLoad</c> hook fires while only <c>MRCore</c> exists and
+/// can never see the component it is looking for. Such a hook was tried and removed (D10) —
+/// it silently did nothing while looking like it handled bring-up.
+///
 /// The shared scene intentionally contains no vendor prefab, so PICO builds never create these objects.
 /// </summary>
 public static class QuestMrukRuntimeInstaller
@@ -16,19 +23,6 @@ public static class QuestMrukRuntimeInstaller
 
     private static GameObject runtimeObject;
     private static bool permissionRequestAttempted;
-
-    [RuntimeInitializeOnLoadMethod(RuntimeInitializeLoadType.AfterSceneLoad)]
-    private static void InstallForProbeScene()
-    {
-        bool needsInstall =
-            UnityEngine.Object.FindFirstObjectByType<MarkerProbeEntry>() != null ||
-            UnityEngine.Object.FindFirstObjectByType<MarkerHookTestRig>() != null;
-
-        if (needsInstall)
-        {
-            EnsureInitialized(out _);
-        }
-    }
 
     public static bool EnsureInitialized(out string detail)
     {
@@ -80,6 +74,7 @@ public static class QuestMrukRuntimeInstaller
             }
 
             DisableRigCameras(cameraRig);
+            RestoreEyeFovPremultipliedAlpha();
             RequestScenePermissionOnce();
 
             bool ready = cameraRig != null && manager != null && mruk != null && mruk.SceneSettings != null;
@@ -118,6 +113,38 @@ public static class QuestMrukRuntimeInstaller
             SceneJsons = Array.Empty<TextAsset>(),
             TrackerConfiguration = configuration
         };
+    }
+
+    /// <summary>
+    /// 本工程的 Quest passthrough 走 OpenXR + AR Foundation（<c>PlatformRuntime</c> 装 ARCameraManager），
+    /// 而这里为了 MRUK 又建了一个 Meta 自己的 OVRCameraRig/OVRManager —— 两套合成路径并存。
+    /// OVRManager 起来后会接管 Meta 运行时的合成器配置，其中 eyeFovPremultipliedAlphaMode 决定
+    /// 应用层的 alpha 怎么和 passthrough 合成。它一旦被置成 false（非预乘），半透明物体会被按
+    /// 直通 alpha 再乘一次，暗色半透明材质就塌成纯黑 —— 手部用的 Unity_Hand_Dark 正是暗色
+    /// Transparent 材质，症状就是"半透明手变全黑、腕部真实皮肤还在"。
+    ///
+    /// Meta 的默认值是 true，且官方 EnableUnpremultipliedAlpha Building Block 明确警告不要乱关。
+    /// 这里读一次真实值：非 true 就恢复，并把前后值打进日志，好在真机上把因果钉死。
+    /// </summary>
+    private static void RestoreEyeFovPremultipliedAlpha()
+    {
+        try
+        {
+            bool before = OVRManager.eyeFovPremultipliedAlphaModeEnabled;
+            if (!before)
+            {
+                OVRManager.eyeFovPremultipliedAlphaModeEnabled = true;
+            }
+
+            Debug.Log(
+                $"[QuestMrukRuntimeInstaller] eyeFovPremultipliedAlphaMode before={before} " +
+                $"after={OVRManager.eyeFovPremultipliedAlphaModeEnabled}");
+        }
+        catch (Exception exception)
+        {
+            // 读不到就只记一笔：这条是诊断用，不能反过来把 MRUK 装配搞崩。
+            Debug.LogWarning($"[QuestMrukRuntimeInstaller] 读取 eyeFovPremultipliedAlphaMode 失败：{exception.Message}");
+        }
     }
 
     private static void DisableRigCameras(OVRCameraRig cameraRig)

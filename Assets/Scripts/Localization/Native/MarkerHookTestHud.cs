@@ -7,7 +7,7 @@ using UnityEngine.UI;
 /// <summary>
 /// 常驻 HUD(task 6.6-6.7):列出活跃标记、Observed/Lost 累计次数,并提供 Pause/Resume 按钮
 /// 驱动 <see cref="MarkerHookTestRig"/>。用 UGUI + TMP(不是 IMGUI OnGUI)——沿用
-/// <c>MarkerProbeXrControls</c> 同款模式,假定 PICO/Quest 侧 XR 射线可点击 UGUI Button。
+/// TMP + UGUI + 射线交互,假定 PICO/Quest 侧 XR 射线可点击 UGUI Button。
 /// 若真机验收发现点不动,单独排查交互层,不在本任务内解决。
 /// </summary>
 [AddComponentMenu("MR Base/Diagnostics/Marker Hook Test HUD")]

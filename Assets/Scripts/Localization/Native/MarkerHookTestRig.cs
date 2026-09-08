@@ -7,10 +7,13 @@ using UnityEngine;
 /// <c>MarkerHookTest</c> 场景的装配根(design D1 / D8,task 6.2-6.5)。
 ///
 /// 按 <c>#if MRBASE_QUEST / MRBASE_PICO</c> 建对应观测源,装配 <see cref="MarkerTrackingSession"/>,
-/// 在 <see cref="Update"/> 里用 <c>Time.deltaTime</c> 驱动 <c>Tick</c>。<see cref="MarkerTrackingSession.MarkerObserved"/>
-/// 喂进 <see cref="MarkerStabilizer"/>(design D8,复用而非重新发明);只有
-/// <see cref="MarkerStabilizer.Stabilized"/> 触发时才在稳定位姿处显示盒子 + 世界空间标签,
-/// 避免可视化跟着未滤波的原始位姿抖动。
+/// 在 <see cref="Update"/> 里用 <c>Time.deltaTime</c> 驱动 <c>Tick</c>。
+///
+/// 盒子**直接跟每次 <see cref="MarkerTrackingSession.MarkerObserved"/> 更新**,不经过
+/// <see cref="MarkerStabilizer"/>(design D8)。本场景要验的是 hook 本身发没发、发得对不对;
+/// 插一层稳定器会把"hook 没发"和"稳定器没判稳"混成同一个现象——真机已经踩过一次:
+/// 单应解出的位姿相邻两次抖 2-5 度,而稳定器的 rotationThreshold 是 1 度,计数器反复清零,
+/// Stabilized 一次都没触发,外部看到的就是"扫不到"。
 /// </summary>
 [AddComponentMenu("MR Base/Diagnostics/Marker Hook Test Rig")]
 public sealed class MarkerHookTestRig : MonoBehaviour
@@ -28,7 +31,6 @@ public sealed class MarkerHookTestRig : MonoBehaviour
 
     private IMarkerObservationSource source;
     private MarkerTrackingSession session;
-    private MarkerStabilizer stabilizer;
     private Camera mainCamera;
 
     private readonly Dictionary<string, MarkerObservation> lastObservationByKey =
@@ -43,6 +45,13 @@ public sealed class MarkerHookTestRig : MonoBehaviour
     private void Awake()
     {
 #if MRBASE_QUEST
+        // 本场景由 MRSceneDirector 加性加载,没有任何自动装配钩子能赶在它之前看到本组件,
+        // 所以 MRUK 运行时必须在这里显式装配;否则 MRUK.Instance 为 null,订阅无声失败(真机已复现)。
+        if (!QuestMrukRuntimeInstaller.EnsureInitialized(out string mrukDetail))
+        {
+            Debug.LogError($"{LogPrefix} Quest MRUK 运行时未就绪:{mrukDetail}", this);
+        }
+
         source = new QuestObservationSource();
 #elif MRBASE_PICO && MRBASE_HAS_PICO_SDK
         source = gameObject.AddComponent<PicoFiducialObservationSource>();
@@ -57,9 +66,6 @@ public sealed class MarkerHookTestRig : MonoBehaviour
         enabled = false;
         return;
 #endif
-        stabilizer = new MarkerStabilizer();
-        stabilizer.Stabilized += HandleStabilized;
-
         session = new MarkerTrackingSession(source, lostAfterSeconds);
         session.MarkerObserved += HandleObserved;
         session.MarkerLost += HandleLost;
@@ -117,7 +123,7 @@ public sealed class MarkerHookTestRig : MonoBehaviour
             $"{LogPrefix} Observed platform={observation.Platform} rawPayload={observation.RawPayload} " +
             $"pos={observation.Pose.position:F3}", this);
 
-        stabilizer.Feed(key, observation.Pose, Time.deltaTime);
+        ShowOrUpdateVisual(key, observation.Pose);
     }
 
     private void HandleLost(MarkerPlatform platform, string rawPayload)
@@ -126,14 +132,8 @@ public sealed class MarkerHookTestRig : MonoBehaviour
         LostCount++;
         Debug.Log($"{LogPrefix} Lost platform={platform} rawPayload={rawPayload}", this);
 
-        stabilizer.Reset(key);
         lastObservationByKey.Remove(key);
         RemoveVisual(key);
-    }
-
-    private void HandleStabilized(string key, Pose stablePose)
-    {
-        ShowOrUpdateVisual(key, stablePose);
     }
 
     private void ShowOrUpdateVisual(string key, Pose pose)
@@ -219,11 +219,6 @@ public sealed class MarkerHookTestRig : MonoBehaviour
             session.MarkerObserved -= HandleObserved;
             session.MarkerLost -= HandleLost;
             session.Close();
-        }
-
-        if (stabilizer != null)
-        {
-            stabilizer.Stabilized -= HandleStabilized;
         }
     }
 }

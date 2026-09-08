@@ -57,7 +57,7 @@ Quest 只在 `TrackableAdded` 时复制一次 Pose(`QuestMarkerProvider.cs:35`),
 **保留不动**
 - `MarkerStabilizer.cs` + `MarkerStabilizerTests.cs`(帧数阈值不变;下线后暂时零消费方,仅被新场景的 `MarkerHookTestRig` 消费)
 - `AprilTagDetectorCore.cs` / `PlanarPoseSolver.cs` / `PicoEnterpriseCameraPose.cs` / `PoseMath.cs` / `PlatformOffsetConfig.cs` 及各自测试
-- 整个 `Localization/Probe/` 与 `Localization/Native/Probe/`(除上述两处提升/改造)
+- ~~整个 `Localization/Probe/` 与 `Localization/Native/Probe/`~~ —— **该条已被 D13 推翻**:两棵树连同 `MarkerProbe.unity` / `PicoQrCameraProbe.unity` 一并删除,跨平台验收收敛到 `MarkerHookTest` 一个场景。`QuestMrukRuntimeInstaller` 与 `PicoFiducialObservationSource` 已先行提升为生产代码,不受影响。
 
 **新增**
 - `Assets/Scenes/MarkerHookTest.unity` + `MarkerHookTestRig.cs` + HUD

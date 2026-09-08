@@ -14,7 +14,7 @@ using Pose = UnityEngine.Pose;
 
 /// <summary>
 /// PICO 相机流上的 AprilTag 观测源(design D9)。相机会话、采样节流、检测循环与全部相关状态
-/// 从 <see cref="PicoQrCameraProbe"/> 完全搬移到这里——不留薄封装。检测本身仍在
+/// 相机会话与检测循环整体收在这里(原先在已删除的 PicoQrCameraProbe 探针里)。检测本身仍在
 /// <see cref="AprilTagDetectorCore"/>(探针与生产 Provider 共用同一份,design D8)。
 ///
 /// <see cref="Poll"/> 只返回自上次调用以来新完成的检测批次,不做任何跨批次的"保持显示"或
@@ -95,23 +95,6 @@ public sealed class PicoFiducialObservationSource : MonoBehaviour, IMarkerObserv
     private string poseStatus = "(未解算)";
     private int poseSolveFailures;
 
-    // 遥测只读访问器,供 PicoQrCameraProbe 的 OnGUI 消费(task 3.5)。
-    public bool IsCameraOpen => cameraOpen;
-    public bool IsServiceBound => serviceBound;
-    public int CallbackFrames => callbackFrames;
-    public int FrameWidth => frameWidth;
-    public int FrameHeight => frameHeight;
-    public int FrameStatus => frameStatus;
-    public long SampledFrames => sampledFrames;
-    public long DroppedFrames => droppedFrames;
-    public double LastCopyMs => lastCopyMs;
-    public double LastDetectMs => lastDetectMs;
-    public string DetectorStatus => detectorStatus;
-    public string LastDetection => lastDetection;
-    public long LastFrameTimestamp => lastFrameTimestamp;
-    public string PoseStatus => poseStatus;
-    public long DetectAttempts => detectAttempts;
-    public long DetectSuccesses => detectSuccesses;
 
     private readonly struct DetectedMarker
     {

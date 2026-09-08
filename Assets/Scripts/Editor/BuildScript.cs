@@ -25,9 +25,7 @@ public static class BuildScript
     const string k_QuestProfilePath = "Assets/Settings/Build Profiles/Quest.asset";
     const string k_PicoProfilePath = "Assets/Settings/Build Profiles/PICO.asset";
     const string k_MRCoreScene = "Assets/Scenes/MRCore.unity";
-    const string k_MarkerProbeScene = "Assets/Scenes/MarkerProbe.unity";
     const string k_MarkerHookTestScene = "Assets/Scenes/MarkerHookTest.unity";
-    const string k_PicoQrCameraProbeScene = "Assets/Scenes/PicoQrCameraProbe.unity";
     const string k_GsplatBenchScene = "Assets/Scenes/GsplatBench.unity";
 
     const string k_PicoOfficialCameraRenderingScene =
@@ -45,12 +43,24 @@ public static class BuildScript
     // 探针包里 MRSceneDirector.firstScene 为空，起来后在菜单点一次进探针场景。
     static string[] ProbeScenes(string probeScene) => new[] { k_MRCoreScene, probeScene };
 
+    /// <summary>
+    /// 全项目唯一的 Android 包名。所有构建入口（产品包与各测试探针包）都用它。
+    /// 不按入口加后缀 —— 见 Build() 中的说明与 design D11。
+    /// </summary>
+    const string k_ApplicationId = "com.uality.xiangtangshan";
+
     const string k_OpenXRLoader = "UnityEngine.XR.OpenXR.OpenXRLoader";
     const string k_PicoLoader = "Unity.XR.PXR.PXR_Loader";
 
     // loader 用类型全名字符串指定，所以本程序集不需要引用 Unity.XR.OpenXR 或
     // Unity.XR.PICO —— 任一 SDK 未安装时本脚本仍能编译。
     static readonly string[] k_AndroidLoaders = { k_OpenXRLoader, k_PicoLoader };
+
+    /// <summary>
+    /// 构建结束后 Android 的 XR loader 一律还原成这个值,而不是还原成「本次构建开始时的值」。
+    /// 它就是仓库里 <c>XRGeneralSettingsPerBuildTarget.asset</c> 提交的值 —— 见 design D12。
+    /// </summary>
+    const string k_DefaultAndroidLoader = k_OpenXRLoader;
 
     const string k_PicoPackageRoot = "Packages/com.unity.xr.picoxr";
     const string k_MetaPackageRoot = "Packages/com.meta.xr.sdk.core";
@@ -78,39 +88,6 @@ public static class BuildScript
             excludePluginRoot: k_MetaPackageRoot);
     }
 
-    [MenuItem("MRBase/Build/Marker Probe/Quest Development")]
-    public static void BuildMarkerProbeQuest()
-    {
-        Build(
-            k_QuestProfilePath,
-            "MRBASE_QUEST",
-            k_OpenXRLoader,
-            "Builds/MarkerProbe/Quest/MarkerProbe-Quest.apk",
-            excludePluginRoot: k_PicoPackageRoot,
-            sceneOverride: ProbeScenes(k_MarkerProbeScene),
-            buildOptions: BuildOptions.Development | BuildOptions.AllowDebugging,
-            applicationIdSuffix: ".markerprobe");
-    }
-
-    [MenuItem("MRBase/Build/Marker Probe/Queue Quest Development")]
-    public static void QueueMarkerProbeQuest()
-    {
-        QueueBuild(BuildMarkerProbeQuest, "Quest Marker Probe");
-    }
-
-    [MenuItem("MRBase/Build/Marker Probe/PICO Development")]
-    public static void BuildMarkerProbePico()
-    {
-        Build(
-            k_PicoProfilePath,
-            "MRBASE_PICO",
-            k_PicoLoader,
-            "Builds/MarkerProbe/PICO/MarkerProbe-PICO.apk",
-            excludePluginRoot: k_MetaPackageRoot,
-            sceneOverride: ProbeScenes(k_MarkerProbeScene),
-            buildOptions: BuildOptions.Development | BuildOptions.AllowDebugging,
-            applicationIdSuffix: ".markerprobe");
-    }
 
     [MenuItem("MRBase/Build/Marker Hook Test/Quest Development")]
     public static void BuildMarkerHookTestQuest()
@@ -122,8 +99,7 @@ public static class BuildScript
             "Builds/MarkerHookTest/Quest/MarkerHookTest-Quest.apk",
             excludePluginRoot: k_PicoPackageRoot,
             sceneOverride: ProbeScenes(k_MarkerHookTestScene),
-            buildOptions: BuildOptions.Development | BuildOptions.AllowDebugging,
-            applicationIdSuffix: ".markerhook");
+            buildOptions: BuildOptions.Development | BuildOptions.AllowDebugging);
     }
 
     [MenuItem("MRBase/Build/Marker Hook Test/Queue Quest Development")]
@@ -142,8 +118,7 @@ public static class BuildScript
             "Builds/MarkerHookTest/PICO/MarkerHookTest-PICO.apk",
             excludePluginRoot: k_MetaPackageRoot,
             sceneOverride: ProbeScenes(k_MarkerHookTestScene),
-            buildOptions: BuildOptions.Development | BuildOptions.AllowDebugging,
-            applicationIdSuffix: ".markerhook");
+            buildOptions: BuildOptions.Development | BuildOptions.AllowDebugging);
     }
 
     [MenuItem("MRBase/Build/Marker Hook Test/Queue PICO Development")]
@@ -152,19 +127,6 @@ public static class BuildScript
         QueueBuild(BuildMarkerHookTestPico, "PICO Marker Hook Test");
     }
 
-    [MenuItem("MRBase/Build/PICO QR Camera Probe Development")]
-    public static void BuildPicoQrCameraProbe()
-    {
-        Build(
-            k_PicoProfilePath,
-            "MRBASE_PICO",
-            k_PicoLoader,
-            "Builds/Localization/PICO/PicoQrCameraProbe.apk",
-            excludePluginRoot: k_MetaPackageRoot,
-            sceneOverride: ProbeScenes(k_PicoQrCameraProbeScene),
-            buildOptions: BuildOptions.Development | BuildOptions.AllowDebugging,
-            applicationIdSuffix: ".qrcamprobe");
-    }
 
     /// <summary>
     /// 3DGS 性能实测装置（openspec: gsplat-quest-bench）。
@@ -193,7 +155,6 @@ public static class BuildScript
             excludePluginRoot: k_PicoPackageRoot,
             sceneOverride: new[] { k_GsplatBenchScene },
             buildOptions: BuildOptions.None,
-            applicationIdSuffix: ".gsplatbench",
             installAfterBuild: true);
     }
 
@@ -216,11 +177,6 @@ public static class BuildScript
             buildOptions: BuildOptions.Development | BuildOptions.AllowDebugging);
     }
 
-    [MenuItem("MRBase/Build/Marker Probe/Queue PICO Development")]
-    public static void QueueMarkerProbePico()
-    {
-        QueueBuild(BuildMarkerProbePico, "PICO Marker Probe");
-    }
 
     static Action s_QueuedBuild;
     static double s_QueuedBuildStartTime;
@@ -276,7 +232,6 @@ public static class BuildScript
         bool dryRun = false,
         string[] sceneOverride = null,
         BuildOptions buildOptions = BuildOptions.None,
-        string applicationIdSuffix = null,
         bool installAfterBuild = false)
     {
         var profile = AssetDatabase.LoadAssetAtPath<BuildProfile>(profilePath);
@@ -289,28 +244,27 @@ public static class BuildScript
             EnsurePicoSettingsRegistered();
 
         var manager = AndroidManagerSettings();
-        var restoreLoaders = SnapshotAndroidLoaders();
         var previousProfile = BuildProfile.GetActiveBuildProfile();
         List<string> restorePlugins = null;
         List<OpenXrVersionRestore> restoreOpenXrVersions = null;
 
-        // 各测试包必须有各自的包名，否则装一个覆盖一个 —— 无法在设备上并存对照。
-        // 与 loader/profile 同样的纪律：快照 + finally 还原，不在 ProjectSettings 上留 diff。
+        // 包名是固定常量，每个构建入口都写同一个 k_ApplicationId，不再按入口加后缀。
         //
-        // 注意：finally 里的还原只改内存值，ProjectSettings.asset 要等 Unity 下次落盘才更新。
-        // 所以构建刚结束时去 grep 那个文件，可能读到带后缀的旧值 —— 那是落盘滞后，不是没还原。
-        // 以 PlayerSettings.GetApplicationIdentifier 的返回值为准。
+        // 原先的做法是「快照当前包名 → 追加 .markerprobe/.markerhook/... → finally 还原」，
+        // 目的是让各测试包能在设备上并存对照。它在真机上被证伪：还原只改内存值，
+        // 而一次构建要跑十几分钟，其间 Unity 只要把 ProjectSettings.asset 落一次盘，
+        // 带后缀的值就成了下一次构建的「快照基线」，于是后缀逐次累积。真机实测结果：
+        //   com.uality.xiaotangshan.gsplatbench.qrcamprobe.qrcamprobe.qrcamprobe
+        // 三个互不相同的包名 = 三个独立应用，堆在头显里。
+        //
+        // 无条件写死是唯一不会漂的形状：没有快照就没有被污染的基线，没有还原就没有时序竞态。
+        // 代价是各测试包互相覆盖、不能并存 —— 这是明确接受的取舍（design D11）。
         var androidTarget = NamedBuildTarget.Android;
-        var previousApplicationId = PlayerSettings.GetApplicationIdentifier(androidTarget);
 
         try
         {
-            if (!string.IsNullOrEmpty(applicationIdSuffix))
-            {
-                var testId = previousApplicationId + applicationIdSuffix;
-                PlayerSettings.SetApplicationIdentifier(androidTarget, testId);
-                Debug.Log($"[BuildScript] 本次包名：{testId}（构建后还原为 {previousApplicationId}）");
-            }
+            PlayerSettings.SetApplicationIdentifier(androidTarget, k_ApplicationId);
+            Debug.Log($"[BuildScript] 包名：{k_ApplicationId}");
 
             ApplyAndroidLoader(manager, loaderTypeName);
             restorePlugins = DisableAndroidPluginsUnder(excludePluginRoot);
@@ -370,13 +324,11 @@ public static class BuildScript
             // 在 XRGeneralSettingsPerBuildTarget.asset 上留 git diff、
             // 让另一端的 native plugin 处于关闭状态、
             // 把 Editor 留在另一个平台的 define 集合下（会让另一端平台代码意外参与编译）。
-            RestoreAndroidLoaders(manager, restoreLoaders);
+            RestoreAndroidLoaders(manager);
             RestoreAndroidPlugins(restorePlugins);
             RestoreOpenXrFeatureApiVersions(restoreOpenXrVersions);
             if (previousProfile != profile)
                 BuildProfile.SetActiveBuildProfile(previousProfile);
-            if (!string.IsNullOrEmpty(applicationIdSuffix))
-                PlayerSettings.SetApplicationIdentifier(androidTarget, previousApplicationId);
         }
     }
 
@@ -647,17 +599,6 @@ public static class BuildScript
         return manager;
     }
 
-    /// <summary>
-    /// 只快照本项目关心的两个 Android loader。Standalone 那一档不受影响（不同 BuildTargetGroup）。
-    /// </summary>
-    static bool[] SnapshotAndroidLoaders()
-    {
-        var state = new bool[k_AndroidLoaders.Length];
-        for (var i = 0; i < k_AndroidLoaders.Length; i++)
-            state[i] = XRPackageMetadataStore.IsLoaderAssigned(k_AndroidLoaders[i], BuildTargetGroup.Android);
-        return state;
-    }
-
     static void ApplyAndroidLoader(XRManagerSettings manager, string loaderTypeName)
     {
         foreach (var other in k_AndroidLoaders)
@@ -746,21 +687,24 @@ public static class BuildScript
         }
     }
 
-    static void RestoreAndroidLoaders(XRManagerSettings manager, bool[] state)
+    /// <summary>
+    /// 还原到 <see cref="k_DefaultAndroidLoader"/>，**不是**还原到本次构建开始时的值。
+    ///
+    /// 快照式还原在真机上被证伪：它的正确性依赖「构建一定会跑到 finally」。一次被中断的
+    /// PICO 构建（已 ApplyAndroidLoader(PXR_Loader) 并 SaveAssets，但进程被杀、finally 未跑）
+    /// 会把 PXR_Loader 留在盘上；此后每次构建都把它当成「用户的设置」忠实还原，
+    /// 错误状态从此自我维持。参见 design D12（与 D11 的包名累积同一形状）。
+    /// </summary>
+    static void RestoreAndroidLoaders(XRManagerSettings manager)
     {
-        for (var i = 0; i < k_AndroidLoaders.Length; i++)
+        foreach (var other in k_AndroidLoaders)
         {
-            var loader = k_AndroidLoaders[i];
-            var assigned = XRPackageMetadataStore.IsLoaderAssigned(loader, BuildTargetGroup.Android);
-            if (state[i] == assigned)
+            if (other == k_DefaultAndroidLoader)
                 continue;
-
-            if (state[i])
-                XRPackageMetadataStore.AssignLoader(manager, loader, BuildTargetGroup.Android);
-            else
-                XRPackageMetadataStore.RemoveLoader(manager, loader, BuildTargetGroup.Android);
+            XRPackageMetadataStore.RemoveLoader(manager, other, BuildTargetGroup.Android);
         }
 
+        XRPackageMetadataStore.AssignLoader(manager, k_DefaultAndroidLoader, BuildTargetGroup.Android);
         AssetDatabase.SaveAssets();
     }
 }
