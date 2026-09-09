@@ -25,9 +25,12 @@
 
 ## 3. 场景包校验器缓存（design D4）
 
-- [ ] 3.1 新增 `SpacePackageEtagCache`（`Runtime/Internal/`），键形如 `ite.space.{sceneName}.etag`，接口对齐 `TourVersionCache`：`KeyFor` / `Get` / `Set` / `Clear`
-- [ ] 3.2 `Get` 在无记录时返回空串（PlayerPrefs 缺省行为），与 `TourVersionCache` 一致
-- [ ] 3.3 补 EditMode 测试：键名不占用宿主全局命名空间（design D10）、无记录时返回空串、`Set` 后可读回
+- [x] 3.1 新增 `SpacePackageEtagCache`（`Runtime/Internal/`），键形如 `ite.space.{sceneName}.etag`，接口对齐 `TourVersionCache`：`KeyFor` / `Get` / `Set` / `Clear`
+- [x] 3.2 `Get` 在无记录时返回空串（PlayerPrefs 缺省行为），与 `TourVersionCache` 一致
+- [x] 3.3 补 EditMode 测试：键名不占用宿主全局命名空间（design D10）、无记录时返回空串、`Set` 后可读回
+  - `SpacePackageEtagCacheTests` 5/5 通过。两轮 TDD：先 `KeyFor`（RED = 类不存在 → GREEN），再 `Get`/`Set`/`Clear`（RED = 成员不存在 → GREEN）
+  - 额外钉住一条：与 `TourVersionCache.KeyFor` 不得相等——同名的 scene 与 tour 若共用键会互相覆盖
+  - 往返用例特意存**带双引号**的真实 ETag 字面量，确认不做规范化（见 1.2 的结论）
 
 ## 4. 比对决策与接入（design D1/D3/D5/D6）
 
