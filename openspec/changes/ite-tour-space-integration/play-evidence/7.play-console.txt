@@ -1,0 +1,52 @@
+[ITE Host] OnLoadProgress 0.00
+[ITE Host] OnSpaceSceneLoaded Third Demo
+[ITE Host] OnLoadProgress 0.20
+[ITE Host] OnLoadProgress 0.36
+[ITE Host] OnSpaceSceneAssetsLoaded Third Demo
+[ITE Host] OnLoadProgress 0.52
+[ITE Host] OnLoadProgress 0.68
+[ITE Host] OnLoadProgress 0.84
+[ITE Host] OnLoadProgress 1.00
+[ITE Host] OnLoadProgress 1.00
+[ITE Host] OnInitialized
+[ITE Host] OnScanPromptChanged Visible
+[probe] ready assembled=5 active=none
+[probe] active=none pending=4kvhqwvp_12f assembled=5 promptLogged | hkdaowxy_0hu pos=(0.00, 0.00, -8.00) vol=Center: (0.00, 0.00, -8.00), Extents: (1.00, 1.00, 1.00) active=True | 4kvhqwvp_12f pos=(0.00, 0.00, -2.00) vol=Center: (0.00, 0.00, -2.00), Extents: (1.41, 1.00, 1.41) active=True | azdugaax_xry pos=(0.00, 0.00, -6.00) vol=Center: (0.00, 0.00, -6.00), Extents: (1.00, 1.00, 1.00) active=Tru
+[probe] cam=(0.00, 1.60, -2.00) hud=
+[probe] moved cam to (0.00, 0.50, 0.00)
+[probe] after-walk active=none pending=wm0l5qcn_ibd
+[probe] triggered wm0 poseCam=(0.00, 1.60, -2.00)
+[ITE Host] OnTourActivated wm0l5qcn_ibd
+[ITE Host] OnScanPromptChanged Hidden
+[ITE Host] OnTourSceneLoaded wm0l5qcn_ibd
+[ITE] Reanchor wm0l5qcn_ibd consumesSecondAnchor
+[probe] 7.4 active=wm0l5qcn_ibd child=3 meshVis=5 names=Object_9,Line031,Line056,kongquemingwang,Label, wm0Pos=(0.00, 1.60, -0.50) cam=(0.00, 1.60, -2.00) dist=1.5
+[probe] 7.5 moved to earyserh vol (0.00, 0.50, -4.00)
+[probe] 7.5 state active=wm0l5qcn_ibd pending=
+[probe] 7.7 triggered eary hierarchyBefore=31
+[ITE Host] OnTourDeactivated wm0l5qcn_ibd
+[ITE Host] OnTourSceneLoaded earyserh_i5x
+[ITE Host] OnTourActivated earyserh_i5x
+[ITE] Reanchor earyserh_i5x consumesSecondAnchor
+[ITE Host] OnTourDeactivated earyserh_i5x
+[ITE Host] OnScanPromptChanged Visible
+[probe] phys camLayer=0 capTrig=True capEnabled=True rb=True kin=True camPos=(0.00, 0.50, -4.00) | box=Volume act=True trig=False en=True layer=0 bounds=Center: (0.00, 0.50, -2.50), Extents: (1.00, 1.00, 1.00) overlap=False tv=True
+[probe] 7.5 retry cam=(0.00, 0.50, -2.50) capBounds=Center: (0.00, 0.50, -2.50), Extents: (0.30, 0.90, 0.30)
+[ITE Host] OnTourSceneLoaded earyserh_i5x
+[ITE Host] OnTourActivated earyserh_i5x
+[ITE Host] OnScanPromptChanged Hidden
+[probe] 7.5retry active=earyserh_i5x pending=4kvhqwvp_12f,earyserh_i5x
+[probe] 7.6 triggered 4kv
+[ITE Host] OnTourDeactivated earyserh_i5x
+[ITE Host] OnTourActivated 4kvhqwvp_12f
+[ITE Host] OnTourSceneLoaded 4kvhqwvp_12f
+[probe] 7.6 entities=14 rich=10 images=120 sprites=98 names=,,audio_bg_0,audio_play_0,audio_pause_0,audio_play_probe_1,audio_bg_0,audio_play_0,audio_pause_0,audio_play_probe_1,,,audio_bg_0,audio_play_0,audio_pause_0,audio_play_probe_1,audio_bg_0,audio_play_0,audio_pause_0,audio_play_probe_1,,,audio_bg_0,audio_play_0,audio_pause_0,audio_play_probe_1,audio_bg_0,audio_play_0,audio_pause_0,audio_play_
+[probe] 7.9 off beforePending=4kvhqwvp_12f,wm0l5qcn_ibd active=4kvhqwvp_12f moved to hkdaowxy
+[probe] 7.9 after-off active=4kvhqwvp_12f pending=4kvhqwvp_12f,wm0l5qcn_ibd
+[probe] 7.9 re-enabled volumes at (0.00, 0.50, -8.00)
+[probe] 7.9 after-on active=4kvhqwvp_12f pending=4kvhqwvp_12f,wm0l5qcn_ibd
+[probe] 7.9 hk Volume act=True bounds=Center: (-4.24, 0.50, 3.24), Extents: (1.41, 1.00, 1.41) overlap=False  cam=(0.00, 0.50, -8.00)
+[probe] 7.9b off enter hk center=(-4.24, 0.50, 3.24) pending0=4kvhqwvp_12f,wm0l5qcn_ibd active0=4kvhqwvp_12f
+[probe] 7.9b still-off active=4kvhqwvp_12f pending=4kvhqwvp_12f,wm0l5qcn_ibd
+[probe] 7.9b volumes on, collider toggled
+[probe] 7.9b after-on active=4kvhqwvp_12f pending=4kvhqwvp_12f,wm0l5qcn_ibd,hkdaowxy_0hu

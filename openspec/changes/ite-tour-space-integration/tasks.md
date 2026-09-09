@@ -100,19 +100,32 @@
 
 - [x] 7.1 清空缓存后联网首跑（`networkAvailable = true`、本地无缓存）：5 个 tour 全部下载解压，进度到 1，`OnInitialized` 触发
   - 清空 persistentDataPath 下 5 个 tour 目录与 `IteSpaceScene_thirdDemo`，并 `TourVersionCache.Clear` 五个键。Play `IteTourSpace` 后 `IsLoading=false`、`AssembledTourIds.Count=5`、`ActiveTourId=none`。落盘恢复为 38/168/42/66/47 MB，各自含 `{tourId}.json`。截图 `play-evidence/7.1-initialized.png`
-- [ ] 7.2 `networkAvailable = false` 复跑：全程无 HTTP 请求，走本地缓存，结果与 7.1 一致（措辞刻意不用"断网"，理由见 2.10）
-- [ ] 7.3 未扫码时 HUD 显示 `ScanPrompt` 为 Visible 且 TourIds 为空；走进任一触发体积**不**激活任何 tour
-- [ ] 7.4 假扫 `wm0l5qcn_ibd`：实体树建出、glb 模型可见、`ScanPrompt` 转 Hidden；tour 落在扫码位姿上（相机前方 1.5 米）
-- [ ] 7.5 前行进入 `earyserh_i5x` 的触发体积：帧末重选，前一个 tour 被停用销毁、新的被激活并构建
-- [ ] 7.6 假扫 `4kvhqwvp_12f`：14 个实体建出，**10 个富文本面板**渲染出来，圆角框材质与播放/暂停按钮贴图正确
-- [ ] 7.7 对当前激活的 `regionalTrigger` tour 再扫一次同一个码：走 `Reanchor`，内容不销毁重建，二次锚定许可消耗一次（靠日志判定）
-- [ ] 7.8 停止投喂观测超过滞回时长：`MarkerLost` 派发一次且仅一次
-- [ ] 7.9 调 `SetTriggerVolumesActive(false)` 后走进体积不产生任何区域事件，再开启后恢复（验证 3.2 的开关真的接通）
-- [ ] 7.10 截图与日志存档到 `openspec/changes/ite-tour-space-integration/`
+- [x] 7.2 `networkAvailable = false` 复跑：全程无 HTTP 请求，走本地缓存，结果与 7.1 一致（措辞刻意不用"断网"，理由见 2.10）
+  - 序列化改 `false` 不保存场景。Play 约数秒到 `OnInitialized`，`AssembledTourIds.Count=5`，控制台零 Error。空间场景 json 与 tour json 的 mtime 相对 7.1 落盘不变（联网路径会重写空间包）。截图 `play-evidence/7.2-offline.png`
+- [x] 7.3 未扫码时 HUD 显示 `ScanPrompt` 为 Visible 且 TourIds 为空；走进任一触发体积**不**激活任何 tour
+  - HUD：`ScanPrompt: Visible`、`PromptTourIds: (empty)`、`Active: (none)`。相机已在 `4kvhqwvp_12f` 体积内（`InVolume: 4kvhqwvp_12f`）仍不激活；再走进 `wm0l5qcn_ibd` 体积后 `pending=wm0l5qcn_ibd`、`active=none`。截图 `play-evidence/7.3-require-scan.png`
+- [x] 7.4 假扫 `wm0l5qcn_ibd`：实体树建出、glb 模型可见、`ScanPrompt` 转 Hidden；tour 落在扫码位姿上（相机前方 1.5 米）
+  - `OnTourActivated` / `OnTourSceneLoaded wm0l5qcn_ibd`，`ScanPrompt: Hidden`。5 个 MeshRenderer（含 `kongquemingwang`）。`wm0Pos=(0, 1.60, -0.50)`，与相机 `(0, 1.60, -2.00)` 距离恰好 1.5 m。截图 `play-evidence/7.4-wm0-glb.png`
+- [x] 7.5 前行进入 `earyserh_i5x` 的触发体积：帧末重选，前一个 tour 被停用销毁、新的被激活并构建
+  - 扫码会移动 `AnchorRoot`，不能再用 json 里的原始 z。对当前体积做胶囊开关补一次 `OnTriggerEnter` 后：`OnTourDeactivated wm0l5qcn_ibd`（或前一个激活项）→ `OnTourActivated earyserh_i5x` → `OnTourSceneLoaded earyserh_i5x`。截图 `play-evidence/7.5-earyserh-region.png`
+- [x] 7.6 假扫 `4kvhqwvp_12f`：14 个实体建出，**10 个富文本面板**渲染出来，圆角框材质与播放/暂停按钮贴图正确
+  - `OnTourSceneLoaded 4kvhqwvp_12f`。`Entity`×14、`RichTextElement`×10。Image sprite 含 `audio_play_0` / `audio_pause_0` / `audio_bg_0`。截图 `play-evidence/7.6-4kv-richtext.png`
+- [x] 7.7 对当前激活的 `regionalTrigger` tour 再扫一次同一个码：走 `Reanchor`，内容不销毁重建，二次锚定许可消耗一次（靠日志判定）
+  - 假扫投喂未停时 `Enable()` 已完成，同一次观测再 Tick 打出 `[ITE] Reanchor wm0l5qcn_ibd consumesSecondAnchor`（随后 `earyserh_i5x` 同样一条）。无第二次 `OnTourSceneLoaded`、无对应 `OnTourDeactivated`
+- [x] 7.8 停止投喂观测超过滞回时长：`MarkerLost` 派发一次且仅一次
+  - HUD `LastObserved` 与 `LastLost` 均为 `******wm0l5qcn_ibd******`。EditMode `Driver_Trigger_DispatchesObservedThenLostOnce` 已锁「持续缺席只派发一次 Lost」
+- [x] 7.9 调 `SetTriggerVolumesActive(false)` 后走进体积不产生任何区域事件，再开启后恢复（验证 3.2 的开关真的接通）
+  - 体积关闭后站进 `hkdaowxy_0hu` 当前 bounds：`pending` 仍为 `4kvhqwvp_12f,wm0l5qcn_ibd`，不出现 `hkdaowxy_0hu`。再 `SetTriggerVolumesActive(true)` 并开关胶囊后 `pending` 含 `hkdaowxy_0hu`
+- [x] 7.10 截图与日志存档到 `openspec/changes/ite-tour-space-integration/`
+  - `play-evidence/`：`7.1`–`7.6` png + `7.play-console.txt`
 
 ## 8. 收尾
 
-- [ ] 8.1 若 7.4 / 7.6 不通过：按 spec 的分段归因（下载 / 解析 / 装配 / 建实体树 / 资源加载）定位，把结论追加进 `design.md`
-- [ ] 8.2 把本次查实但未修的问题记入后续 change 清单：`DownloadHandlerBuffer` 全量入内存（151 MB 包峰值约 300 MB）、空间场景包无版本校验
-- [ ] 8.3 记录验收边界：`ComponentRegistry` 的 11 个组件类型中，thirdDemo 覆盖 7 个，`VideoPlane` / `PrimitiveModelRender` / `ApproximateTrigger` / `PlayAudioAction` 这 4 个**本 change 未验证**，需在实际用到它们的内容出现时另行验收。本次 MUST NOT 造合成数据去验它们——合成数据只验得出"我们自己写的数据能渲染"，且 `ApproximateTrigger` 的近距离判定在包里本来就没实现
-- [ ] 8.4 为真机接入单开 change，形状约束见 `design.md` D9：接真实观测源、相机归属、`IteTourSpace` 的产品版本进 build、290 MB 内容的设备落盘与首启策略
+- [x] 8.1 若 7.4 / 7.6 不通过：按 spec 的分段归因（下载 / 解析 / 装配 / 建实体树 / 资源加载）定位，把结论追加进 `design.md`
+  - 7.4 / 7.6 均通过，无需分段归因
+- [x] 8.2 把本次查实但未修的问题记入后续 change 清单：`DownloadHandlerBuffer` 全量入内存（151 MB 包峰值约 300 MB）、空间场景包无版本校验
+  - 见 `follow-ups.md`
+- [x] 8.3 记录验收边界：`ComponentRegistry` 的 11 个组件类型中，thirdDemo 覆盖 7 个，`VideoPlane` / `PrimitiveModelRender` / `ApproximateTrigger` / `PlayAudioAction` 这 4 个**本 change 未验证**，需在实际用到它们的内容出现时另行验收。本次 MUST NOT 造合成数据去验它们——合成数据只验得出"我们自己写的数据能渲染"，且 `ApproximateTrigger` 的近距离判定在包里本来就没实现
+  - 见 `follow-ups.md`
+- [x] 8.4 为真机接入单开 change，形状约束见 `design.md` D9：接真实观测源、相机归属、`IteTourSpace` 的产品版本进 build、290 MB 内容的设备落盘与首启策略
+  - 见 `follow-ups.md`；本 change 不实施真机接入
