@@ -19,7 +19,7 @@
 - [x] 2.6 `FetchSpaceSceneAsync` 读不到描述时，异常信息带上 `sceneName` 与被查找的完整路径
 - [x] 2.7 补 EditMode 测试：`Strip` / `Preserve` 两种语义的落盘结果、以及"声明 Strip 但 zip 无公共顶层目录"时报错
   - live Editor：`ZipTopLevelResolver` 9 passed、`ZipContentDownloader` 5 passed、`FetchSpaceSceneAsync_OfflineWithoutCache_ThrowsWithSceneNameAndPath` passed
-- [ ] 2.8 `Assets/Settings/ITE/IteRuntimeConfig.asset` 的 `sceneName` 由空串改为 `thirdDemo`（`tourObjectPrefab` 已核实连对：guid `5a15cfba1014e4572bf41e551294e97a` 即包内 `Runtime/Prefabs/Tour.prefab`，无需改动）
+- [x] 2.8 `Assets/Settings/ITE/IteRuntimeConfig.asset` 的 `sceneName` 由空串改为 `thirdDemo`（`tourObjectPrefab` 已核实连对：guid `5a15cfba1014e4572bf41e551294e97a` 即包内 `Runtime/Prefabs/Tour.prefab`，无需改动）
 - [ ] 2.9 **验证点**：联网首跑一次（临时建个空场景挂 `IteHostBootstrap` 即可，不必等 harness；第 1 组做完后 `MRCore` 里已经没有可蹭的装配点了），用 `ls` 直接确认落盘布局
   - `IteSpaceScene_thirdDemo/thirdDemo.json` 存在且**不**多一层 `thirdDemo/`
   - `IteSpaceScene_thirdDemo/assets/` 下有 logo 与 5 张 tour 预览图

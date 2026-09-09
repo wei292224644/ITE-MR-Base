@@ -15,5 +15,5 @@ MonoBehaviour:
   spaceSceneBaseUrl: https://ite-spatial-config.uality.cn
   tourPackageUrlTemplate: https://ite-pkg.uality.cn/{0}/{0}_wx.zip
   tourLatestVersionUrlTemplate: https://api.uality.cn/ITE/Tour/LatestVersion?tourId={0}
-  sceneName: 
+  sceneName: thirdDemo
   tourObjectPrefab: {fileID: 5738882722445983899, guid: 5a15cfba1014e4572bf41e551294e97a, type: 3}
