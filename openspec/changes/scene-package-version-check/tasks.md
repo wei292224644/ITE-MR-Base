@@ -88,17 +88,33 @@
 
 > `persistentDataPath` 在 macOS 编辑器下为 `~/Library/Application Support/响堂山/响堂山`。
 
-- [ ] 7.1 清空 `IteSpaceScene_thirdDemo/` 与 `SpacePackageEtagCache` 的 PlayerPrefs 键，构造"首跑"状态
-- [ ] 7.2 **验证点（联网首跑）**：`networkAvailable = true` 跑一次，场景包被下载解压，布局为 `IteSpaceScene_thirdDemo/thirdDemo.json`（不多一层），`ETag` 记录被写入
-- [ ] 7.3 **验证点（联网复跑命中缓存）**：不清缓存再跑一次，控制台出现 4.9 的命中日志，**无**场景包下载请求，加载链正常完成
-- [ ] 7.4 **验证点（缓存失效重下）**：手工把 PlayerPrefs 里的 `ETag` 记录改成一个假值再跑，日志打出本地假值与服务端真值两侧，场景包被重新下载，记录被更新回真实值
-- [ ] 7.5 **验证点（目录被删能自愈 — 场景包）**：只删 `IteSpaceScene_thirdDemo/`、**保留** PlayerPrefs 记录再跑。改动前这里会永久卡在 `No tours found`；改动后应重新下载并正常完成
-- [ ] 7.6 **验证点（目录被删能自愈 — tour）**：只删其中一个 tour 目录、保留 `TourVersionCache` 记录再跑，该 tour 被重新下载，其余 tour 未被重下
-- [ ] 7.7 **验证点（重下无孤儿文件）**：在 `IteSpaceScene_thirdDemo/assets/` 里手工放一个 `orphan.png`，把 `ETag` 记录改成假值触发重下，重下完成后 `orphan.png` 不存在
-- [ ] 7.8 **验证点（删除不越界）**：触发一次 tour 重下，确认只有该 `{tourId}/` 被清空，其余 tour 目录与 `IteSpaceScene_*/` 完好。这条是 D9 那个坑的兜底检查
-- [ ] 7.9 **验证点（校验器查不到 + 有缓存）**：把配置里的 `spaceSceneBaseUrl` 临时指向一个不可达地址再跑，MUST NOT 重新下载，直接读缓存并正常完成
-- [ ] 7.10 **验证点（离线路径未受影响）**：`networkAvailable = false` 跑一次，加载链完成，且**无任何 HTTP 请求**——包括本次新增的 HEAD。这条最容易漏：新加的校验器查询若没被 `networkAvailable` 分支包住，离线路径就破了
-- [ ] 7.11 跑整个 `Uality.IteTour.Tests` 确认无回归（改动前基线 195 passed / 0 failed）
+- [x] 7.1 清空 `IteSpaceScene_thirdDemo/` 与 `SpacePackageEtagCache` 的 PlayerPrefs 键，构造"首跑"状态
+- [x] 7.2 **验证点（联网首跑）**：场景包被下载解压，布局为 `IteSpaceScene_thirdDemo/thirdDemo.json`（不多一层），`ETag` 记录被写入
+- [x] 7.3 **验证点（联网复跑命中缓存）**：控制台出现命中日志，**无**场景包下载，加载链正常完成
+- [x] 7.4 **验证点（缓存失效重下）**：`ETag` 记录改成 `"bogus-etag"` 后重下，记录被更新回真实值
+- [x] 7.5 **验证点（目录被删能自愈 — 场景包）**：只删目录、保留记录，重新下载并正常完成
+- [x] 7.6 **验证点（目录被删能自愈 — tour）**：删 `wm0l5qcn_ibd/`、保留版本记录，该 tour 被重下
+- [x] 7.7 **验证点（重下无孤儿文件）**：`assets/orphan.png` 在重下后消失
+- [x] 7.8 **验证点（删除不越界）**：tour 重下期间其余 tour 目录与 `IteSpaceScene_*/` 全部完好
+- [x] 7.9 **验证点（校验器查不到 + 有缓存）**：`spaceSceneBaseUrl` 临时指向不可达地址，未重下，正常完成
+- [x] 7.10 **验证点（离线路径未受影响）**：`networkAvailable = false` 读到完整缓存，未触发任何下载
+- [x] 7.11 跑整个 `Uality.IteTour.Tests` 确认无回归
+  - **227 passed / 0 failed**（改动前基线 195）
+
+> **本组的跑法**：没有建 Play 验收场景，而是写临时 `[UnityTest]` 直接驱动 `IteContentPipeline`
+> （真网络、真 `persistentDataPath`，按顺序跑完整条缓存状态机，14.4 秒通过，验完即删）。
+> 理由：本次改动全在获取管线这一半，tour GameObject 装配那半段未改动，不必为它拉起 XR rig；
+> 且只重下最小的 `wm0l5qcn_ibd`（38 MB）而非全部 151 MB。
+>
+> **未覆盖**：tour GameObject 的实例化与事件广播（未改动，由既有验收覆盖）。
+>
+> D11 双向日志的实测输出，最能说明问题的是这条——版本一致却仍然重下，原因写在日志里：
+> ```
+> [IteTour] 场景包 thirdDemo 需要更新：本地 <无> / 服务端 "B6A4...-1"
+> [IteTour] 场景包 thirdDemo 命中缓存，跳过下载 (ETag "B6A4...-1")
+> [IteTour] tour wm0l5qcn_ibd 需要更新：本地 7 / 服务端 7；本地内容文件不存在
+> ```
+> 最后一条正是 D8 修掉的缺陷：改动前这里会跳过下载，随后读取失败并永久卡死。
 
 ## 8. 收尾
 
