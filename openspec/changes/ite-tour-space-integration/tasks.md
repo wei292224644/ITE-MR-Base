@@ -98,7 +98,8 @@
 
 ## 7. 验收（按序逐条走通，全部在 `IteTourSpace.unity` 的 Play 模式里）
 
-- [ ] 7.1 清空缓存后联网首跑（`networkAvailable = true`、本地无缓存）：5 个 tour 全部下载解压，进度到 1，`OnInitialized` 触发
+- [x] 7.1 清空缓存后联网首跑（`networkAvailable = true`、本地无缓存）：5 个 tour 全部下载解压，进度到 1，`OnInitialized` 触发
+  - 清空 persistentDataPath 下 5 个 tour 目录与 `IteSpaceScene_thirdDemo`，并 `TourVersionCache.Clear` 五个键。Play `IteTourSpace` 后 `IsLoading=false`、`AssembledTourIds.Count=5`、`ActiveTourId=none`。落盘恢复为 38/168/42/66/47 MB，各自含 `{tourId}.json`。截图 `play-evidence/7.1-initialized.png`
 - [ ] 7.2 `networkAvailable = false` 复跑：全程无 HTTP 请求，走本地缓存，结果与 7.1 一致（措辞刻意不用"断网"，理由见 2.10）
 - [ ] 7.3 未扫码时 HUD 显示 `ScanPrompt` 为 Visible 且 TourIds 为空；走进任一触发体积**不**激活任何 tour
 - [ ] 7.4 假扫 `wm0l5qcn_ibd`：实体树建出、glb 模型可见、`ScanPrompt` 转 Hidden；tour 落在扫码位姿上（相机前方 1.5 米）
