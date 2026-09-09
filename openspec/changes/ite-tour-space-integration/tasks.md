@@ -77,23 +77,23 @@
 
 ## 6. 场景
 
-- [ ] 6.1 新建 `Assets/Scenes/IteTourSpace.unity`，层级按 design D5
+- [x] 6.1 新建 `Assets/Scenes/IteTourSpace.unity`，层级按 design D5
   - `AnchorRoot`（**根级**）→ 直接子物体 `TourRoot`
   - `ITE Host`：`IteHostBootstrap`
   - `Editor Rig` → `Camera`：`CapsuleCollider(isTrigger)` + `Rigidbody(isKinematic)` + 走位控制器 + 假扫码驱动
   - `Debug HUD`
   - Directional Light
-- [ ] 6.2 逐项连 `IteHostBootstrap` 的**全部** 7 个字段。场景连线没有编译器兜底，清单是唯一防线
-  - [ ] `config` → `Assets/Settings/ITE/IteRuntimeConfig.asset`
-  - [ ] `anchorRoot` → 根级的 `AnchorRoot`
-  - [ ] `tourRoot` → `AnchorRoot` 的直接子物体 `TourRoot`
-  - [ ] `xrCamera` → `Editor Rig` 下那台相机（包以父子链比对识别谁进出体积，不靠 tag）
-  - [ ] `networkAvailable` → 首跑置 `true`；**这一项漏改不会有任何报错**，它是 bool、永远"有值"，默认值直接把你送上联网路径（W4 的另一面）
-  - [ ] 外壳正则 → 保持默认 `^\*{6}(.*?)\*{6}$`
-  - [ ] `OnTourSceneLoaded` 超时秒数 → 取一个比 151 MB 包建树时间宽裕的值
+- [x] 6.2 逐项连 `IteHostBootstrap` 的**全部** 7 个字段。场景连线没有编译器兜底，清单是唯一防线
+  - [x] `config` → `Assets/Settings/ITE/IteRuntimeConfig.asset`
+  - [x] `anchorRoot` → 根级的 `AnchorRoot`
+  - [x] `tourRoot` → `AnchorRoot` 的直接子物体 `TourRoot`
+  - [x] `xrCamera` → `Editor Rig` 下那台相机（包以父子链比对识别谁进出体积，不靠 tag）
+  - [x] `networkAvailable` → 首跑置 `true`；**这一项漏改不会有任何报错**，它是 bool、永远"有值"，默认值直接把你送上联网路径（W4 的另一面）
+  - [x] 外壳正则 → 保持默认 `^\*{6}(.*?)\*{6}$`
+  - [x] `OnTourSceneLoaded` 超时秒数 → 取一个比 151 MB 包建树时间宽裕的值
   - 前四项漏连会被 `IteBootstrap.Validate()` 逐项报出来；后三项不会
-- [ ] 6.3 假扫码驱动上引用 `IteHostBootstrap`（注入方向是驱动层引用装配点，不是反过来）
-- [ ] 6.4 确认场景**未**加入 `EditorBuildSettings`，也不在 `BuildScript` 的清单里
+- [x] 6.3 假扫码驱动上引用 `IteHostBootstrap`（注入方向是驱动层引用装配点，不是反过来）
+- [x] 6.4 确认场景**未**加入 `EditorBuildSettings`，也不在 `BuildScript` 的清单里
 
 ## 7. 验收（按序逐条走通，全部在 `IteTourSpace.unity` 的 Play 模式里）
 
