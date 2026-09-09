@@ -33,7 +33,7 @@ Unity 6 (6000.4.4f1) MR/VR project targeting two headsets from one codebase: Met
 
 **Build** — always through `BuildScript` (`Assets/Scripts/Editor/BuildScript.cs`), never Unity's own Build Settings dialog (it skips loader/plugin setup and produces a black-screen or crashing package):
 
-- Editor menu: `MRBase/Build/Quest`, `MRBase/Build/Pico`, `MRBase/Build/Dry Run Quest|Pico` (validates config, no packaging), `MRBase/Build/Marker Probe/*`, `MRBase/Build/Gsplat Bench/Quest`.
+- Editor menu: `MRBase/Build/Quest`, `MRBase/Build/Pico`, `MRBase/Build/Dry Run Quest|Pico` (validates config, no packaging), `MRBase/Build/Marker Hook Test/*`, `MRBase/Build/Gsplat Bench/Quest`.
 - Headless, both targets: `Tools/build-both.sh` (or `Tools/build-both.sh Quest` / `Pico` for one). Must be invoked as **two separate Unity processes** — switching Build Profile changes scripting defines and triggers a script recompile that would kill an in-progress build, so there is no single `BuildBoth()` entry point.
 - One-off headless build: `Unity -batchmode -quit -nographics -projectPath . -executeMethod BuildScript.BuildQuest` (swap the method name for any `[MenuItem]` in `BuildScript.cs`).
 - `UNITY=/path/to/Unity` overrides the Unity executable used by `build-both.sh`.
@@ -44,7 +44,7 @@ Unity 6 (6000.4.4f1) MR/VR project targeting two headsets from one codebase: Met
 - Headless: `Unity -batchmode -projectPath . -runTests -testPlatform EditMode -testResults results.xml -logFile -`.
 - Add `-assemblyNames MRBase.Core.Tests` (etc.) to run a single module's tests.
 
-**openspec** — feature work in this repo is spec-driven (`openspec/` — `changes/` for in-flight initiatives, `specs/` for landed capability specs). Check `openspec/changes/<name>/design.md` for the numbered-decision log of an initiative before touching code it covers.
+**openspec** — feature work in this repo is spec-driven (`openspec/` — `changes/` for in-flight initiatives, `changes/archive/` for landed ones, `specs/` for capability specs). Check that change's `design.md` for the numbered-decision log before touching code it covers.
 
 ## Architecture
 
@@ -56,10 +56,10 @@ Unity 6 (6000.4.4f1) MR/VR project targeting two headsets from one codebase: Met
 
 **Module layout** (each is its own asmdef under `Assets/Scripts/`, several with a matching `*.Tests` asmdef under `Assets/Tests/EditMode/`):
 
-- `Common` — dependency-free helpers (`FetchUtils`, `FileUtils`, `StaticInstance<T>`).
+- `Common` — dependency-free helpers (`StaticInstance<T>`).
 - `Core` — bootstrap, scene director, XR context/anchor, gesture input (`PalmsTogetherGesture*`).
 - `Platform` — the single cross-platform switch point (see above).
-- `Localization` — marker/fiducial tracking: `IMarkerTrackingProvider` abstracts Quest vs. PICO marker sources (`Localization/Native/{Quest,Pico}MarkerProvider.cs`), feeding `AnchorRegistry`/`MarkerAnchorService`. Current tracking pipeline is AprilTag-based (native camera stream + `AprilTagDetectorCore`) after native ArUco/QR extrinsic pose approaches were tried and dropped — see recent git history and `openspec/changes/unified-marker-tracking-contract/design.md` before changing this path.
+- `Localization` — marker/fiducial tracking. Platform sources implement `IMarkerObservationSource` only (`QuestObservationSource` via MRUK QRCode, `PicoFiducialObservationSource` via native camera + `AprilTagDetectorCore`). The sole event source is `MarkerTrackingSession` (`Open`/`Poll`/`Tick`, time-based lost hysteresis). Native PICO ArUco, self-rolled QR pose, `IMarkerTrackingProvider`, and `AnchorRegistry` were tried and dropped. Current in-headset probe is `MarkerHookTest` (`MRBase/Build/Marker Hook Test/*`). See `openspec/specs/unified-marker-tracking-contract/spec.md` and `openspec/changes/archive/2026-09-08-unified-marker-tracking-contract/design.md` before changing this path.
 - `Transitions` — MR↔VR visual transition effects (ground-up reveal, ice-sprite teleport).
 - `SacredRelic` (+ `SacredRelic/Editor`) — a specific demo feature (fracture/dust VFX narrative), largely self-contained.
 - `Diagnostics` — in-headset HUD.

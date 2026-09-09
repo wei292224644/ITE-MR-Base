@@ -1,5 +1,7 @@
 # Unity 多场景无缝切换方案
 
+> **过时（方案未落地）**：本文推荐 Addressables + Bootstrap Scene。现行实现是常驻 `MRCore.unity` + `MRSceneDirector` Additive 切场景，没有 Addressables。不要按本文再搭第二条启动路径。详见 `.claude/CLAUDE.md` Architecture。
+
 > 状态：方案摘要  
 > 适用平台：PICO、Meta Quest 及其他 Android 一体机  
 > 更新日期：2026-08-04

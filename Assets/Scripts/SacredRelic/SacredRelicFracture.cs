@@ -183,7 +183,7 @@ namespace MRBase.SacredRelic
         [Tooltip("碎片起飞后过几秒开始消散。\n" +
                  "想让它「飞的过程中就化掉」就调小这个；调大则会先飞一段再开始化。")]
         [SerializeField] float dustLead = 0.45f;
-        [Tooltip("沙尘粒子的实现。用来切换烘焙点方案和 VFX Graph 方案做对比。")]
+        [Tooltip("沙尘粒子的实现。生产路径用 RelicDustBakedPoints。")]
         [SerializeField] RelicDustSource dustSource;
 
         [Header("碑芯（露出的本体）· 圣光")]

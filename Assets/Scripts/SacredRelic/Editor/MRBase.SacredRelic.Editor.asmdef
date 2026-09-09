@@ -3,8 +3,7 @@
     "rootNamespace": "MRBase.SacredRelic.Editor",
     "references": [
         "MRBase.SacredRelic",
-        "Unity.TextMeshPro",
-        "Unity.VisualEffectGraph.Runtime"
+        "Unity.TextMeshPro"
     ],
     "includePlatforms": [
         "Editor"

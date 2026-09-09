@@ -1,7 +1,0 @@
-{
-  "version": "fixture-v1",
-  "markers": [
-    { "picoArUcoId": 0, "qrId": "0", "logicalMarkerId": "anchor_0", "businessObjectId": "" },
-    { "picoArUcoId": 250, "qrId": "250", "logicalMarkerId": "anchor_250", "businessObjectId": "" }
-  ]
-}

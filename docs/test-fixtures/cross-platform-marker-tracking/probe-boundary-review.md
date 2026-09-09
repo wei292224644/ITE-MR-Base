@@ -1,5 +1,7 @@
 # Marker Probe implementation boundary review
 
+> **过时（2026-09-09）**：下文描述的 `MarkerTrackingBootstrapper` / `IMarkerTrackingProvider` / `QuestMarkerProvider` / `PicoMarkerProvider` 生产链已删除。现行路径是 `IMarkerObservationSource` → `MarkerTrackingSession`，探针场景是 `MarkerHookTest`。见 `openspec/specs/unified-marker-tracking-contract/spec.md`。
+
 Reviewed: 2026-08-03
 
 This note records task 2.1 of the `cross-platform-marker-tracking` change. The

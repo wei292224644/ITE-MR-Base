@@ -1,5 +1,7 @@
 # 二维码/标记扫描定位(Quest + PICO)Implementation Plan
 
+> **过时（2026-09-09）**：本文记录的是已放弃的 `IMarkerTrackingProvider` / PICO 原生 ArUco / `AnchorRegistry` 方案，不要按它实现。现行契约是 `IMarkerObservationSource` + `MarkerTrackingSession`（PICO AprilTag，Quest MRUK QR）。见 `openspec/specs/unified-marker-tracking-contract/spec.md`。
+
 > **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development (recommended) or superpowers:executing-plans to implement this plan task-by-task. Steps use checkbox (`- [ ]`) syntax for tracking.
 
 **Goal:** 让 Quest 3/3S 与 PICO 4 Ultra/Enterprise 用户扫描现场标记后,把从网络动态获取的虚拟内容准确锚定到该标记对应的真实世界位置。

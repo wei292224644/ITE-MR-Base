@@ -1,5 +1,7 @@
 # 二维码/标记扫描定位方案设计(Quest + PICO)
 
+> **过时（2026-09-09）**：本文是 2026-07-27 的原设计（Quest MRUK QR + PICO ArUco + `IMarkerTrackingProvider` + `AnchorRegistry`）。PICO 原生 ArUco 已被真机证伪，生产链已下线。现行契约见 `openspec/specs/unified-marker-tracking-contract/spec.md`。
+
 日期:2026-07-27
 项目:MR_Base(Unity MR Template,面向 Quest 与 PICO 全平台)
 

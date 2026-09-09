@@ -34,11 +34,8 @@ Assets/Scripts/SacredRelic/
   SacredRelicTrigger.cs           触发入口（Space 觉醒 / R 复位 / OnTriggerEnter）
   RelicDustSource.cs              沙尘抽象基类
   RelicDustBakedPoints.cs         沙尘实现：烘焙表面点，单 ParticleSystem 单 DrawCall
-  RelicDustVfx.cs                 沙尘实现：VFX Graph（备选，未采用）
-  DecayShellNarrative.cs          叙事约定的代码化说明
   Shaders/SacredRelicShell.shader 外壳 shader：裂纹 + 金光 + 溶解
   Editor/SacredRelicSteleBinder.cs  一键接线（菜单 Tools/Sacred Relic/Bind Scene Stele）
-  Editor/SacredRelicDemoBuilder.cs  程序化生成 Demo 场景（老管线，长方体外壳）
 
 Assets/Assets/SacredRelicDemo/
   SacredRelicAwakenDemo.unity     Demo 场景（当前调好的那个）
@@ -108,9 +105,9 @@ shards 列表、instancing），手调的演出参数和 look 参数一律不碰
 **换灯光就得重调金光。** 两个 2.2 的平行光已经把石头照得不暗，金色是**加在**这个亮度之上的，
 而项目没有 HDR —— 灯调亮一点，金光就会削顶变白（坑 3）；灯调暗，`1.3` 又会不够亮。
 
-**② 包依赖。** 两个 asmdef 引用了 `Unity.InputSystem`、`Unity.VisualEffectGraph.Runtime`、
-`Unity.TextMeshPro`。**缺任何一个，整个 `MRBase.SacredRelic` 程序集都编译不过**（不只是少个功能）。
-InputSystem 是 `SacredRelicTrigger` 的键鼠分支要的，VFX Graph 是备选方案 `RelicDustVfx` 要的。
+**② 包依赖。** `MRBase.SacredRelic` 引用了 `Unity.InputSystem`、`Unity.TextMeshPro`。
+**缺任何一个，整个程序集都编译不过**（不只是少个功能）。
+InputSystem 是 `SacredRelicTrigger` 的键鼠分支要的。
 
 **③ 资产路径在 Binder 里是硬编码的**，文件夹改名或移动必须同步改 `SacredRelicSteleBinder.cs`：
 
@@ -465,7 +462,7 @@ void SetShardPose(Shard shard, Vector3 localPosition, Quaternion localRotation)
 - `burstReach` / `seamOpening` 现在是**局部单位**，不要再手动乘缩放 —— 父矩阵会带上
 - `_SpreadStartWS` / `_SpreadEndWS` 是喂 shader 的世界坐标，在 `Push()` 里逐帧换算，不在缓存时算（否则播放中挪碑会错位）
 - `hingePivot` 用 `LocalBounds(renderer)`，不能用 `renderer.bounds`（那是世界的）
-- 加碎片的地方（`SacredRelicDemoBuilder`、`SacredRelicSteleBinder`）**不要**自己填 `restPosition`，`Bind()` 会清掉 `restCached` 让 `CacheRest` 自己按局部坐标读
+- 加碎片的地方（`SacredRelicSteleBinder`）**不要**自己填 `restPosition`，`Bind()` 会清掉 `restCached` 让 `CacheRest` 自己按局部坐标读
 
 回归由三个测试盯着，全都**不调用任何重新缓存**，这正是要保证的：
 `Sealed_Shards_Follow_A_Moved_Stele_Without_Re_Caching`、

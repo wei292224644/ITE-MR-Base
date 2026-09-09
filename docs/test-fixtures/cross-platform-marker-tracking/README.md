@@ -1,5 +1,7 @@
 # PICO QR + ArUco A3 and dual-A4 test fixtures
 
+> **过时**：PICO 原生 ArUco 已被真机证伪。现行打印夹具在 `docs/test-fixtures/pico-camera-fiducial-tracking/`（QR + AprilTag）。本目录只作历史对照，不要再按这里的 ArUco 尺寸做新试验。
+
 These fixtures isolate marker-tracking architecture feasibility from later
 business modes such as one-shot triggers and repeated localization scans.
 

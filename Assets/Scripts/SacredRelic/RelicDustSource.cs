@@ -4,9 +4,8 @@ using UnityEngine;
 namespace MRBase.SacredRelic
 {
     /// <summary>
-    /// Turns a shard's disappearing surface into drifting dust. Two implementations exist so the
-    /// look and the cost can be compared side by side; see <see cref="RelicDustBakedPoints"/> and
-    /// <see cref="RelicDustVfx"/>.
+    /// Turns a shard's disappearing surface into drifting dust.
+    /// The production path is <see cref="RelicDustBakedPoints"/>.
     /// </summary>
     public abstract class RelicDustSource : MonoBehaviour
     {
