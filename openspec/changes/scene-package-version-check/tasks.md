@@ -2,9 +2,15 @@
 
 > 排在第一组：D2 选 HEAD 而非 `If-None-Match`，前提是该直链经 `UnityWebRequest` 也能正常返回 `ETag`。`curl -I` 已确认服务端支持，但那走的是 curl 的网络栈。这一条不通，后面全部要按 D2 的替代方案重做。
 
-- [ ] 1.1 在 Editor 里发一次 `UnityWebRequest.Head("https://ite-spatial-config.uality.cn/thirdDemo.zip")`，打印 `responseCode` 与 `GetResponseHeader("ETag")`
-- [ ] 1.2 **验证点**：`responseCode == 200` 且 `ETag` 非空。拿到的值应与 `curl -I` 一致（当前为 `"B6A43FCA26644FF44FA21BBADCC8D5B3-1"`，内容若被重新上传会变，比对的是"两边一致"而非这个字面量）
-- [ ] 1.3 若 HEAD 不通：停下来，按 design D2 的替代方案（`If-None-Match` + 显式判 `responseCode == 304`）改写 D2 与 D5，再继续
+- [x] 1.1 在 Editor 里发一次 `UnityWebRequest.Head("https://ite-spatial-config.uality.cn/thirdDemo.zip")`，打印 `responseCode` 与 `GetResponseHeader("ETag")`
+  - 经 `unity command run_tests` 在 live Editor 里以临时 `[UnityTest]` 跑通，记录后即删除（网络依赖的用例不留在常驻套里）
+- [x] 1.2 **验证点**：`responseCode == 200` 且 `ETag` 非空。拿到的值应与 `curl -I` 一致
+  - `result=Success code=200 ETag="B6A43FCA26644FF44FA21BBADCC8D5B3-1" Last-Modified=Thu, 25 Dec 2025 03:41:43 GMT`
+  - 与 `curl -I` 的返回值**逐字符一致**，含外层双引号。D2 成立，无需换方案
+  - 顺带敲掉 probe 的两条开放假设：HEAD 经 Unity 网络栈可用；两侧校验器值一致
+  - `ETag` 字面量含双引号（`"B6A4..."` 而非 `B6A4...`）。存取两侧都来自本入口，形态一致，按原样存即可，不做规范化
+- [x] 1.3 若 HEAD 不通：停下来，按 design D2 的替代方案（`If-None-Match` + 显式判 `responseCode == 304`）改写 D2 与 D5，再继续
+  - **不适用** —— HEAD 可用，未触发该分支
 
 ## 2. 补齐解压测试（design D7，独立于版本比对，可先落地）
 
