@@ -52,16 +52,18 @@
   - 订阅 `MarkerLost`：仅记录供 HUD 显示，不对 ITE 做任何动作
   - 提供 `Dispose()` 退订
 - [x] 4.2 补 EditMode 测试覆盖剥壳：合规 payload、不合规 payload（如 `"250"`）、空串、星号数量不对、内层为空
-- [ ] 4.3 `IteHostBootstrap` 恢复标记源接线
+- [x] 4.3 `IteHostBootstrap` 恢复标记源接线
   - 删掉 `markerTracking` 那段注释掉的旧字段与 `MarkerSourceAdapter` 残留
   - 新增可序列化字段：外壳正则（默认 `^\*{6}(.*?)\*{6}$`）、`OnTourSceneLoaded` 超时秒数
   - 暴露 `AttachMarkerSession(MarkerTrackingSession session)`：会话**只能由外部注入**，装配点自己不构造会话、不持有任何 `IMarkerObservationSource` 具体实现的字段（design D3 会话归属）。注入后建 `IteMarkerBridge` 接到 `IteRuntime.SubmitMarkerScan`
   - `AttachMarkerSession` 在 runtime 就绪前调用则暂存、就绪后补接；调用时机不构成约束
-- [ ] 4.4 未注入会话时：加载链照常执行到 `OnInitialized`，触发体积照常开启，只打一条"未接入标记源，扫码激活不可用"的说明性日志，不报错中断
-- [ ] 4.5 `IteHostBootstrap` 转发 `IteRuntime` 的全部对外事件，统一 `[ITE Host]` 前缀日志：`OnLoadProgress` / `OnSpaceSceneLoaded` / `OnSpaceSceneAssetsLoaded` / `OnInitialized` / `OnTourActivated` / `OnTourDeactivated` / `OnTourSceneLoaded` / `OnScanPromptChanged`
-- [ ] 4.6 `OnTourActivated` 之后启动超时计时，超时仍未收到对应 tourId 的 `OnTourSceneLoaded` 则报错（`Enable()` 是 fire-and-forget，异常不冒泡）
-- [ ] 4.7 `OnDestroy` 里退订全部事件并 `Dispose` 桥接
-- [ ] 4.8 **由 review 保证**（无自动化验收）：`IteHostBootstrap` 与 `IteMarkerBridge` 的字段与构造逻辑中不出现任何 `IMarkerObservationSource` 具体实现类型。host spec 那条解耦要求是结构性属性，唯一的自动化手段是反射断言字段类型，维护成本高于它能挡住的错误——这里明确记为人工检查项，免得它看起来有验收其实没有
+- [x] 4.4 未注入会话时：加载链照常执行到 `OnInitialized`，触发体积照常开启，只打一条"未接入标记源，扫码激活不可用"的说明性日志，不报错中断
+  - EditMode：`TryCreateRuntime_WithoutSession_LogsAndStillCreates`（加载链本身仍由 Play/`StartAsync` 覆盖）
+- [x] 4.5 `IteHostBootstrap` 转发 `IteRuntime` 的全部对外事件，统一 `[ITE Host]` 前缀日志：`OnLoadProgress` / `OnSpaceSceneLoaded` / `OnSpaceSceneAssetsLoaded` / `OnInitialized` / `OnTourActivated` / `OnTourDeactivated` / `OnTourSceneLoaded` / `OnScanPromptChanged`
+- [x] 4.6 `OnTourActivated` 之后启动超时计时，超时仍未收到对应 tourId 的 `OnTourSceneLoaded` 则报错（`Enable()` 是 fire-and-forget，异常不冒泡）
+- [x] 4.7 `OnDestroy` 里退订全部事件并 `Dispose` 桥接
+- [x] 4.8 **由 review 保证**（无自动化验收）：`IteHostBootstrap` 与 `IteMarkerBridge` 的字段与构造逻辑中不出现任何 `IMarkerObservationSource` 具体实现类型。host spec 那条解耦要求是结构性属性，唯一的自动化手段是反射断言字段类型，维护成本高于它能挡住的错误——这里明确记为人工检查项，免得它看起来有验收其实没有
+  - 已人工核对：`IteHostBootstrap` 只持有 `MarkerTrackingSession _pendingSession` 与 `IteMarkerBridge`；`IteMarkerBridge` 构造只收 `MarkerTrackingSession`
 
 ## 5. 编辑器驱动层
 
