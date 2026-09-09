@@ -67,7 +67,7 @@
 
 ## 5. 编辑器驱动层
 
-- [ ] 5.1 走位控制器：WASD 平移 + 鼠标视角，不做蹲起/跳跃/重力/碰撞
+- [x] 5.1 走位控制器：WASD 平移 + 鼠标视角，不做蹲起/跳跃/重力/碰撞
 - [ ] 5.2 假扫码驱动：**由驱动层构造** `MockObservationSource` 与 `MarkerTrackingSession`，每帧 `Tick(Time.deltaTime)`，并在 `Start()` 里调 `IteHostBootstrap.AttachMarkerSession` 把会话注进去（依赖方向：输入层 → 装配层，反向不成立）
   - 序列化一个 tourId 列表（默认填 thirdDemo 的 5 个），按数字键各触发一个
   - 触发时构造相机前方 1.5 米、法线朝向相机的世界位姿（design D6），组装成 `RawPayload = "******{tourId}******"` 的观测塞进 mock 源
