@@ -40,7 +40,9 @@
 - [x] 4.3 补 EditMode 测试覆盖 4.2 的全部四种组合
   - `IteContentPipelineTests` 23/23 通过，其中 `ShouldDownloadSpacePackage_*` 共 10 个参数化用例
   - 「两侧都没值 → 下载」这条用 `(null,null) ("","") (null,"") ("",null)` 四种写法钉死，避免将来有人把 `null` 与 `""` 当两回事
-- [ ] 4.4 新增只取响应头的请求入口（`ContentAssetLoader` 或 `Runtime/Internal/` 下），返回 `ETag`；请求失败或响应头缺失时返回 null，不抛异常
+- [x] 4.4 新增只取响应头的请求入口（`ContentAssetLoader` 或 `Runtime/Internal/` 下），返回 `ETag`；请求失败或响应头缺失时返回 null，不抛异常
+  - `ContentAssetLoader.FetchEtagAsync`。不写常驻单测（网络 I/O，会 flaky），改用 `unity command eval` 活体验证两条路径：
+  - 真实 URL → `"B6A43FCA26644FF44FA21BBADCC8D5B3-1"`；404 URL → `NULL` 且不抛异常
 - [ ] 4.5 跳过下载的条件除 4.2 的判定外，**同时**要求 `File.Exists(IteSpaceScene_{scene}/{scene}.json)`（design D5 收窄）。这个判断放在 pipeline 调用点，`ShouldDownloadSpacePackage` 保持纯函数、不碰文件系统
 - [ ] 4.6 `FetchSpaceSceneAsync` 的联网分支改为：查 `ETag` → 4.2 判定 + 4.5 文件检查 → 需要才下载
 - [ ] 4.7 下载解压成功后才 `SpacePackageEtagCache.Set`（design D6）。解压抛 `InvalidDataException` 时异常向上冒泡，写记录自然跳过——确认没有 `try/catch` 把它吞掉

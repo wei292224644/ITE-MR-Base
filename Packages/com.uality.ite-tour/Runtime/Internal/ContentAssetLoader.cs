@@ -128,5 +128,39 @@ namespace Uality.IteTour.Internal
                 return JsonConvert.DeserializeObject<T>(www.downloadHandler.text);
             }
         }
+
+        /// <summary>
+        /// 只取响应头里的 <c>ETag</c>，不下载正文（design D2 用 HEAD 而非
+        /// <c>If-None-Match</c>：HEAD 的成功就是成功、失败就是失败，不必把 304
+        /// 从 <c>ProtocolError</c> 里认出来）。
+        ///
+        /// 请求失败或响应头缺 <c>ETag</c> 时返回 null 而不抛异常——调用方按
+        /// 「校验器取不到」处理（design D5），不该因为查不到版本就让加载链失败。
+        ///
+        /// 返回值含服务端给的双引号（形如 <c>"B6A4...-1"</c>）。存取两侧都走本入口，
+        /// 形态一致，不做规范化。
+        /// </summary>
+        public static async Task<string> FetchEtagAsync(string absoluteUrl)
+        {
+            using (UnityWebRequest www = UnityWebRequest.Head(absoluteUrl))
+            {
+                await www.SendWebRequest();
+
+                if (www.result != UnityWebRequest.Result.Success)
+                {
+                    Debug.LogWarning($"[IteTour] 校验器查询失败: {absoluteUrl} — {www.error}");
+                    return null;
+                }
+
+                string etag = www.GetResponseHeader("ETag");
+                if (string.IsNullOrEmpty(etag))
+                {
+                    Debug.LogWarning($"[IteTour] 响应头缺少 ETag: {absoluteUrl}");
+                    return null;
+                }
+
+                return etag;
+            }
+        }
     }
 }
