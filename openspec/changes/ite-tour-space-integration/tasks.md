@@ -9,14 +9,16 @@
 
 ## 2. 内容获取修复（做完并单独确认，再碰宿主 — design D8）
 
-- [ ] 2.1 清掉本机现有的 ITE 缓存。上一个 change 在 `persistentDataPath` 下留了一份**被裁剪过**的 `IteSpaceScene_thirdDemo/thirdDemo.json`（tours 只剩 1 个）与一个 tour 目录，不清掉会让联网首跑的验证失去意义
+- [x] 2.1 清掉本机现有的 ITE 缓存。上一个 change 在 `persistentDataPath` 下留了一份**被裁剪过**的 `IteSpaceScene_thirdDemo/thirdDemo.json`（tours 只剩 1 个）与一个 tour 目录，不清掉会让联网首跑的验证失去意义
   - macOS 编辑器：`~/Library/Application Support/响堂山/响堂山`（`companyName` / `productName` 均为 `响堂山`）
-- [ ] 2.2 在 `ZipContentDownloader` 里加 `ZipTopLevel` 枚举（`Preserve` / `Strip`），`DownloadAndExtractAsync` 与 `ExtractAsync` 增加该参数（design D1）
-- [ ] 2.3 实现 `Strip`：解压时剥掉条目的公共顶层目录；条目并非全部位于同一顶层目录之下时报错并中止，MUST NOT 静默按原样落盘
-- [ ] 2.4 忽略 `__MACOSX/` 条目（macOS Finder 压缩产物，`thirdDemo.zip` 里就有），避免它干扰"公共顶层目录"的判定
-- [ ] 2.5 `IteContentPipeline` 两处调用各自传值：空间场景包传 `Strip`，tour 包传 `Preserve`
-- [ ] 2.6 `FetchSpaceSceneAsync` 读不到描述时，异常信息带上 `sceneName` 与被查找的完整路径
-- [ ] 2.7 补 EditMode 测试：`Strip` / `Preserve` 两种语义的落盘结果、以及"声明 Strip 但 zip 无公共顶层目录"时报错
+  - 已用 live Editor 确认 `Application.persistentDataPath` 即该路径；其下目前只有 `TestResults.xml` 与 `Unity/`，**无** `IteSpaceScene_*` 或 tour 目录，无需删除
+- [x] 2.2 在 `ZipContentDownloader` 里加 `ZipTopLevel` 枚举（`Preserve` / `Strip`），`DownloadAndExtractAsync` 与 `ExtractAsync` 增加该参数（design D1）
+- [x] 2.3 实现 `Strip`：解压时剥掉条目的公共顶层目录；条目并非全部位于同一顶层目录之下时报错并中止，MUST NOT 静默按原样落盘
+- [x] 2.4 忽略 `__MACOSX/` 条目（macOS Finder 压缩产物，`thirdDemo.zip` 里就有），避免它干扰"公共顶层目录"的判定
+- [x] 2.5 `IteContentPipeline` 两处调用各自传值：空间场景包传 `Strip`，tour 包传 `Preserve`
+- [x] 2.6 `FetchSpaceSceneAsync` 读不到描述时，异常信息带上 `sceneName` 与被查找的完整路径
+- [x] 2.7 补 EditMode 测试：`Strip` / `Preserve` 两种语义的落盘结果、以及"声明 Strip 但 zip 无公共顶层目录"时报错
+  - live Editor：`ZipTopLevelResolver` 9 passed、`ZipContentDownloader` 5 passed、`FetchSpaceSceneAsync_OfflineWithoutCache_ThrowsWithSceneNameAndPath` passed
 - [ ] 2.8 `Assets/Settings/ITE/IteRuntimeConfig.asset` 的 `sceneName` 由空串改为 `thirdDemo`（`tourObjectPrefab` 已核实连对：guid `5a15cfba1014e4572bf41e551294e97a` 即包内 `Runtime/Prefabs/Tour.prefab`，无需改动）
 - [ ] 2.9 **验证点**：联网首跑一次（临时建个空场景挂 `IteHostBootstrap` 即可，不必等 harness；第 1 组做完后 `MRCore` 里已经没有可蹭的装配点了），用 `ls` 直接确认落盘布局
   - `IteSpaceScene_thirdDemo/thirdDemo.json` 存在且**不**多一层 `thirdDemo/`

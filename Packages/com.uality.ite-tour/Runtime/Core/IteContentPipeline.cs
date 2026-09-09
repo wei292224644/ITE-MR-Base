@@ -77,7 +77,8 @@ namespace Uality.IteTour.Core
             {
                 await ZipContentDownloader.DownloadAndExtractAsync(
                     _config.BuildSpaceSceneUrl(sceneName),
-                    SpaceSceneFolder(sceneName));
+                    SpaceSceneFolder(sceneName),
+                    ZipTopLevel.Strip);
             }
 
             string relativePath = Path.Combine(SpaceSceneFolder(sceneName), sceneName + ".json");
@@ -85,7 +86,8 @@ namespace Uality.IteTour.Core
 
             if (scene == null || scene.tours == null || scene.tours.Length == 0)
             {
-                throw new Exception("No tours found in IteSpaceScene: " + sceneName);
+                string fullPath = ContentAssetLoader.Resolve(relativePath);
+                throw new Exception($"No tours found in IteSpaceScene: {sceneName} (path: {fullPath})");
             }
 
             return scene;
@@ -196,7 +198,8 @@ namespace Uality.IteTour.Core
                 return;
             }
 
-            await ZipContentDownloader.DownloadAndExtractAsync(_config.BuildTourPackageUrl(tourId));
+            await ZipContentDownloader.DownloadAndExtractAsync(
+                _config.BuildTourPackageUrl(tourId), relativeFolder: "", ZipTopLevel.Preserve);
 
             // 只在下载解压成功之后才写版本，保持源实现的顺序
             TourVersionCache.Set(tourId, serverVersion);

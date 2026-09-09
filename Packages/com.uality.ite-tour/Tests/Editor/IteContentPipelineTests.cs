@@ -60,11 +60,11 @@ namespace Uality.IteTour.Tests
         }
 
         /// <summary>
-        /// 离线且无本地缓存时，要给出带场景名的可诊断错误，而不是静默返回 null
-        /// 让后续在别处炸开。
+        /// 离线且无本地缓存时，要给出带场景名与完整查找路径的可诊断错误，
+        /// 而不是静默返回 null 让后续在别处炸开。
         /// </summary>
         [Test]
-        public void FetchSpaceSceneAsync_OfflineWithoutCache_ThrowsWithSceneName()
+        public void FetchSpaceSceneAsync_OfflineWithoutCache_ThrowsWithSceneNameAndPath()
         {
             var pipeline = new IteContentPipeline(_config, isNetworkAvailable: () => false);
 
@@ -72,6 +72,8 @@ namespace Uality.IteTour.Tests
                 await pipeline.FetchSpaceSceneAsync("ite-scene-that-was-never-cached"));
 
             Assert.That(ex.Message, Does.Contain("ite-scene-that-was-never-cached"));
+            Assert.That(ex.Message, Does.Contain("IteSpaceScene_ite-scene-that-was-never-cached"),
+                "错误信息必须带上被查找的完整路径，否则联网首跑失败时无从排查");
         }
 
         [Test]
