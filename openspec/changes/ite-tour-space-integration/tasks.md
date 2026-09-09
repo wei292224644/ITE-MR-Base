@@ -28,7 +28,9 @@
 - [x] 2.10 **验证点（离线路径）**：把 `IteHostBootstrap` 的 `networkAvailable` 置为 **false** 后复跑，`OnInitialized` 仍触发，且无任何 HTTP 请求
   - Play 约 8 秒结束、`IsLoading=false`、5 个 `IteTourObject` 全部装配（若走了联网下载 151 MB 不可能这么快）；控制台无 `[IteTour] 内容包下载失败`
   - 这里**不是**"拔网线"。`networkAvailable` 默认为 `true`，而 `FetchSpaceSceneAsync` 在联网分支里无条件重下空间场景包（`IteContentPipeline.cs:76-81`）——留着 `true` 去物理断网，第一步就抛异常，那次失败与"本地缓存能否独立跑通"无关，却长得像离线路径不通
-- [ ] 2.11 **验证点（联网复跑）**：`networkAvailable` 保持 **true** 再跑一次，确认 5 个 tour 包**全部命中版本缓存、无一重新下载**
+- [x] 2.11 **验证点（联网复跑）**：`networkAvailable` 保持 **true** 再跑一次，确认 5 个 tour 包**全部命中版本缓存、无一重新下载**
+  - PlayerPrefs 已存 `ite.tour.{id}.version` 为字符串 `7/24/17/8/9`（JSON 数字经 Newtonsoft 转 string，比对成立）
+  - 复跑后 5 个 tour 的 `{id}.json` mtime 不变；空间场景包 mtime 更新（每次重下，符合既有行为）
   - 这一步同时验掉版本形态问题：API 返回 JSON 数字 `"version": 7`，而 `LatestVersionJsonResult.Data.version` 声明为 `string`。若 `TourVersionCache` 存的形态与比对逻辑对不上，表现就是这一步又下了 290 MB
   - 空间场景包本来就每次重下（358 KB，包内已记 TODO，本次不改），不计入本条
 
