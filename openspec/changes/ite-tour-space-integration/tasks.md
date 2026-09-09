@@ -46,12 +46,12 @@
 
 ## 4. 宿主接入层
 
-- [ ] 4.1 新增 `Assets/Scripts/IteHost/IteMarkerBridge.cs`（纯 C#，非 MonoBehaviour，形状对齐 `HeadsetPresenceAdapter` — design D3）
+- [x] 4.1 新增 `Assets/Scripts/IteHost/IteMarkerBridge.cs`（纯 C#，非 MonoBehaviour，形状对齐 `HeadsetPresenceAdapter` — design D3）
   - 构造注入：`MarkerTrackingSession`、外壳正则、`Action<string, Pose>` 转发目标
   - 订阅 `MarkerObserved`：正则剥壳成功 → 调转发目标；失败 → 打日志并带上原始 payload，不转发
   - 订阅 `MarkerLost`：仅记录供 HUD 显示，不对 ITE 做任何动作
   - 提供 `Dispose()` 退订
-- [ ] 4.2 补 EditMode 测试覆盖剥壳：合规 payload、不合规 payload（如 `"250"`）、空串、星号数量不对、内层为空
+- [x] 4.2 补 EditMode 测试覆盖剥壳：合规 payload、不合规 payload（如 `"250"`）、空串、星号数量不对、内层为空
 - [ ] 4.3 `IteHostBootstrap` 恢复标记源接线
   - 删掉 `markerTracking` 那段注释掉的旧字段与 `MarkerSourceAdapter` 残留
   - 新增可序列化字段：外壳正则（默认 `^\*{6}(.*?)\*{6}$`）、`OnTourSceneLoaded` 超时秒数
