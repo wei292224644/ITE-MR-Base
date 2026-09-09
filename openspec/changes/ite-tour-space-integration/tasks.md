@@ -20,10 +20,11 @@
 - [x] 2.7 补 EditMode 测试：`Strip` / `Preserve` 两种语义的落盘结果、以及"声明 Strip 但 zip 无公共顶层目录"时报错
   - live Editor：`ZipTopLevelResolver` 9 passed、`ZipContentDownloader` 5 passed、`FetchSpaceSceneAsync_OfflineWithoutCache_ThrowsWithSceneNameAndPath` passed
 - [x] 2.8 `Assets/Settings/ITE/IteRuntimeConfig.asset` 的 `sceneName` 由空串改为 `thirdDemo`（`tourObjectPrefab` 已核实连对：guid `5a15cfba1014e4572bf41e551294e97a` 即包内 `Runtime/Prefabs/Tour.prefab`，无需改动）
-- [ ] 2.9 **验证点**：联网首跑一次（临时建个空场景挂 `IteHostBootstrap` 即可，不必等 harness；第 1 组做完后 `MRCore` 里已经没有可蹭的装配点了），用 `ls` 直接确认落盘布局
+- [x] 2.9 **验证点**：联网首跑一次（临时建个空场景挂 `IteHostBootstrap` 即可，不必等 harness；第 1 组做完后 `MRCore` 里已经没有可蹭的装配点了），用 `ls` 直接确认落盘布局
+  - 临时场景 `Assets/Scenes/IteAcquireVerify.unity`（不进 build）。Play 完成后 `IsLoading=false`
   - `IteSpaceScene_thirdDemo/thirdDemo.json` 存在且**不**多一层 `thirdDemo/`
   - `IteSpaceScene_thirdDemo/assets/` 下有 logo 与 5 张 tour 预览图
-  - 5 个 tour 目录直接落在 persistentDataPath 根：`wm0l5qcn_ibd/` `4kvhqwvp_12f/` `earyserh_i5x/` `azdugaax_xry/` `hkdaowxy_0hu/`，各自含 `{tourId}.json` 与 `asset/`
+  - 5 个 tour 目录直接落在 persistentDataPath 根：`wm0l5qcn_ibd/` `4kvhqwvp_12f/` `earyserh_i5x/` `azdugaax_xry/` `hkdaowxy_0hu/`，各自含 `{tourId}.json` 与 `asset/`（体积约 38/168/42/66/47 MB）
 - [ ] 2.10 **验证点（离线路径）**：把 `IteHostBootstrap` 的 `networkAvailable` 置为 **false** 后复跑，`OnInitialized` 仍触发，且无任何 HTTP 请求
   - 这里**不是**"拔网线"。`networkAvailable` 默认为 `true`，而 `FetchSpaceSceneAsync` 在联网分支里无条件重下空间场景包（`IteContentPipeline.cs:76-81`）——留着 `true` 去物理断网，第一步就抛异常，那次失败与"本地缓存能否独立跑通"无关，却长得像离线路径不通
 - [ ] 2.11 **验证点（联网复跑）**：`networkAvailable` 保持 **true** 再跑一次，确认 5 个 tour 包**全部命中版本缓存、无一重新下载**
