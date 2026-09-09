@@ -1,4 +1,5 @@
 using System;
+using System.Collections.Generic;
 using System.Threading.Tasks;
 using UnityEngine;
 
@@ -197,6 +198,31 @@ namespace Uality.IteTour.Core
         /// 这是验证内容管线的唯一手段。找不到返回 false。
         /// </summary>
         public bool ActivateTour(string tourId) => _director.ActivateById(tourId);
+
+        /// <summary>当前激活的 tour。无激活时为 null。</summary>
+        public string ActiveTourId => _director.ActiveTourId;
+
+        /// <summary>相机当前所在触发体积对应的 tourId 集合。</summary>
+        public IReadOnlyList<string> PendingTourIds => _director.PendingTourIds;
+
+        /// <summary>已装配（未必已 Enable）的 tourId。</summary>
+        public IReadOnlyList<string> AssembledTourIds
+        {
+            get
+            {
+                var ids = new List<string>(_assembler.LiveTours.Count);
+                for (int i = 0; i < _assembler.LiveTours.Count; i++)
+                {
+                    var tour = _assembler.LiveTours[i];
+                    if (tour != null)
+                    {
+                        ids.Add(tour.TourId);
+                    }
+                }
+
+                return ids;
+            }
+        }
 
         /// <summary>宿主推入扫码结果。包不订阅任何平台的标记事件。</summary>
         public void SubmitMarkerScan(string markerId, Pose pose)

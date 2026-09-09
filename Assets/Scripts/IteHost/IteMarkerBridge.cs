@@ -14,6 +14,9 @@ namespace MRBase.Ite.Host
         private readonly Regex _shell;
         private readonly Action<string, Pose> _onScan;
 
+        /// <summary>最近一次观测的原始 payload，供 HUD 显示。尚未观测则为 null。</summary>
+        public string LastObservedRawPayload { get; private set; }
+
         /// <summary>最近一次丢失的原始 payload，供 HUD 显示。未丢失过则为 null。</summary>
         public string LastLostRawPayload { get; private set; }
 
@@ -32,6 +35,7 @@ namespace MRBase.Ite.Host
 
         private void HandleObserved(MarkerObservation observation)
         {
+            LastObservedRawPayload = observation.RawPayload;
             var match = _shell.Match(observation.RawPayload ?? string.Empty);
             if (!match.Success || match.Groups.Count < 2)
             {

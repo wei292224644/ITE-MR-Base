@@ -137,6 +137,8 @@ namespace Uality.IteTour.Tests
             {
                 var runtime = IteRuntime.Create(fixture.Bootstrap());
                 Assert.IsNotNull(runtime);
+                Assert.IsNull(runtime.ActiveTourId);
+                Assert.AreEqual(0, runtime.AssembledTourIds.Count);
                 runtime.Shutdown();
             }
             finally

@@ -5,7 +5,9 @@
         "MRBase.Localization",
         "MRBase.Localization.Native",
         "MRBase.Common",
-        "Uality.IteTour"
+        "Uality.IteTour",
+        "Unity.UGUI",
+        "Unity.TextMeshPro"
     ],
     "includePlatforms": [],
     "excludePlatforms": [],

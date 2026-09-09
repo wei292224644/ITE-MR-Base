@@ -72,7 +72,7 @@
   - 序列化一个 tourId 列表（默认填 thirdDemo 的 5 个），按数字键各触发一个
   - 触发时构造相机前方 1.5 米、法线朝向相机的世界位姿（design D6），组装成 `RawPayload = "******{tourId}******"` 的观测塞进 mock 源
   - 观测持续投喂若干帧后停止，使 `MarkerLost` 的滞回可被触发
-- [ ] 5.3 调试 HUD（屏幕空间，仿 `Assets/Scripts/Localization/Native/MarkerHookTestHud.cs`）：加载进度、空间场景名、已装配 tourId 列表、当前激活 tourId、`ScanPrompt` 状态与 TourIds、相机所在触发体积集合、最近一次观测与丢失
+- [x] 5.3 调试 HUD（屏幕空间，仿 `Assets/Scripts/Localization/Native/MarkerHookTestHud.cs`）：加载进度、空间场景名、已装配 tourId 列表、当前激活 tourId、`ScanPrompt` 状态与 TourIds、相机所在触发体积集合、最近一次观测与丢失
 - [ ] 5.4 确认驱动层与 HUD 整块停用后，加载链仍完整执行到 `OnInitialized`（此时即 4.4 的未注入路径）
 
 ## 6. 场景
