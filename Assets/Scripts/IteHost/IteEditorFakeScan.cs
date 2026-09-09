@@ -1,5 +1,9 @@
 using UnityEngine;
 
+#if ENABLE_INPUT_SYSTEM
+using UnityEngine.InputSystem;
+#endif
+
 namespace MRBase.Ite.Host
 {
     /// <summary>
@@ -58,15 +62,57 @@ namespace MRBase.Ite.Host
 
         private void Update()
         {
+            TryTriggerFromKeyboard();
+            Tick(Time.deltaTime);
+        }
+
+        void TryTriggerFromKeyboard()
+        {
+            if (tourIds == null)
+            {
+                return;
+            }
+
             for (int i = 0; i < tourIds.Length && i < 9; i++)
             {
-                if (Input.GetKeyDown(KeyCode.Alpha1 + i) || Input.GetKeyDown(KeyCode.Keypad1 + i))
+                if (WasDigitPressedThisFrame(i + 1))
                 {
                     Trigger(tourIds[i]);
                 }
             }
+        }
 
-            Tick(Time.deltaTime);
+        static bool WasDigitPressedThisFrame(int digit)
+        {
+#if ENABLE_INPUT_SYSTEM
+            var keyboard = Keyboard.current;
+            if (keyboard == null)
+            {
+                return false;
+            }
+
+            switch (digit)
+            {
+                case 1: return keyboard.digit1Key.wasPressedThisFrame || keyboard.numpad1Key.wasPressedThisFrame;
+                case 2: return keyboard.digit2Key.wasPressedThisFrame || keyboard.numpad2Key.wasPressedThisFrame;
+                case 3: return keyboard.digit3Key.wasPressedThisFrame || keyboard.numpad3Key.wasPressedThisFrame;
+                case 4: return keyboard.digit4Key.wasPressedThisFrame || keyboard.numpad4Key.wasPressedThisFrame;
+                case 5: return keyboard.digit5Key.wasPressedThisFrame || keyboard.numpad5Key.wasPressedThisFrame;
+                case 6: return keyboard.digit6Key.wasPressedThisFrame || keyboard.numpad6Key.wasPressedThisFrame;
+                case 7: return keyboard.digit7Key.wasPressedThisFrame || keyboard.numpad7Key.wasPressedThisFrame;
+                case 8: return keyboard.digit8Key.wasPressedThisFrame || keyboard.numpad8Key.wasPressedThisFrame;
+                case 9: return keyboard.digit9Key.wasPressedThisFrame || keyboard.numpad9Key.wasPressedThisFrame;
+                default: return false;
+            }
+#else
+            if (digit < 1 || digit > 9)
+            {
+                return false;
+            }
+
+            return Input.GetKeyDown(KeyCode.Alpha1 + (digit - 1))
+                || Input.GetKeyDown(KeyCode.Keypad1 + (digit - 1));
+#endif
         }
 
         public void Trigger(string tourId)

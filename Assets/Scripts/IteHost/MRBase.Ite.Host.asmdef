@@ -7,7 +7,8 @@
         "MRBase.Common",
         "Uality.IteTour",
         "Unity.UGUI",
-        "Unity.TextMeshPro"
+        "Unity.TextMeshPro",
+        "Unity.InputSystem"
     ],
     "includePlatforms": [],
     "excludePlatforms": [],

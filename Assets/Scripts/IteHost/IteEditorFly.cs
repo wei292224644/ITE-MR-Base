@@ -1,5 +1,9 @@
 using UnityEngine;
 
+#if ENABLE_INPUT_SYSTEM
+using UnityEngine.InputSystem;
+#endif
+
 namespace MRBase.Ite.Host
 {
     /// <summary>
@@ -11,6 +15,12 @@ namespace MRBase.Ite.Host
     {
         [SerializeField] float moveSpeed = 4f;
         [SerializeField] float lookSensitivity = 2f;
+
+        /// <summary>
+        /// Input System 的 <c>Mouse.delta</c> 是像素；旧 Input 的 Mouse X/Y 已做过缩放。
+        /// 乘这个系数后，现有 <see cref="lookSensitivity"/> 手感大致对齐。
+        /// </summary>
+        const float MouseDeltaToLook = 0.05f;
 
         private float _pitch;
 
@@ -24,20 +34,66 @@ namespace MRBase.Ite.Host
 
         private void Update()
         {
-            if (Input.GetKeyDown(KeyCode.Escape))
+            ReadEditorInput(out var toggleCursor, out var move, out var look);
+
+            if (toggleCursor)
             {
                 var locked = Cursor.lockState != CursorLockMode.Locked;
                 Cursor.lockState = locked ? CursorLockMode.Locked : CursorLockMode.None;
                 Cursor.visible = !locked;
             }
 
-            var move = new Vector3(Input.GetAxisRaw("Horizontal"), 0f, Input.GetAxisRaw("Vertical"));
-            var look = Cursor.lockState == CursorLockMode.Locked
-                ? new Vector2(Input.GetAxis("Mouse X"), Input.GetAxis("Mouse Y"))
-                : Vector2.zero;
+            if (Cursor.lockState != CursorLockMode.Locked)
+            {
+                look = Vector2.zero;
+            }
 
             EditorFlyMotion.Apply(
                 transform, move, look, moveSpeed, lookSensitivity, Time.deltaTime, ref _pitch);
+        }
+
+        static void ReadEditorInput(out bool toggleCursor, out Vector3 move, out Vector2 look)
+        {
+#if ENABLE_INPUT_SYSTEM
+            toggleCursor = false;
+            move = Vector3.zero;
+            look = Vector2.zero;
+
+            var keyboard = Keyboard.current;
+            if (keyboard != null)
+            {
+                toggleCursor = keyboard.escapeKey.wasPressedThisFrame;
+                if (keyboard.aKey.isPressed || keyboard.leftArrowKey.isPressed)
+                {
+                    move.x -= 1f;
+                }
+
+                if (keyboard.dKey.isPressed || keyboard.rightArrowKey.isPressed)
+                {
+                    move.x += 1f;
+                }
+
+                if (keyboard.sKey.isPressed || keyboard.downArrowKey.isPressed)
+                {
+                    move.z -= 1f;
+                }
+
+                if (keyboard.wKey.isPressed || keyboard.upArrowKey.isPressed)
+                {
+                    move.z += 1f;
+                }
+            }
+
+            var mouse = Mouse.current;
+            if (mouse != null)
+            {
+                look = mouse.delta.ReadValue() * MouseDeltaToLook;
+            }
+#else
+            toggleCursor = Input.GetKeyDown(KeyCode.Escape);
+            move = new Vector3(Input.GetAxisRaw("Horizontal"), 0f, Input.GetAxisRaw("Vertical"));
+            look = new Vector2(Input.GetAxis("Mouse X"), Input.GetAxis("Mouse Y"));
+#endif
         }
 
         private void OnDisable()

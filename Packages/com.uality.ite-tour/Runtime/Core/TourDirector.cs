@@ -298,6 +298,8 @@ namespace Uality.IteTour.Core
             {
                 tour.SecondAnchored();
             }
+
+            Debug.Log("[ITE] Reanchor " + tour.TourId + (consumesSecondAnchor ? " consumesSecondAnchor" : ""));
         }
 
         private void DeactivateCurrent()
