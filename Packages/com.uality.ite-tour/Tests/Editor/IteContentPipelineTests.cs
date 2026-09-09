@@ -157,5 +157,46 @@ namespace Uality.IteTour.Tests
         {
             Assert.That(IteContentPipeline.ShouldDownloadTourPackage(cachedVersion, "v3"), Is.True);
         }
+
+        /// <summary>
+        /// 与 tour 侧同样的「查不到就退回缓存」：网络抖动不该让一份完好的缓存失效。
+        /// </summary>
+        [TestCase(null)]
+        [TestCase("")]
+        public void ShouldDownloadSpacePackage_FallsBackToCacheWhenServerEtagIsUnknown(string serverEtag)
+        {
+            Assert.That(IteContentPipeline.ShouldDownloadSpacePackage("\"etag-1\"", serverEtag), Is.False);
+        }
+
+        /// <summary>
+        /// **本次唯一与 tour 侧语义不同的一条**（design D5）。
+        ///
+        /// tour 在版本查不到时一律不下载；场景包在**本地也没有记录**时仍须下载——
+        /// 否则后续 <c>LoadJsonAsync</c> 必然读不到文件而抛异常，而多下一次即可自愈。
+        /// tour 侧不存在同等风险：那种情况下抛异常本就是唯一且正确的结果。
+        /// </summary>
+        [TestCase(null, null)]
+        [TestCase("", "")]
+        [TestCase(null, "")]
+        [TestCase("", null)]
+        public void ShouldDownloadSpacePackage_DownloadsWhenNeitherSideHasAValue(
+            string cachedEtag, string serverEtag)
+        {
+            Assert.That(IteContentPipeline.ShouldDownloadSpacePackage(cachedEtag, serverEtag), Is.True);
+        }
+
+        [Test]
+        public void ShouldDownloadSpacePackage_SkipsWhenEtagMatches()
+        {
+            Assert.That(IteContentPipeline.ShouldDownloadSpacePackage("\"etag-1\"", "\"etag-1\""), Is.False);
+        }
+
+        [TestCase(null)]
+        [TestCase("")]
+        [TestCase("\"etag-0\"")]
+        public void ShouldDownloadSpacePackage_DownloadsWhenCacheIsMissingOrStale(string cachedEtag)
+        {
+            Assert.That(IteContentPipeline.ShouldDownloadSpacePackage(cachedEtag, "\"etag-1\""), Is.True);
+        }
     }
 }

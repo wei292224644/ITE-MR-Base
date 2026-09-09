@@ -186,6 +186,25 @@ namespace Uality.IteTour.Core
             return cachedVersion != serverVersion;
         }
 
+        /// <summary>
+        /// 要不要重新下载空间场景包。纯决策（design D3），不碰文件系统——
+        /// 「内容文件还在不在」由调用方另行判断（design D5）。
+        ///
+        /// 与 <see cref="ShouldDownloadTourPackage"/> 只差一处：服务端校验器查不到、
+        /// 且**本地也没有记录**时仍然下载。tour 侧那种情况下不下载是对的（后续读取
+        /// 抛异常是唯一且正确的结果）；场景包这里多下一次即可自愈，不该为了对称而
+        /// 放弃自愈。
+        /// </summary>
+        public static bool ShouldDownloadSpacePackage(string cachedEtag, string serverEtag)
+        {
+            if (string.IsNullOrEmpty(serverEtag))
+            {
+                return string.IsNullOrEmpty(cachedEtag);
+            }
+
+            return cachedEtag != serverEtag;
+        }
+
         private async Task UpdateTourPackageIfStaleAsync(string tourId)
         {
             var latest = await ContentAssetLoader.FetchJsonAsync<LatestVersionJsonResult>(

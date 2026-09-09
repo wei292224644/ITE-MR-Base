@@ -34,9 +34,12 @@
 
 ## 4. 比对决策与接入（design D1/D3/D5/D6）
 
-- [ ] 4.1 新增纯函数 `IteContentPipeline.ShouldDownloadSpacePackage(cachedEtag, serverEtag)`，与既有 `ShouldDownloadTourPackage` 并列
-- [ ] 4.2 实现 D5 的三分支语义：`serverEtag` 为空且 `cachedEtag` 非空 → false（退回缓存）；`serverEtag` 为空且 `cachedEtag` 为空 → true（必须下载）；两者非空且不等 → true；相等 → false
-- [ ] 4.3 补 EditMode 测试覆盖 4.2 的全部四种组合——这是本次唯一与 tour 侧语义不同的地方（tour 在版本查不到时一律 false），必须逐条钉死
+- [x] 4.1 新增纯函数 `IteContentPipeline.ShouldDownloadSpacePackage(cachedEtag, serverEtag)`，与既有 `ShouldDownloadTourPackage` 并列
+- [x] 4.2 实现 D5 的三分支语义：`serverEtag` 为空且 `cachedEtag` 非空 → false（退回缓存）；`serverEtag` 为空且 `cachedEtag` 为空 → true（必须下载）；两者非空且不等 → true；相等 → false
+  - 与 tour 版只差一行：`serverEtag` 为空时 tour 直接 `return false`，场景包 `return string.IsNullOrEmpty(cachedEtag)`
+- [x] 4.3 补 EditMode 测试覆盖 4.2 的全部四种组合
+  - `IteContentPipelineTests` 23/23 通过，其中 `ShouldDownloadSpacePackage_*` 共 10 个参数化用例
+  - 「两侧都没值 → 下载」这条用 `(null,null) ("","") (null,"") ("",null)` 四种写法钉死，避免将来有人把 `null` 与 `""` 当两回事
 - [ ] 4.4 新增只取响应头的请求入口（`ContentAssetLoader` 或 `Runtime/Internal/` 下），返回 `ETag`；请求失败或响应头缺失时返回 null，不抛异常
 - [ ] 4.5 跳过下载的条件除 4.2 的判定外，**同时**要求 `File.Exists(IteSpaceScene_{scene}/{scene}.json)`（design D5 收窄）。这个判断放在 pipeline 调用点，`ShouldDownloadSpacePackage` 保持纯函数、不碰文件系统
 - [ ] 4.6 `FetchSpaceSceneAsync` 的联网分支改为：查 `ETag` → 4.2 判定 + 4.5 文件检查 → 需要才下载
