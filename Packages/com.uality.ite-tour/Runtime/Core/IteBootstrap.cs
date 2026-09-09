@@ -48,5 +48,39 @@ namespace Uality.IteTour.Core
 
             return missing;
         }
+
+        /// <summary>
+        /// 锚定层级约束。空列表表示可以启动。
+        ///
+        /// 错误信息说清「为什么」而不只是「不满足」：层级搭错不会抛异常，
+        /// 只会让内容出现在错误位置（design D4）。
+        /// </summary>
+        public List<string> Validate()
+        {
+            var errors = new List<string>();
+
+            if (AnchorRoot == null || TourRoot == null)
+                return errors;
+
+            if (TourRoot.parent != AnchorRoot)
+            {
+                errors.Add(
+                    "TourRoot 必须是 AnchorRoot 的直接子物体。" +
+                    "ChangeTourObjectTransform 把 TourRoot 的 local 设为被扫中 tour 的逆、" +
+                    "把 AnchorRoot 的 local 设为标记世界位姿，两者相乘才让被扫中的 tour 落在标记上；" +
+                    "中间夹任何节点等式即破。");
+            }
+
+            var parent = AnchorRoot.parent;
+            if (parent != null && parent.localToWorldMatrix != Matrix4x4.identity)
+            {
+                errors.Add(
+                    "AnchorRoot 的父级必须处于世界原点、无旋转、无缩放（根级物体即满足）。" +
+                    "标记位姿是世界位姿，却以 SetLocalPositionAndRotation 写入 AnchorRoot；" +
+                    "父级上的任何变换都会被二次施加，内容会出现在错误位置。");
+            }
+
+            return errors;
+        }
     }
 }

@@ -37,6 +37,13 @@ namespace Uality.IteTour.Core
                 return null;
             }
 
+            var hierarchy = bootstrap.Validate();
+            if (hierarchy.Count > 0)
+            {
+                Debug.LogError("[ITE] 装配不完整：" + string.Join("；", hierarchy));
+                return null;
+            }
+
             return new IteRuntime(bootstrap);
         }
 

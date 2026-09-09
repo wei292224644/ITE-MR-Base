@@ -89,6 +89,83 @@ namespace Uality.IteTour.Tests
             }
         }
 
+        [Test]
+        public void Create_TourRootNotDirectChildOfAnchorRoot_RefusesAndExplainsWhy()
+        {
+            var fixture = new HierarchyFixture();
+            try
+            {
+                fixture.TourRoot.SetParent(null);
+
+                LogAssert.Expect(LogType.Error, new Regex("TourRoot.*AnchorRoot.*直接子"));
+
+                Assert.IsNull(IteRuntime.Create(fixture.Bootstrap()));
+            }
+            finally
+            {
+                fixture.Dispose();
+            }
+        }
+
+        [Test]
+        public void Create_AnchorRootParentHasNonIdentityTransform_RefusesAndExplainsWhy()
+        {
+            var fixture = new HierarchyFixture();
+            GameObject parent = null;
+            try
+            {
+                parent = new GameObject("OffsetParent");
+                parent.transform.position = new Vector3(1f, 0f, 0f);
+                fixture.AnchorRoot.SetParent(parent.transform);
+
+                LogAssert.Expect(LogType.Error, new Regex("AnchorRoot.*父级.*世界原点"));
+
+                Assert.IsNull(IteRuntime.Create(fixture.Bootstrap()));
+            }
+            finally
+            {
+                fixture.Dispose();
+                if (parent != null) Object.DestroyImmediate(parent);
+            }
+        }
+
+        [Test]
+        public void Create_ValidHierarchy_ReturnsRuntime()
+        {
+            var fixture = new HierarchyFixture();
+            try
+            {
+                var runtime = IteRuntime.Create(fixture.Bootstrap());
+                Assert.IsNotNull(runtime);
+                runtime.Shutdown();
+            }
+            finally
+            {
+                fixture.Dispose();
+            }
+        }
+
+        [Test]
+        public void Create_AnchorRootParentIsIdentity_ReturnsRuntime()
+        {
+            var fixture = new HierarchyFixture();
+            GameObject parent = null;
+            try
+            {
+                parent = new GameObject("WorldOriginParent");
+                fixture.AnchorRoot.SetParent(parent.transform);
+
+                var runtime = IteRuntime.Create(fixture.Bootstrap());
+                Assert.IsNotNull(runtime);
+                runtime.Shutdown();
+            }
+            finally
+            {
+                fixture.Dispose();
+                if (parent != null) Object.DestroyImmediate(parent);
+            }
+        }
+
         /// <summary>
         /// 装配一个最小可用的运行时。Tour 预制体是个空 GameObject——
         /// 这些用例都走不到实例化，只验证公开面本身不炸。
@@ -97,6 +174,7 @@ namespace Uality.IteTour.Tests
         {
             private readonly IteRuntimeConfig _config;
             private readonly GameObject _host;
+            private readonly GameObject _camera;
             private readonly GameObject _prefab;
 
             internal readonly IteRuntime Runtime;
@@ -110,14 +188,17 @@ namespace Uality.IteTour.Tests
                 serialized.FindProperty("tourObjectPrefab").objectReferenceValue = _prefab;
                 serialized.ApplyModifiedPropertiesWithoutUndo();
 
-                _host = new GameObject("host");
+                _host = new GameObject("AnchorRoot");
+                var tourRoot = new GameObject("TourRoot");
+                tourRoot.transform.SetParent(_host.transform);
+                _camera = new GameObject("Camera");
 
                 Runtime = IteRuntime.Create(new IteBootstrap
                 {
                     Config = _config,
                     AnchorRoot = _host.transform,
-                    TourRoot = _host.transform,
-                    Camera = _host.transform,
+                    TourRoot = tourRoot.transform,
+                    Camera = _camera.transform,
                 });
 
                 Assert.IsNotNull(Runtime, "装配失败，用例前提不成立");
@@ -127,6 +208,50 @@ namespace Uality.IteTour.Tests
             {
                 Runtime?.Shutdown();
                 Object.DestroyImmediate(_host);
+                Object.DestroyImmediate(_camera);
+                Object.DestroyImmediate(_prefab);
+                Object.DestroyImmediate(_config);
+            }
+        }
+
+        /// <summary>
+        /// 层级合法的最小装配：TourRoot 是 AnchorRoot 的直接子物体，AnchorRoot 为根级。
+        /// </summary>
+        private class HierarchyFixture
+        {
+            private readonly IteRuntimeConfig _config;
+            private readonly GameObject _prefab;
+            internal readonly Transform AnchorRoot;
+            internal readonly Transform TourRoot;
+            internal readonly Transform Camera;
+
+            internal HierarchyFixture()
+            {
+                _prefab = new GameObject("tour-prefab");
+                _config = ScriptableObject.CreateInstance<IteRuntimeConfig>();
+                var serialized = new UnityEditor.SerializedObject(_config);
+                serialized.FindProperty("tourObjectPrefab").objectReferenceValue = _prefab;
+                serialized.ApplyModifiedPropertiesWithoutUndo();
+
+                AnchorRoot = new GameObject("AnchorRoot").transform;
+                TourRoot = new GameObject("TourRoot").transform;
+                TourRoot.SetParent(AnchorRoot);
+                Camera = new GameObject("Camera").transform;
+            }
+
+            internal IteBootstrap Bootstrap() => new IteBootstrap
+            {
+                Config = _config,
+                AnchorRoot = AnchorRoot,
+                TourRoot = TourRoot,
+                Camera = Camera,
+            };
+
+            internal void Dispose()
+            {
+                if (TourRoot != null) Object.DestroyImmediate(TourRoot.gameObject);
+                if (AnchorRoot != null) Object.DestroyImmediate(AnchorRoot.gameObject);
+                if (Camera != null) Object.DestroyImmediate(Camera.gameObject);
                 Object.DestroyImmediate(_prefab);
                 Object.DestroyImmediate(_config);
             }
