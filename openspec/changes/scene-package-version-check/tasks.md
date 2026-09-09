@@ -14,10 +14,14 @@
 
 ## 2. 补齐解压测试（design D7，独立于版本比对，可先落地）
 
-- [ ] 2.1 `ZipContentDownloaderTests` 新增用例：zip 含显式目录条目（`thirdDemo/`、`thirdDemo/assets/`）+ 文件条目 + `__MACOSX/` 影子条目，按 `ZipTopLevel.Strip` 解压
-- [ ] 2.2 断言落盘为 `{out}/thirdDemo.json`、`{out}/assets/logo.png`，且 `{out}/thirdDemo/` 与 `{out}/__MACOSX/` 均不存在
-- [ ] 2.3 **验证点**：新用例通过，且不改动 `ZipContentDownloader` 任何一行——该分支本就该是安全的，用例若逼着改被测代码，说明真包早就解压错了，此时停下来重新评估
-- [ ] 2.4 跑整个 `Uality.IteTour.Tests` 确认无回归（当前基线 195 passed / 0 failed）
+- [x] 2.1 `ZipContentDownloaderTests` 新增用例：zip 含显式目录条目（`thirdDemo/`、`thirdDemo/assets/`）+ 文件条目 + `__MACOSX/` 影子条目，按 `ZipTopLevel.Strip` 解压
+  - `ExtractSync_Strip_HandlesExplicitDirectoryEntries`
+- [x] 2.2 断言落盘为 `{out}/thirdDemo.json`、`{out}/assets/logo.png`，且 `{out}/thirdDemo/` 与 `{out}/__MACOSX/` 均不存在
+- [x] 2.3 **验证点**：新用例通过，且不改动 `ZipContentDownloader` 任何一行
+  - `ZipContentDownloaderTests` 6/6 通过，被测代码零改动。`TryStrip` 的空串分支确认安全
+- [x] 2.4 跑整个 `Uality.IteTour.Tests` 确认无回归（当前基线 195 passed / 0 failed）
+  - **196 passed / 0 failed**（195 基线 + 本次新增 1 条）
+  - 操作要点：改完 C# 必须先 `unity command recompile` 并轮询 `recompile_status` 到 `completed`，再 `run_tests`；否则跑的是旧程序集（本组踩过一次，新用例没进去却显示全绿）
 
 ## 3. 场景包校验器缓存（design D4）
 

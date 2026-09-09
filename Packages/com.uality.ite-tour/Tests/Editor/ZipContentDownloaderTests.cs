@@ -108,6 +108,34 @@ namespace Uality.IteTour.Tests
                 "__MACOSX/ 是打包工具的影子文件，不该落盘，也不该干扰公共顶层判定");
         }
 
+        /// <summary>
+        /// 条目形状照实测的真包构造：`thirdDemo.zip`（macOS Finder 对文件夹右键压缩的产物）
+        /// 除文件条目外还含 0 字节的显式目录条目 `thirdDemo/`、`thirdDemo/assets/`。
+        ///
+        /// 其余用例构造的 zip 只有文件条目，从未走到 <c>TryStrip</c> 里
+        /// "剥掉前缀后为空串 → 跳过" 那一支，而真包每次解压都会走到。
+        /// </summary>
+        [Test]
+        public void ExtractSync_Strip_HandlesExplicitDirectoryEntries()
+        {
+            CreateZip(new[]
+            {
+                ("thirdDemo/", ""),
+                ("thirdDemo/thirdDemo.json", "{}"),
+                ("thirdDemo/assets/", ""),
+                ("thirdDemo/assets/logo.png", "png-bytes"),
+                ("__MACOSX/thirdDemo/._thirdDemo.json", "resource-fork-bytes"),
+            });
+
+            ZipContentDownloader.ExtractSync(ZipPath, OutputFolder, ZipTopLevel.Strip);
+
+            Assert.That(File.Exists(Path.Combine(OutputFolder, "thirdDemo.json")), Is.True);
+            Assert.That(File.Exists(Path.Combine(OutputFolder, "assets", "logo.png")), Is.True);
+            Assert.That(Directory.Exists(Path.Combine(OutputFolder, "thirdDemo")), Is.False,
+                "顶层目录条目剥掉前缀后一无所剩，应被跳过而不是落成一个空目录");
+            Assert.That(Directory.Exists(Path.Combine(OutputFolder, "__MACOSX")), Is.False);
+        }
+
         [Test]
         public void ExtractSync_Strip_ThrowsWhenNoCommonTopLevelDirectory()
         {
