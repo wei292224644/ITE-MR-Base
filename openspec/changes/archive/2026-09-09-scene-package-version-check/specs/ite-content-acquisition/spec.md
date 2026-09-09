@@ -48,7 +48,7 @@ ITE 分发的两类内容包对"zip 里有没有顶层目录"的期望是**相�
 - **WHEN** `networkAvailable` 为 true 且本地无任何缓存
 - **THEN** 空间场景包与其列出的全部 tour 包被下载解压到正确布局，各自的校验器记录被写入，加载链完成
 
-#### Scenario: 联网复跑命中 tour 版本缓存
+#### Scenario: 联网复跑命中版本缓存
 
 - **WHEN** `networkAvailable` 为 true，本地缓存的 tour 版本与版本 API 返回值一致
 - **THEN** 该 tour 包 MUST NOT 被重新下载
