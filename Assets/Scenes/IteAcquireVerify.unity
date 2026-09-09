@@ -464,7 +464,7 @@ MonoBehaviour:
   anchorRoot: {fileID: 1537050114}
   tourRoot: {fileID: 366680149}
   xrCamera: {fileID: 1205171705}
-  networkAvailable: 1
+  networkAvailable: 0
 --- !u!1660057539 &9223372036854775807
 SceneRoots:
   m_ObjectHideFlags: 0

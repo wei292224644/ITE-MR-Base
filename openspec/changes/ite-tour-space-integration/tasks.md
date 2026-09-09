@@ -25,7 +25,8 @@
   - `IteSpaceScene_thirdDemo/thirdDemo.json` 存在且**不**多一层 `thirdDemo/`
   - `IteSpaceScene_thirdDemo/assets/` 下有 logo 与 5 张 tour 预览图
   - 5 个 tour 目录直接落在 persistentDataPath 根：`wm0l5qcn_ibd/` `4kvhqwvp_12f/` `earyserh_i5x/` `azdugaax_xry/` `hkdaowxy_0hu/`，各自含 `{tourId}.json` 与 `asset/`（体积约 38/168/42/66/47 MB）
-- [ ] 2.10 **验证点（离线路径）**：把 `IteHostBootstrap` 的 `networkAvailable` 置为 **false** 后复跑，`OnInitialized` 仍触发，且无任何 HTTP 请求
+- [x] 2.10 **验证点（离线路径）**：把 `IteHostBootstrap` 的 `networkAvailable` 置为 **false** 后复跑，`OnInitialized` 仍触发，且无任何 HTTP 请求
+  - Play 约 8 秒结束、`IsLoading=false`、5 个 `IteTourObject` 全部装配（若走了联网下载 151 MB 不可能这么快）；控制台无 `[IteTour] 内容包下载失败`
   - 这里**不是**"拔网线"。`networkAvailable` 默认为 `true`，而 `FetchSpaceSceneAsync` 在联网分支里无条件重下空间场景包（`IteContentPipeline.cs:76-81`）——留着 `true` 去物理断网，第一步就抛异常，那次失败与"本地缓存能否独立跑通"无关，却长得像离线路径不通
 - [ ] 2.11 **验证点（联网复跑）**：`networkAvailable` 保持 **true** 再跑一次，确认 5 个 tour 包**全部命中版本缓存、无一重新下载**
   - 这一步同时验掉版本形态问题：API 返回 JSON 数字 `"version": 7`，而 `LatestVersionJsonResult.Data.version` 声明为 `string`。若 `TourVersionCache` 存的形态与比对逻辑对不上，表现就是这一步又下了 290 MB
