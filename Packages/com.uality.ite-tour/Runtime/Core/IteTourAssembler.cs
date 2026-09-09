@@ -90,7 +90,8 @@ namespace Uality.IteTour.Core
         }
 
         /// <summary>
-        /// 触发体积的显隐由宿主决定（源实现在开场动画结束后统一打开）。
+        /// 触发体积默认在加载完成时打开（见 <c>IteRuntime.LoadAsync</c>）。
+        /// 宿主仍可通过 <c>IteRuntime.SetTriggerVolumesActive</c> 延后或关闭。
         /// </summary>
         public void SetAllVolumesActive(bool active)
         {

@@ -79,6 +79,8 @@ namespace Uality.IteTour.Tests
                     fixture.Runtime.SetHeadsetMounted(false);
                     fixture.Runtime.SetHeadsetMounted(true);
                     Assert.IsFalse(fixture.Runtime.ActivateTour("no-such-tour"));
+                    fixture.Runtime.SetTriggerVolumesActive(false);
+                    fixture.Runtime.SetTriggerVolumesActive(true);
                 });
             }
             finally

@@ -154,9 +154,19 @@ namespace Uality.IteTour.Core
             OnLoadProgress?.Invoke(1f);
             OnInitialized?.Invoke();
 
+            // 默认打开：忘了配置时应该能工作，而不是静默失效（design D2）
+            _assembler.SetAllVolumesActive(true);
+
             // 冷启动后的第一次扫码无条件生效
             _director.RequireScan();
         }
+
+        /// <summary>
+        /// 宿主延后开启或临时关闭触发体积。加载完成时默认已打开，
+        /// 不调用本方法区域触发也能工作。
+        /// </summary>
+        public void SetTriggerVolumesActive(bool active)
+            => _assembler.SetAllVolumesActive(active);
 
         /// <summary>
         /// 缺图不影响导览，所以这条并行链自己吞掉异常——它是 fire-and-forget，

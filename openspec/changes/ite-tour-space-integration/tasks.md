@@ -36,8 +36,8 @@
 
 ## 3. 包的宿主接口补齐
 
-- [ ] 3.1 `IteRuntime.LoadAsync` 在 `RequireScan()` 之前调一次 `_assembler.SetAllVolumesActive(true)`——**默认开启**，宿主不需要为了让区域触发工作而调任何东西（design D2）
-- [ ] 3.2 `IteRuntime` 暴露 `SetTriggerVolumesActive(bool)`，转发给 assembler，供宿主延后开启或临时关闭（例如加载页仍覆盖视野时）
+- [x] 3.1 `IteRuntime.LoadAsync` 在 `RequireScan()` 之前调一次 `_assembler.SetAllVolumesActive(true)`——**默认开启**，宿主不需要为了让区域触发工作而调任何东西（design D2）
+- [x] 3.2 `IteRuntime` 暴露 `SetTriggerVolumesActive(bool)`，转发给 assembler，供宿主延后开启或临时关闭（例如加载页仍覆盖视野时）
 - [ ] 3.3 `IteBootstrap.Validate()` 增加两条层级校验（design D4）：`TourRoot.parent == AnchorRoot`；`AnchorRoot.parent` 为 null 或其 `localToWorldMatrix` 为单位矩阵。错误信息要说清"为什么"，不只是"不满足"
 - [ ] 3.4 补 EditMode 测试覆盖 3.3 的两条校验
 
