@@ -27,12 +27,15 @@ __MACOSX/thirdDemo/._thirdDemo.json
 
 - 场景包内容未变时不重复下载解压，与 tour 包的缓存行为对齐
 - 校验器不可得时不比现状更差——退回本地缓存，不因为查不到版本就让整条加载链失败
+- 两类内容包的缓存判定都能自愈：目录被手工删除后，下一次冷启动应当重新下载而不是永久卡死（D5、D8）
+- 内容包更新后磁盘上不残留上一版的孤儿文件（D9）
 - 补齐 Strip 语义对真包形状（含目录条目）的测试覆盖
 
 **Non-Goals:**
 
-- 不改 tour 包的版本比对路径
 - 不改 `ZipTopLevel` 的 Strip / Preserve 语义。本次已实测确认 Strip 对真包是必需且正确的（真包带顶层 `thirdDemo/`，目标目录 `IteSpaceScene_thirdDemo/` 已含场景名，不剥会多一层）
+- 不改 tour 包的**版本来源**。tour 继续用 `LatestVersion` API，不改成 ETag；本次只让它与场景包共享缓存失效与删除的语义（D8）
+- 不引入内容包的整体回收策略。从场景描述中被移除的 tour 目录仍不会被回收——本次的删除只覆盖"重下同一个包"
 - 不改离线路径。`networkAvailable == false` 时仍然不发任何请求，包括本次新增的校验器请求
 - 不做内容完整性校验（校验器只用于判断"要不要重下"，不用于判断"下下来的对不对"）
 
@@ -88,7 +91,27 @@ serverEtag 取不到 + 本地无缓存  → 下载                  （否则必
 
 第二种情况 tour 侧不存在同等风险（tour 版本查询失败时若无缓存，后续 `LoadJsonAsync` 抛异常是唯一结果，也确实该抛）。场景包这里多下一次即可自愈，不该为了对称而放弃自愈。
 
-"本地有无缓存"以校验器缓存记录是否存在为准，不去 stat 文件——文件存在性判断会把"内容下过"和"内容完整"混为一谈，而校验器记录按 D6 只在解压成功后才写。
+**"本地有缓存"由两个条件同时成立构成**（probe 期间收窄，原文只认第一条）：
+
+| 条件 | 管的是什么 | 凭据 |
+|---|---|---|
+| 校验器记录存在且一致 | 内容**下全了** | 按 D6 只在解压成功后写 |
+| 内容文件在磁盘上 | 内容**现在还在** | `File.Exists({scene}.json)` |
+
+原文写的是"以校验器记录为准，不去 stat 文件"，理由是文件存在只说明下过、不说明下全了。那个理由成立，但它只否定了「用文件存在性**取代**记录」，而这里是**并列**：两个条件各管一件事，任一不成立就重下。
+
+不收窄的话会留下一个无法自愈的状态：
+
+```
+记录在 + 目录被手工删  →  比对命中  →  跳过下载  →  读不到 json  →  抛异常
+下次冷启动             →  记录还在  →  又跳过    →  又抛
+```
+
+每次启动卡在同一处，除非有人想到去清 PlayerPrefs。而这不是假想场景——归档的 `2026-09-09-ite-tour-space-integration/tasks.md` 任务 2.1「清掉本机现有的 ITE 缓存」做法正是删目录。当时无害是因为还没有版本比对，删完就会重下。
+
+`ShouldDownloadSpacePackage` 保持纯函数、不碰文件系统；`File.Exists` 判断放在 pipeline 的调用点。
+
+**这条同样适用于 tour 包**（见 D8）。
 
 ### D6：只在下载并解压成功之后才写入校验器记录
 
@@ -101,6 +124,79 @@ serverEtag 取不到 + 本地无缓存  → 下载                  （否则必
 读代码判断该分支是安全的（返回 false → `continue` 跳过；`thirdDemo/assets/` 剥成 `assets/` 后由 `entry.IsDirectory` 分支建目录后跳过），但"读代码觉得安全"和"跑过"是两回事，而这恰好是真包唯一未被测试形状覆盖的地方。
 
 用例构造的 zip 条目形状必须与实测的真包一致：显式目录条目 + 顶层目录 + `__MACOSX/` 影子条目。
+
+### D8：tour 包一并修同一缺陷，scope 因此扩大
+
+D5 的收窄不是场景包独有的问题。`UpdateTourPackageIfStaleAsync` 结构完全同构：版本一致就跳过下载，随后直接读 `{tourId}/{tourId}.json`，目录被删而 `TourVersionCache` 记录仍在时，同样永久卡死。
+
+**tour 侧更容易踩**：归档记录里五个 tour 目录为 38/168/42/66/47 MB（`2026-09-09-ite-tour-space-integration/tasks.md` 任务 2.9）。人要腾磁盘删的正是这些，不会去删几百 KB 的场景包。
+
+**替代方案**：守住"本次只改场景包"的 scope，tour 留到下一个 change。否决理由：那是按本 change 的**标题**划线，不是按**问题**划线。同一缺陷、同一改法、改动量相同，拆开只会让 tour 侧在两个 change 之间的窗口里继续带病。
+
+### D9：删除动作归 `IteContentPipeline`，删除目标由调用方显式给出
+
+两类包的 `outputFolder` 语义不同，这是本次最容易踩的地方：
+
+```
+场景包  DownloadAndExtractAsync(url, "IteSpaceScene_{scene}", Strip)
+        outputFolder = persistentDataPath/IteSpaceScene_{scene}    ← 恰好就是该包的目录
+
+tour 包  DownloadAndExtractAsync(url, relativeFolder: "", Preserve)
+        outputFolder = persistentDataPath                          ← 是**根**，不是该包的目录
+```
+
+若把"解压前清空 outputFolder"实现进 `ZipContentDownloader`，tour 那次调用会递归删掉整个 `persistentDataPath`——五个 tour、场景包缓存，以及宿主放在那里的任何东西。而它的外观像一次缓存清理，不像 bug。
+
+因此删除留在 pipeline，由调用方显式指定目录：场景包删 `IteSpaceScene_{sceneName}/`，tour 包删 `{tourId}/`。`ZipContentDownloader` 继续只管下载与解压，不认识"这个包归哪个目录管"——与 D3 的分层一致。
+
+**删除时机**：下载成功之后、解压之前。
+
+```
+查校验器 → 不一致 → 下载 → 下载成功 → 删目录 → 解压 → 写记录
+                            ^^^^^^^^ 网络是最易失败的一段，失败时旧缓存原封不动
+```
+
+先删后下会在网络失败时毁掉一份能用的缓存；下完再删则最坏只是白下一次。解压失败（`InvalidDataException`）时目录已空，但按 D6 记录也不会写，下次冷启动重下，能自愈。
+
+**替代方案**：继续原地覆盖、不删。否决理由：加了校验器比对之后，重下只发生在内容真的变了的时刻，那正是新旧文件会不一致的时刻。上一版被移除的资源会永久滞留，且让"清缓存重试"这类排查手段失效。
+
+### D10：递归删除前校验目录名，复用 `ZipEntryPath.TryResolve`
+
+`tourId` 来自服务端下发的场景描述。**这条不是防路径穿越**——后端生成的是 shortid，穿越不是真实威胁模型（该理由在 probe 期间被提出并正确驳回）。
+
+要防的是**空值**：
+
+```csharp
+Directory.Delete(Path.Combine(persistentDataPath, tourId), recursive: true)
+
+tourId = ""  →  Path.Combine 返回 persistentDataPath 本身  →  清空全部缓存
+```
+
+shortid 保证"不是恶意路径"，保证不了"字段一定有值"。JSON 缺字段、序列化默认值、条目不完整，出来都是空串。而这个字段在实践中确实可能为空——同一文件里 `LoadSceneSpritesAsync` 已经在防它（`IteContentPipeline.cs:159`：`if (tour == null || string.IsNullOrEmpty(tour.tourID)) continue;`）。之前为空只是少加载一张预览图，加了删除之后为空会删掉 151 MB。
+
+复用既有的 `ZipEntryPath.TryResolve`（`Runtime/Internal/ZipEntryPath.cs`，8 条测试已绿），false 则拒绝删除并记错误日志。零新代码，边界已核：
+
+| 输入 | 结果 |
+|---|---|
+| `""` | false（拦下） |
+| `"."` | false — 解析成根本身，前缀检查拦下 |
+| `"../.."` | false |
+| `"a/b"` | true — 仍在根内，放行 |
+
+**替代方案**：一句 `if (string.IsNullOrEmpty(tourId)) return;`。否决理由不是它不够安全，而是 `TryResolve` 已经存在、已经测过、且顺带覆盖了 `"."` 这种不那么显然的形态；新写一句判断反而是重复。
+
+### D11：命中与未命中都记日志，未命中打出两侧的值
+
+本改动的失败形态是**静默退化**：校验器比对若因任何原因永不相等（存取时引号处理不一致、`W/` 弱校验器前缀、键名拼错），结果是每次都重下——也就是今天的行为。功能全对、无报错、只是白干，没有任何信号。
+
+只在命中时打日志的话，"一次都没命中"与"日志还没接上"观感完全相同。因此未命中也要打，并写出两侧的值，使"本地没有记录"与"值不匹配"可区分：
+
+```
+[IteTour] 场景包 thirdDemo 命中缓存，跳过下载 (ETag "B6A4...-1")
+[IteTour] 场景包 thirdDemo 需要更新：本地 "" / 服务端 "B6A4...-1"
+```
+
+tour 侧同理。这也是本仓库的既有取向：失败模式以静默为主，可归因优先。
 
 ## Risks / Trade-offs
 
