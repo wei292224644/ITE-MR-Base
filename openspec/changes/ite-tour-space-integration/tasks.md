@@ -73,7 +73,8 @@
   - 触发时构造相机前方 1.5 米、法线朝向相机的世界位姿（design D6），组装成 `RawPayload = "******{tourId}******"` 的观测塞进 mock 源
   - 观测持续投喂若干帧后停止，使 `MarkerLost` 的滞回可被触发
 - [x] 5.3 调试 HUD（屏幕空间，仿 `Assets/Scripts/Localization/Native/MarkerHookTestHud.cs`）：加载进度、空间场景名、已装配 tourId 列表、当前激活 tourId、`ScanPrompt` 状态与 TourIds、相机所在触发体积集合、最近一次观测与丢失
-- [ ] 5.4 确认驱动层与 HUD 整块停用后，加载链仍完整执行到 `OnInitialized`（此时即 4.4 的未注入路径）
+- [x] 5.4 确认驱动层与 HUD 整块停用后，加载链仍完整执行到 `OnInitialized`（此时即 4.4 的未注入路径）
+  - Play 前停用 `Editor Rig` 与 `Debug HUD`（不保存场景）。日志：`未接入标记源，扫码激活不可用` → `OnSpaceSceneLoaded Third Demo` → 进度到 1.00 → `OnInitialized` → `OnScanPromptChanged Visible`。随后 `editor_stop` 并重新打开场景，确认 Rig/HUD 仍启用且场景未脏。
 
 ## 6. 场景
 
