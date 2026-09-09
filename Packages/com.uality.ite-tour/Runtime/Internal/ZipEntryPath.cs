@@ -45,7 +45,13 @@ namespace Uality.IteTour.Internal
                 return false;
             }
 
-            if (!candidate.StartsWith(root, StringComparison.Ordinal))
+            // 比较前去掉尾分隔符：`./` 之类的条目名 GetFullPath 之后是"带尾分隔符的
+            // 根目录"，与 root 逐字符相等，直接 StartsWith 会放行**根目录本身**。
+            // 解压时那只是个没用的条目，但 IteContentPipeline 拿同一个判断来守递归
+            // 删除（design D10），放行就等于删掉整个内容缓存。
+            string comparable = candidate.TrimEnd(Path.DirectorySeparatorChar);
+
+            if (!comparable.StartsWith(root, StringComparison.Ordinal))
             {
                 return false;
             }

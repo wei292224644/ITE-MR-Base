@@ -198,5 +198,54 @@ namespace Uality.IteTour.Tests
         {
             Assert.That(IteContentPipeline.ShouldDownloadSpacePackage(cachedEtag, "\"etag-1\""), Is.True);
         }
+
+        /// <summary>
+        /// design D5 / D8 的收窄：校验器一致但内容文件已经不在时仍须下载。
+        /// 不加这一条的话，目录被手工删掉、记录还在，就会每次冷启动跳过下载、
+        /// 随后读取失败，永远不自愈——而清缓存的常规做法正是删目录。
+        /// </summary>
+        [Test]
+        public void ShouldDownloadSpacePackage_DownloadsWhenValidatorMatchesButContentIsGone()
+        {
+            Assert.That(
+                IteContentPipeline.ShouldDownloadSpacePackage("\"etag-1\"", "\"etag-1\"", contentPresent: false),
+                Is.True);
+        }
+
+        [Test]
+        public void ShouldDownloadTourPackage_DownloadsWhenVersionMatchesButContentIsGone()
+        {
+            Assert.That(
+                IteContentPipeline.ShouldDownloadTourPackage("v3", "v3", contentPresent: false),
+                Is.True);
+        }
+
+        [Test]
+        public void ShouldDownloadSpacePackage_SkipsOnlyWhenValidatorMatchesAndContentIsPresent()
+        {
+            Assert.That(
+                IteContentPipeline.ShouldDownloadSpacePackage("\"etag-1\"", "\"etag-1\"", contentPresent: true),
+                Is.False);
+        }
+
+        [Test]
+        public void ShouldDownloadTourPackage_SkipsOnlyWhenVersionMatchesAndContentIsPresent()
+        {
+            Assert.That(
+                IteContentPipeline.ShouldDownloadTourPackage("v3", "v3", contentPresent: true),
+                Is.False);
+        }
+
+        /// <summary>
+        /// 内容文件在、但校验器说要更新时，仍然要下——"文件还在"只是自愈条件，
+        /// 不能反过来抑制正常的版本更新。
+        /// </summary>
+        [Test]
+        public void ShouldDownloadSpacePackage_ContentPresentDoesNotSuppressAStaleValidator()
+        {
+            Assert.That(
+                IteContentPipeline.ShouldDownloadSpacePackage("\"etag-0\"", "\"etag-1\"", contentPresent: true),
+                Is.True);
+        }
     }
 }

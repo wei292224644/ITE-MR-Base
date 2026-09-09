@@ -52,5 +52,20 @@ namespace Uality.IteTour.Tests
             Assert.That(ZipEntryPath.TryResolve(Root, "", out _), Is.False);
             Assert.That(ZipEntryPath.TryResolve(Root, null, out _), Is.False);
         }
+
+        /// <summary>
+        /// 解析结果正好**等于**根目录本身的形态。解压时这只是个没用的条目，但
+        /// <c>IteContentPipeline.ClearCachedPackageDirectory</c> 拿同一个判断来守
+        /// 递归删除（design D10）——放行就等于 <c>Directory.Delete(persistentDataPath,
+        /// recursive: true)</c>，整个内容缓存没了。
+        /// </summary>
+        [TestCase(".")]
+        [TestCase("./")]
+        [TestCase("a/..")]
+        public void TryResolve_RejectsPathsResolvingToTheRootItself(string entryName)
+        {
+            Assert.That(ZipEntryPath.TryResolve(Root, entryName, out _), Is.False,
+                $"\"{entryName}\" 解析成根目录本身，放行会让递归删除清空整个缓存");
+        }
     }
 }

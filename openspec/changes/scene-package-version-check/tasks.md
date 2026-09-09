@@ -43,29 +43,46 @@
 - [x] 4.4 新增只取响应头的请求入口（`ContentAssetLoader` 或 `Runtime/Internal/` 下），返回 `ETag`；请求失败或响应头缺失时返回 null，不抛异常
   - `ContentAssetLoader.FetchEtagAsync`。不写常驻单测（网络 I/O，会 flaky），改用 `unity command eval` 活体验证两条路径：
   - 真实 URL → `"B6A43FCA26644FF44FA21BBADCC8D5B3-1"`；404 URL → `NULL` 且不抛异常
-- [ ] 4.5 跳过下载的条件除 4.2 的判定外，**同时**要求 `File.Exists(IteSpaceScene_{scene}/{scene}.json)`（design D5 收窄）。这个判断放在 pipeline 调用点，`ShouldDownloadSpacePackage` 保持纯函数、不碰文件系统
-- [ ] 4.6 `FetchSpaceSceneAsync` 的联网分支改为：查 `ETag` → 4.2 判定 + 4.5 文件检查 → 需要才下载
-- [ ] 4.7 下载解压成功后才 `SpacePackageEtagCache.Set`（design D6）。解压抛 `InvalidDataException` 时异常向上冒泡，写记录自然跳过——确认没有 `try/catch` 把它吞掉
-- [ ] 4.8 删掉 `IteContentPipeline.cs` L74-75 的 TODO 注释
-- [ ] 4.9 日志按 design D11 双向打：命中时输出场景名与命中的 `ETag`；需要更新时输出**本地与服务端两个值**，使"本地无记录"与"两值不匹配"可区分
+- [x] 4.5 跳过下载的条件除 4.2 的判定外，**同时**要求 `File.Exists(IteSpaceScene_{scene}/{scene}.json)`（design D5 收窄）
+  - 两参纯函数保持不碰文件系统；新增三参重载 `ShouldDownloadSpacePackage(cachedEtag, serverEtag, contentPresent)` 承载复合判定，提成 public static 以便测（沿用 `ShouldDownloadTourPackage` 的既有做法）
+- [x] 4.6 `FetchSpaceSceneAsync` 的联网分支改为：查 `ETag` → 4.2 判定 + 4.5 文件检查 → 需要才下载
+  - 抽出 `UpdateSpacePackageIfStaleAsync`，与既有 `UpdateTourPackageIfStaleAsync` 同构
+- [x] 4.7 下载解压成功后才 `SpacePackageEtagCache.Set`（design D6）
+  - 另加一条：`serverEtag` 为空时也不写，否则会把空值当成一个"版本"记下来，下次比对永远不匹配
+- [x] 4.8 删掉 `IteContentPipeline.cs` L74-75 的 TODO 注释
+- [x] 4.9 日志按 design D11 双向打
+  - `DescribeValidator` 把空值渲染成 `<无>`，使"本地无记录"与"两值不匹配"在日志里一眼可分
+  - 内容文件不存在时日志追加"；本地内容文件不存在"，区分第三种触发原因
 
 ## 5. 删除旧内容与删除前校验（design D9/D10 — 本组含唯一的破坏性操作，逐条对照 design 再写）
 
 > ⚠️ D9 的坑：tour 包的 `DownloadAndExtractAsync` 传的 `relativeFolder` 是空串，其 `outputFolder` 是 `persistentDataPath` **根**。删除目标必须由 pipeline 显式给出，**绝不能**用 `outputFolder`。
 
-- [ ] 5.1 删除逻辑写在 `IteContentPipeline`，`ZipContentDownloader` 不加任何删除代码
-- [ ] 5.2 删除目标显式指定：场景包 `IteSpaceScene_{sceneName}/`，tour 包 `{tourId}/`
-- [ ] 5.3 删除时机：下载成功之后、解压之前。下载失败时不得触发删除
-- [ ] 5.4 删除前用 `ZipEntryPath.TryResolve(persistentDataPath, name, out var dir)` 校验（design D10），返回 false 则拒绝删除并记一条含该目录名的错误日志
-- [ ] 5.5 补 EditMode 测试：`TryResolve` 对 `""`、`"."`、`"../.."` 均返回 false。这三条已在既有 `ZipEntryPathTests` 覆盖的范围内，确认无遗漏即可，不重复造用例
-- [ ] 5.6 补 EditMode 测试：目录名为空时删除路径不被执行（用一个可观测的替身或临时目录断言目录仍在）
+- [x] 5.1 删除逻辑写在 `IteContentPipeline`，`ZipContentDownloader` 不加任何删除代码
+  - `DownloadAndExtractAsync` 只多了一个 `Action onDownloaded` 钩子（下载成功后、解压前调用）。下载器仍不认识"删除"，也不知道哪个目录归哪个包管——只是让出时机
+- [x] 5.2 删除目标显式指定：场景包 `IteSpaceScene_{sceneName}/`，tour 包 `{tourId}/`
+- [x] 5.3 删除时机：下载成功之后、解压之前。下载失败时不得触发删除
+  - 钩子在 `www.result != Success` 的早返回之后，下载失败走不到
+- [x] 5.4 删除前用 `ZipEntryPath.TryResolve` 校验（design D10），false 则拒绝删除并记错误日志
+  - `ClearCachedPackageDirectory(cacheRoot, relativeFolder)`，`cacheRoot` 提成参数以便用临时目录测试，生产调用点传 `Application.persistentDataPath`
+- [x] 5.5 补 EditMode 测试：`TryResolve` 对 `""`、`"."`、`"../.."` 均返回 false
+  - **发现并修复一个真缺陷**：`""` 与 `"../.."` 原本已被拒，但 **`"./"` 被放行**。原因是 `Path.GetFullPath(root + "./")` 得到**带尾分隔符**的根目录，与 `root` 逐字符相等，`StartsWith` 成立
+  - 后果：`ClearCachedPackageDirectory("./")` 会解析到 `persistentDataPath` 并递归删除，整个内容缓存没了。解压路径上这只是个无用条目，删除路径上却是致命的
+  - 修在 `ZipEntryPath.TryResolve`（所有调用方共用的根因处）：比较前 `TrimEnd` 尾分隔符；返回的 `fullPath` 不变，解压行为零影响
+  - 新增 `TryResolve_RejectsPathsResolvingToTheRootItself`，覆盖 `.` / `./` / `a/..`
+- [x] 5.6 补 EditMode 测试：目录名为空时删除路径不被执行
+  - `ClearCachedPackageDirectoryTests`，全程在临时目录里跑，绝不碰真实 `persistentDataPath`
+  - 覆盖：清掉指名目录、不波及兄弟包、`"" / null / . / ./ ..` 一律拒绝且根目录与已有内容完好、目录不存在时不抛
 
 ## 6. tour 侧同类缺陷（design D8）
 
-- [ ] 6.1 `UpdateTourPackageIfStaleAsync` 的跳过条件增加 `File.Exists({tourId}/{tourId}.json)`，与 4.5 同构
-- [ ] 6.2 tour 包重下时按第 5 组的规则删除 `{tourId}/`，含 5.4 的校验
-- [ ] 6.3 tour 侧日志按 D11 双向打
-- [ ] 6.4 补 EditMode 测试：版本一致但内容文件不存在时判定为「需要下载」
+- [x] 6.1 `UpdateTourPackageIfStaleAsync` 的跳过条件增加 `File.Exists({tourId}/{tourId}.json)`，与 4.5 同构
+  - 同样以三参重载 `ShouldDownloadTourPackage(cachedVersion, serverVersion, contentPresent)` 承载
+- [x] 6.2 tour 包重下时按第 5 组的规则删除 `{tourId}/`，含 5.4 的校验
+  - 删的是 `tourId`，**不是** `relativeFolder`（那是空串，指缓存根）。调用点写了注释钉住这一点
+- [x] 6.3 tour 侧日志按 D11 双向打
+- [x] 6.4 补 EditMode 测试：版本一致但内容文件不存在时判定为「需要下载」
+  - 场景包与 tour 各一条；另补两条反向用例（一致且文件在 → 跳过）与一条"文件在但校验器过期仍要下"，防止把 `contentPresent` 写成抑制更新的条件
 
 ## 7. 真机/Editor 验证（缓存状态是这组的全部难点，按顺序跑）
 
@@ -85,6 +102,6 @@
 
 ## 8. 收尾
 
-- [ ] 8.1 `openspec validate scene-package-version-check --strict` 通过
+- [x] 8.1 `openspec validate scene-package-version-check --strict` 通过
 - [ ] 8.2 主 spec `openspec/specs/ite-content-acquisition/spec.md` 按 delta 同步
 - [ ] 8.3 归档本 change

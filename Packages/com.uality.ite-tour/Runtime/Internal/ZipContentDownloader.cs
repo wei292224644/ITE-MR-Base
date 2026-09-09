@@ -23,8 +23,17 @@ namespace Uality.IteTour.Internal
         /// 空间场景包与 tour 包的顶层目录布局相反（design D1），调用方必须显式选择：
         /// 空间场景包传 <see cref="ZipTopLevel.Strip"/>，tour 包传 <see cref="ZipTopLevel.Preserve"/>。
         /// </param>
+        /// <param name="onDownloaded">
+        /// 下载成功之后、解压之前调用。存在的唯一理由是给调用方一个清空旧内容的时机
+        /// （design D9）——本类不认识"哪个目录归哪个包管"，更不做删除：tour 包的
+        /// <paramref name="relativeFolder"/> 是空串，其解压目录就是 persistentDataPath
+        /// 根，在这里删 outputFolder 会清空整个缓存。
+        ///
+        /// 放在下载**之后**是为了让网络失败不毁掉一份能用的缓存。
+        /// </param>
         public static async Task<bool> DownloadAndExtractAsync(
-            string url, string relativeFolder = "", ZipTopLevel topLevel = ZipTopLevel.Preserve)
+            string url, string relativeFolder = "", ZipTopLevel topLevel = ZipTopLevel.Preserve,
+            Action onDownloaded = null)
         {
             string filename = Path.GetFileNameWithoutExtension(url);
             string zipPath = Path.Combine(Application.persistentDataPath, filename + ".zip");
@@ -46,6 +55,7 @@ namespace Uality.IteTour.Internal
 
             try
             {
+                onDownloaded?.Invoke();
                 await ExtractAsync(zipPath, outputFolder, topLevel);
             }
             finally
