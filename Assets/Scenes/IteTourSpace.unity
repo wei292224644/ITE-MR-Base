@@ -119,37 +119,6 @@ NavMeshSettings:
     debug:
       m_Flags: 0
   m_NavMeshData: {fileID: 0}
---- !u!1 &231314117
-GameObject:
-  m_ObjectHideFlags: 0
-  m_CorrespondingSourceObject: {fileID: 0}
-  m_PrefabInstance: {fileID: 0}
-  m_PrefabAsset: {fileID: 0}
-  serializedVersion: 6
-  m_Component:
-  - component: {fileID: 231314118}
-  m_Layer: 0
-  m_Name: TourRoot
-  m_TagString: Untagged
-  m_Icon: {fileID: 0}
-  m_NavMeshLayer: 0
-  m_StaticEditorFlags: 0
-  m_IsActive: 1
---- !u!4 &231314118
-Transform:
-  m_ObjectHideFlags: 0
-  m_CorrespondingSourceObject: {fileID: 0}
-  m_PrefabInstance: {fileID: 0}
-  m_PrefabAsset: {fileID: 0}
-  m_GameObject: {fileID: 231314117}
-  serializedVersion: 2
-  m_LocalRotation: {x: 0, y: 0, z: 0, w: 1}
-  m_LocalPosition: {x: 0, y: 0, z: 0}
-  m_LocalScale: {x: 1, y: 1, z: 1}
-  m_ConstrainProportionsScale: 0
-  m_Children: []
-  m_Father: {fileID: 463099111}
-  m_LocalEulerAnglesHint: {x: 0, y: 0, z: 0}
 --- !u!1 &287105799
 GameObject:
   m_ObjectHideFlags: 0
@@ -244,7 +213,7 @@ MonoBehaviour:
   m_Script: {fileID: 11500000, guid: b05e9f14f549c47128713d3a91d848b7, type: 3}
   m_Name: 
   m_EditorClassIdentifier: MRBase.Ite.Host::MRBase.Ite.Host.IteEditorFakeScan
-  host: {fileID: 1835570840}
+  host: {fileID: 574401458}
   cameraTransform: {fileID: 287105800}
   tourIds:
   - wm0l5qcn_ibd
@@ -378,38 +347,82 @@ Camera:
   m_OcclusionCulling: 1
   m_StereoConvergence: 10
   m_StereoSeparation: 0.022
---- !u!1 &463099110
-GameObject:
+--- !u!1001 &574401457
+PrefabInstance:
   m_ObjectHideFlags: 0
-  m_CorrespondingSourceObject: {fileID: 0}
-  m_PrefabInstance: {fileID: 0}
-  m_PrefabAsset: {fileID: 0}
-  serializedVersion: 6
-  m_Component:
-  - component: {fileID: 463099111}
-  m_Layer: 0
-  m_Name: AnchorRoot
-  m_TagString: Untagged
-  m_Icon: {fileID: 0}
-  m_NavMeshLayer: 0
-  m_StaticEditorFlags: 0
-  m_IsActive: 1
---- !u!4 &463099111
-Transform:
-  m_ObjectHideFlags: 0
-  m_CorrespondingSourceObject: {fileID: 0}
-  m_PrefabInstance: {fileID: 0}
-  m_PrefabAsset: {fileID: 0}
-  m_GameObject: {fileID: 463099110}
   serializedVersion: 2
-  m_LocalRotation: {x: 0, y: 0, z: 0, w: 1}
-  m_LocalPosition: {x: 0, y: 0, z: 0}
-  m_LocalScale: {x: 1, y: 1, z: 1}
-  m_ConstrainProportionsScale: 0
-  m_Children:
-  - {fileID: 231314118}
-  m_Father: {fileID: 0}
-  m_LocalEulerAnglesHint: {x: 0, y: 0, z: 0}
+  m_Modification:
+    serializedVersion: 3
+    m_TransformParent: {fileID: 0}
+    m_Modifications:
+    - target: {fileID: 762732606819984342, guid: b261603ba9fa245dbb3c51cf489f282b, type: 3}
+      propertyPath: m_LocalPosition.x
+      value: 0
+      objectReference: {fileID: 0}
+    - target: {fileID: 762732606819984342, guid: b261603ba9fa245dbb3c51cf489f282b, type: 3}
+      propertyPath: m_LocalPosition.y
+      value: 0
+      objectReference: {fileID: 0}
+    - target: {fileID: 762732606819984342, guid: b261603ba9fa245dbb3c51cf489f282b, type: 3}
+      propertyPath: m_LocalPosition.z
+      value: 0
+      objectReference: {fileID: 0}
+    - target: {fileID: 762732606819984342, guid: b261603ba9fa245dbb3c51cf489f282b, type: 3}
+      propertyPath: m_LocalRotation.w
+      value: 1
+      objectReference: {fileID: 0}
+    - target: {fileID: 762732606819984342, guid: b261603ba9fa245dbb3c51cf489f282b, type: 3}
+      propertyPath: m_LocalRotation.x
+      value: 0
+      objectReference: {fileID: 0}
+    - target: {fileID: 762732606819984342, guid: b261603ba9fa245dbb3c51cf489f282b, type: 3}
+      propertyPath: m_LocalRotation.y
+      value: 0
+      objectReference: {fileID: 0}
+    - target: {fileID: 762732606819984342, guid: b261603ba9fa245dbb3c51cf489f282b, type: 3}
+      propertyPath: m_LocalRotation.z
+      value: 0
+      objectReference: {fileID: 0}
+    - target: {fileID: 762732606819984342, guid: b261603ba9fa245dbb3c51cf489f282b, type: 3}
+      propertyPath: m_LocalEulerAnglesHint.x
+      value: 0
+      objectReference: {fileID: 0}
+    - target: {fileID: 762732606819984342, guid: b261603ba9fa245dbb3c51cf489f282b, type: 3}
+      propertyPath: m_LocalEulerAnglesHint.y
+      value: 0
+      objectReference: {fileID: 0}
+    - target: {fileID: 762732606819984342, guid: b261603ba9fa245dbb3c51cf489f282b, type: 3}
+      propertyPath: m_LocalEulerAnglesHint.z
+      value: 0
+      objectReference: {fileID: 0}
+    - target: {fileID: 4780195172132744340, guid: b261603ba9fa245dbb3c51cf489f282b, type: 3}
+      propertyPath: xrCamera
+      value: 
+      objectReference: {fileID: 287105800}
+    - target: {fileID: 4780195172132744340, guid: b261603ba9fa245dbb3c51cf489f282b, type: 3}
+      propertyPath: startOnAwake
+      value: 1
+      objectReference: {fileID: 0}
+    - target: {fileID: 8713596713469419926, guid: b261603ba9fa245dbb3c51cf489f282b, type: 3}
+      propertyPath: m_Name
+      value: ITE Tour Rig
+      objectReference: {fileID: 0}
+    m_RemovedComponents: []
+    m_RemovedGameObjects: []
+    m_AddedGameObjects: []
+    m_AddedComponents: []
+  m_SourcePrefab: {fileID: 100100000, guid: b261603ba9fa245dbb3c51cf489f282b, type: 3}
+--- !u!114 &574401458 stripped
+MonoBehaviour:
+  m_CorrespondingSourceObject: {fileID: 4780195172132744340, guid: b261603ba9fa245dbb3c51cf489f282b, type: 3}
+  m_PrefabInstance: {fileID: 574401457}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 0}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: 256a2b435bc72413eab011a9c856f956, type: 3}
+  m_Name: 
+  m_EditorClassIdentifier: MRBase.Ite.Host::MRBase.Ite.Host.IteHostBootstrap
 --- !u!1 &878377300
 GameObject:
   m_ObjectHideFlags: 0
@@ -471,7 +484,7 @@ MonoBehaviour:
   m_Script: {fileID: 11500000, guid: 1077296ffeb3343efac7038771773f33, type: 3}
   m_Name: 
   m_EditorClassIdentifier: MRBase.Ite.Host::MRBase.Ite.Host.IteEditorHud
-  host: {fileID: 1835570840}
+  host: {fileID: 574401458}
   refreshIntervalSeconds: 0.2
 --- !u!4 &930992844
 Transform:
@@ -585,63 +598,11 @@ Transform:
   m_Children: []
   m_Father: {fileID: 0}
   m_LocalEulerAnglesHint: {x: 0, y: 0, z: 0}
---- !u!1 &1835570839
-GameObject:
-  m_ObjectHideFlags: 0
-  m_CorrespondingSourceObject: {fileID: 0}
-  m_PrefabInstance: {fileID: 0}
-  m_PrefabAsset: {fileID: 0}
-  serializedVersion: 6
-  m_Component:
-  - component: {fileID: 1835570841}
-  - component: {fileID: 1835570840}
-  m_Layer: 0
-  m_Name: ITE Host
-  m_TagString: Untagged
-  m_Icon: {fileID: 0}
-  m_NavMeshLayer: 0
-  m_StaticEditorFlags: 0
-  m_IsActive: 1
---- !u!114 &1835570840
-MonoBehaviour:
-  m_ObjectHideFlags: 0
-  m_CorrespondingSourceObject: {fileID: 0}
-  m_PrefabInstance: {fileID: 0}
-  m_PrefabAsset: {fileID: 0}
-  m_GameObject: {fileID: 1835570839}
-  m_Enabled: 1
-  m_EditorHideFlags: 0
-  m_Script: {fileID: 11500000, guid: 256a2b435bc72413eab011a9c856f956, type: 3}
-  m_Name: 
-  m_EditorClassIdentifier: MRBase.Ite.Host::MRBase.Ite.Host.IteHostBootstrap
-  config: {fileID: 11400000, guid: eb1fbf7eb63014e3b88769039c956ded, type: 2}
-  anchorRoot: {fileID: 463099111}
-  tourRoot: {fileID: 231314118}
-  xrCamera: {fileID: 287105800}
-  payloadPattern: ^\*{6}(.*?)\*{6}$
-  tourSceneLoadedTimeoutSeconds: 180
-  networkAvailable: 1
---- !u!4 &1835570841
-Transform:
-  m_ObjectHideFlags: 0
-  m_CorrespondingSourceObject: {fileID: 0}
-  m_PrefabInstance: {fileID: 0}
-  m_PrefabAsset: {fileID: 0}
-  m_GameObject: {fileID: 1835570839}
-  serializedVersion: 2
-  m_LocalRotation: {x: 0, y: 0, z: 0, w: 1}
-  m_LocalPosition: {x: 0, y: 0, z: 0}
-  m_LocalScale: {x: 1, y: 1, z: 1}
-  m_ConstrainProportionsScale: 0
-  m_Children: []
-  m_Father: {fileID: 0}
-  m_LocalEulerAnglesHint: {x: 0, y: 0, z: 0}
 --- !u!1660057539 &9223372036854775807
 SceneRoots:
   m_ObjectHideFlags: 0
   m_Roots:
   - {fileID: 1518645996}
-  - {fileID: 463099111}
-  - {fileID: 1835570841}
   - {fileID: 878377301}
   - {fileID: 930992844}
+  - {fileID: 574401457}

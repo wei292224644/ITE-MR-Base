@@ -63,7 +63,7 @@
 ## 7. 场景、构建与 MRCore 清理
 
 - [x] 7.1 把装配层（AnchorRoot → TourRoot + `IteHostBootstrap`）抽成 prefab
-- [ ] 7.2 `IteTourSpace.unity` 改用该 prefab，编辑器假扫码改为推"原始 payload + 种类"，与真机走同一条解析链
+- [x] 7.2 `IteTourSpace.unity` 改用该 prefab，编辑器假扫码改为推"原始 payload + 种类"，与真机走同一条解析链
 - [x] 7.3 新建设备内容场景：prefab 实例 + 设备输入 rig + HMD UI，不含桌面相机与 Overlay HUD
 - [x] 7.4 `BuildScript` 场景清单加入设备场景；确认 `IteTourSpace.unity` 仍不出包
 - [x] 7.5 全库检索对 `MRCore.unity` 中 ITE 对象的引用，确认为零

@@ -114,6 +114,84 @@ public static class IteSceneSetup
     }
 
     /// <summary>
+    /// 把编辑器验收场景里手摆的装配层换成 prefab 实例，两端从此共用同一份。
+    ///
+    /// 保留该场景自己的差异点：桌面相机与自启动。驱动层（假扫码、HUD）的引用重新指向
+    /// 新的装配点——UnityEvent 式的引用丢了不报错，只是不工作，所以这里逐个重接而不是让人记。
+    /// </summary>
+    [MenuItem("MRBase/Setup/Migrate Editor Scene To Rig Prefab")]
+    public static void MigrateEditorScene()
+    {
+        const string editorScenePath = "Assets/Scenes/IteTourSpace.unity";
+
+        var prefab = AssetDatabase.LoadAssetAtPath<GameObject>(RigPrefabPath);
+        if (prefab == null)
+        {
+            CreateRigPrefab();
+            prefab = AssetDatabase.LoadAssetAtPath<GameObject>(RigPrefabPath);
+        }
+
+        var scene = EditorSceneManager.OpenScene(editorScenePath, OpenSceneMode.Single);
+
+        var oldHost = Object.FindAnyObjectByType<IteHostBootstrap>(FindObjectsInactive.Include);
+        if (oldHost == null)
+        {
+            Debug.LogError("[IteSceneSetup] 场景里没有 IteHostBootstrap，无法迁移。");
+            return;
+        }
+
+        if (PrefabUtility.IsPartOfPrefabInstance(oldHost))
+        {
+            Debug.Log("[IteSceneSetup] 该场景已经在用 prefab 实例，跳过。");
+            return;
+        }
+
+        var oldSo = new SerializedObject(oldHost);
+        var desktopCamera = oldSo.FindProperty("xrCamera").objectReferenceValue;
+        var oldAnchorRoot = oldSo.FindProperty("anchorRoot").objectReferenceValue as Transform;
+
+        var rig = (GameObject)PrefabUtility.InstantiatePrefab(prefab, scene);
+        rig.name = "ITE Tour Rig";
+        var newHost = rig.GetComponentInChildren<IteHostBootstrap>(true);
+
+        var newSo = new SerializedObject(newHost);
+        newSo.FindProperty("xrCamera").objectReferenceValue = desktopCamera;
+        newSo.FindProperty("startOnAwake").boolValue = true;
+        newSo.ApplyModifiedPropertiesWithoutUndo();
+
+        Repoint("host", Object.FindObjectsByType<IteEditorFakeScan>(FindObjectsInactive.Include), newHost);
+        Repoint("host", Object.FindObjectsByType<IteEditorHud>(FindObjectsInactive.Include), newHost);
+
+        // 旧的手摆装配层整块删掉，避免场景里同时存在两套 AnchorRoot。
+        if (oldAnchorRoot != null)
+        {
+            Object.DestroyImmediate(oldAnchorRoot.gameObject);
+        }
+
+        Object.DestroyImmediate(oldHost.gameObject);
+
+        EditorSceneManager.MarkSceneDirty(scene);
+        EditorSceneManager.SaveScene(scene, editorScenePath);
+        Debug.Log("[IteSceneSetup] 编辑器验收场景已改用装配 prefab。");
+    }
+
+    private static void Repoint<T>(string propertyName, T[] components, Object value) where T : Object
+    {
+        foreach (var component in components)
+        {
+            var so = new SerializedObject(component);
+            var property = so.FindProperty(propertyName);
+            if (property == null)
+            {
+                continue;
+            }
+
+            property.objectReferenceValue = value;
+            so.ApplyModifiedPropertiesWithoutUndo();
+        }
+    }
+
+    /// <summary>
     /// 两份配置资产没有就现建，用出厂缺省值。缺了它们扫码仍能工作（桥接会退回出厂参数），
     /// 但那样参数就没有可调的落点，真机调参无处回填。
     /// </summary>
