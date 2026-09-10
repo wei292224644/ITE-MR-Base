@@ -63,8 +63,8 @@
 - [ ] 7.2 `IteTourSpace.unity` 改用该 prefab，编辑器假扫码改为推"原始 payload + 种类"，与真机走同一条解析链
 - [ ] 7.3 新建设备内容场景：prefab 实例 + 设备输入 rig + HMD UI，不含桌面相机与 Overlay HUD
 - [ ] 7.4 `BuildScript` 场景清单加入设备场景；确认 `IteTourSpace.unity` 仍不出包
-- [ ] 7.5 全库检索对 `MRCore.unity` 中 ITE 对象的引用，确认为零
-- [ ] 7.6 删除 `MRCore.unity` 的 `-- ITE --` / `Tour Anchor` / `Marker Frame Offset` / `Tour Root`
+- [x] 7.5 全库检索对 `MRCore.unity` 中 ITE 对象的引用，确认为零
+- [x] 7.6 删除 `MRCore.unity` 的 `-- ITE --` / `Tour Anchor` / `Marker Frame Offset` / `Tour Root`
 - [ ] 7.7 加载 `MRCore` 单独进 Play，确认控制台无 `[ITE]` / `[IteTour]` 日志、无对 `ite-spatial-config.uality.cn` 的请求
 
 ## 8. HMD 内 UI
