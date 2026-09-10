@@ -188,12 +188,30 @@ namespace MRBase.Ite.Host
         {
             if (!TryCreateRuntime())
             {
+                RaiseFailure("装配不完整，导览未启动。详见上一条错误日志。");
                 enabled = false;
                 return;
             }
 
-            await _ite.StartAsync();
+            try
+            {
+                await _ite.StartAsync();
+            }
+            catch (Exception e)
+            {
+                // 不接住的话这里是 async void 调用链的尽头，异常变成一条没人看的
+                // UnobservedTaskException，头显里只是永远停在加载中。
+                Debug.LogError("[ITE Host] 加载链失败：" + e, this);
+                RaiseFailure("内容加载失败：" + e.Message);
+            }
         }
+
+        /// <summary>
+        /// 面向人的失败信号。日志在头显里看不见，失败必须有第二条出口（design D12）。
+        /// </summary>
+        public event Action<string> Failed;
+
+        private void RaiseFailure(string message) => Failed?.Invoke(message);
 
         private async void Start()
         {
@@ -226,6 +244,7 @@ namespace MRBase.Ite.Host
             Debug.LogError(
                 "[ITE Host] OnTourSceneLoaded 超时：" + _awaitingSceneTourId +
                 " 超过 " + tourSceneLoadedTimeoutSeconds + "s 仍未建树（Enable 是 fire-and-forget）");
+            RaiseFailure("内容构建超时：" + _awaitingSceneTourId);
             _awaitingSceneTourId = null;
         }
 

@@ -236,7 +236,20 @@ namespace MRBase.Ite.Host
         {
             Debug.Log($"{LogPrefix} 追踪原点变化，上一次锚定作废，要求重新扫码。", this);
             host?.Runtime?.RequireScan();
+
+            // 日志在头显里看不见：同一件事必须有一条给人的出口。
+            if (_panel == null)
+            {
+                _panel = FindFirstObjectByType<IteHmdPanel>();
+            }
+
+            if (_panel != null)
+            {
+                _panel.NotifyRecentered();
+            }
         }
+
+        private IteHmdPanel _panel;
 
         private static XRInputSubsystem GetInputSubsystem()
         {

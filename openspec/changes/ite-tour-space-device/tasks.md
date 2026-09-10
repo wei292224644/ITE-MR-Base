@@ -69,11 +69,11 @@
 
 ## 8. HMD 内 UI
 
-- [ ] 8.1 新建世界空间面板，订阅 `OnLoadProgress` / `OnSpaceSceneLoaded` / `OnScanPromptChanged` / `OnTourActivated` / `OnTourSceneLoaded`
-- [ ] 8.2 渲染加载进度与场景名、`ScanPrompt` 状态与 TourIds
-- [ ] 8.3 失败可见：下载失败与 `OnTourSceneLoaded` 超时在头显中出现提示，不只落在日志
-- [ ] 8.4 重定位后在面板上提示"请重新扫码"
-- [ ] 8.5 确认面板不使用屏幕空间 Overlay，且不挂在 `MRCore.unity` 上
+- [x] 8.1 新建世界空间面板，订阅 `OnLoadProgress` / `OnSpaceSceneLoaded` / `OnScanPromptChanged` / `OnTourActivated` / `OnTourSceneLoaded`
+- [x] 8.2 渲染加载进度与场景名、`ScanPrompt` 状态与 TourIds
+- [x] 8.3 失败可见：下载失败与 `OnTourSceneLoaded` 超时在头显中出现提示，不只落在日志
+- [x] 8.4 重定位后在面板上提示"请重新扫码"
+- [x] 8.5 确认面板不使用屏幕空间 Overlay，且不挂在 `MRCore.unity` 上
 
 ## 9. 真机验收与调参
 
