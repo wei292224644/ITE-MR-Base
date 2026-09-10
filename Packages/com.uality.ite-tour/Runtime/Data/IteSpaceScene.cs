@@ -56,7 +56,18 @@ namespace Uality.IteTour.Data
             }
 
             public string tourID;
-            public bool isEnabled;
+
+            /// <summary>
+            /// 该 Tour 对应的 AprilTag ID（PICO 侧标记身份，design D7）。
+            ///
+            /// 可空而非 <c>int</c>：tag 0 是合法 ID（真机实测用的就是 0 与 250），
+            /// 若缺省落成 0，每个没写该字段的 Tour 都会声称自己是 tag 0。
+            /// 为 null 表示不参与 AprilTag 反查，其余行为一律不受影响。
+            /// </summary>
+            public int? aprilTagID;
+
+            /// <summary>缺省启用。JSON 省略该字段时仍装配；显式 false 才跳过。</summary>
+            public bool isEnabled = true;
             public DisplayType displayType;
             public float[][] transform; // 4x4 matrix represented as a jagged array
             public TriggerVolume triggerVolume;
