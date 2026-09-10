@@ -6,7 +6,7 @@ using UnityEngine;
 /// <summary>
 /// <c>MarkerHookTest</c> 场景的装配根(design D1 / D8,task 6.2-6.5)。
 ///
-/// 按 <c>#if MRBASE_QUEST / MRBASE_PICO</c> 建对应观测源,装配 <see cref="MarkerTrackingSession"/>,
+/// 经 <see cref="MarkerSourceFactory"/> 取得对应平台的观测源,装配 <see cref="MarkerTrackingSession"/>,
 /// 在 <see cref="Update"/> 里用 <c>Time.deltaTime</c> 驱动 <c>Tick</c>。
 ///
 /// 盒子**直接跟每次 <see cref="MarkerTrackingSession.MarkerObserved"/> 更新**,不经过
@@ -44,28 +44,22 @@ public sealed class MarkerHookTestRig : MonoBehaviour
 
     private void Awake()
     {
-#if MRBASE_QUEST
-        // 本场景由 MRSceneDirector 加性加载,没有任何自动装配钩子能赶在它之前看到本组件,
-        // 所以 MRUK 运行时必须在这里显式装配;否则 MRUK.Instance 为 null,订阅无声失败(真机已复现)。
-        if (!QuestMrukRuntimeInstaller.EnsureInitialized(out string mrukDetail))
+        // 平台分支全在工厂里（design D4）。本组件与 ITE 的设备输入层共用同一份，
+        // 否则 MRUK 装配、SDK 缺失、平台未配置这三条路径要各维护一份。
+        source = MarkerSourceFactory.Create(gameObject, out _, out string detail);
+
+        if (source == null)
         {
-            Debug.LogError($"{LogPrefix} Quest MRUK 运行时未就绪:{mrukDetail}", this);
+            Debug.LogError($"{LogPrefix} {detail}", this);
+            enabled = false;
+            return;
         }
 
-        source = new QuestObservationSource();
-#elif MRBASE_PICO && MRBASE_HAS_PICO_SDK
-        source = gameObject.AddComponent<PicoFiducialObservationSource>();
-#elif MRBASE_PICO
-        // 构建意图是 PICO,但 com.unity.xr.picoxr 不在工程里。两条 define 轴是独立的,
-        // 分开报错才能一眼看出是"包没装"而不是"平台没配"(沿用 MarkerTrackingBootstrapper 的模式)。
-        Debug.LogError($"{LogPrefix} 构建意图为 PICO,但未安装 com.unity.xr.picoxr。", this);
-        enabled = false;
-        return;
-#else
-        Debug.LogError($"{LogPrefix} 未识别到 MRBASE_QUEST 或 MRBASE_PICO 平台定义,部署配置错误。", this);
-        enabled = false;
-        return;
-#endif
+        if (!string.IsNullOrEmpty(detail))
+        {
+            Debug.LogError($"{LogPrefix} {detail}", this);
+        }
+
         session = new MarkerTrackingSession(source, lostAfterSeconds);
         session.MarkerObserved += HandleObserved;
         session.MarkerLost += HandleLost;
