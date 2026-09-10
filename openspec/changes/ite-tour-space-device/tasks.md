@@ -31,7 +31,7 @@
 - [ ] 4.1 `IteMarkerBridge` 删除正则与 tourId 剥壳，改为原样透传"原始 payload + 标记种类 + 位姿"
 - [ ] 4.2 接入 `MarkerStabilizer`：`MarkerObserved` 喂入、`MarkerLost` 时 `Reset`
 - [x] 4.3 修掉 smoothTime 失效：平滑时间常数必须大于典型帧间隔，否则平滑退化为逐帧跳变（当前默认 0.01 使 `t` 恒为 1）
-- [ ] 4.4 防抖参数按平台各存一套，落在可编辑的配置资产上（阈值、smoothTime、稳定帧数）
+- [x] 4.4 防抖参数按平台各存一套，落在可编辑的配置资产上（阈值、smoothTime、稳定帧数）
 - [ ] 4.5 接上 `PlatformOffsetConfig`：稳定之后、透传之前施加平台偏移；identity 时行为不变
 - [x] 4.6 `MarkerStabilizer` 的稳定判定由帧计数改为时间制（"连续稳定 X 秒"），`Feed` 已收 `deltaTime`；两端参数起点 0.4–0.5 s
 - [ ] 4.7 同帧多个标记判稳时只提交最先判稳的那个（桥接里一个"本帧已提交"标志位）
