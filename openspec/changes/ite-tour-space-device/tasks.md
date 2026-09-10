@@ -18,7 +18,7 @@
 - [x] 2.4 `IteRuntime` 扫码入口改为接受"原始 payload + 标记种类 + 位姿"，内部解析后再走 `TourScanPolicy`
 - [x] 2.5 解析失败与 tourId 不在场景中两种情况各输出一条含原始 payload 的日志
 - [x] 2.6 EditMode 测试：两端 payload 形状各自解析、无法解析的 payload、解析出的 tourId 不存在
-- [ ] 2.7 跑 `PackageBoundaryTests`，确认包仍零宿主依赖、`Runtime` 非注释行零平台字样
+- [x] 2.7 跑 `PackageBoundaryTests`，确认包仍零宿主依赖、`Runtime` 非注释行零平台字样
 
 ## 3. 宿主：观测源工厂
 
