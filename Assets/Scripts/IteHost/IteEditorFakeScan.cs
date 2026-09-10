@@ -129,23 +129,22 @@ namespace MRBase.Ite.Host
             LastTriggeredTourId = tourId;
         }
 
+        /// <summary>
+        /// 只管投喂窗口，**不推进会话**。会话由 <see cref="IteHostBootstrap"/> 经桥接每帧推一次；
+        /// 这里再推一次就是一帧推两次，滞回与稳定窗口都会走快一倍。
+        /// </summary>
         public void Tick(float deltaTime)
         {
-            if (_session == null)
+            if (_feedRemaining <= 0f)
             {
                 return;
             }
 
-            if (_feedRemaining > 0f)
+            _feedRemaining -= deltaTime;
+            if (_feedRemaining <= 0f)
             {
-                _feedRemaining -= deltaTime;
-                if (_feedRemaining <= 0f)
-                {
-                    _source.SetNextPollEmpty();
-                }
+                _source.SetNextPollEmpty();
             }
-
-            _session.Tick(deltaTime);
         }
 
         private void OnDestroy()

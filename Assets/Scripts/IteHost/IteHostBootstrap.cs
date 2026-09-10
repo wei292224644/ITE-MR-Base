@@ -17,8 +17,6 @@ namespace MRBase.Ite.Host
     /// </summary>
     public class IteHostBootstrap : MonoBehaviour
     {
-        public const string DefaultPayloadPattern = @"^\*{6}(.*?)\*{6}$";
-
         [Header("包配置")]
         [SerializeField] private IteRuntimeConfig config;
 
@@ -37,8 +35,12 @@ namespace MRBase.Ite.Host
 
         [Header("标记桥接")]
         [SerializeField]
-        [Tooltip("从 RawPayload 剥出 tourId 的外壳正则。真机印制格式未核实时保持默认。")]
-        private string payloadPattern = DefaultPayloadPattern;
+        [Tooltip("防抖参数，两端各一套。留空则用出厂参数，扫码仍可工作")]
+        private MarkerStabilizerProfile stabilizerProfile;
+
+        [SerializeField]
+        [Tooltip("标记局部坐标系到内容锚点的固定偏移，两端各一套。留空按 identity 处理")]
+        private PlatformOffsetConfig platformOffsets;
 
         [SerializeField]
         [Tooltip("OnTourActivated 之后等待 OnTourSceneLoaded 的秒数。Enable() 是 fire-and-forget，超时才看得见失败。")]
@@ -126,6 +128,10 @@ namespace MRBase.Ite.Host
         {
             _headsetPresence?.Poll();
 
+            // 会话唯一的推进点：输入层只负责建源与注入，不自己 Tick，
+            // 否则一帧推两次，滞回与稳定窗口都会走快一倍。
+            _bridge?.Tick(Time.deltaTime);
+
             if (_awaitingSceneTourId == null || tourSceneLoadedTimeoutSeconds <= 0f)
             {
                 return;
@@ -150,8 +156,8 @@ namespace MRBase.Ite.Host
             }
 
             _bridge?.Dispose();
-            var pattern = string.IsNullOrEmpty(payloadPattern) ? DefaultPayloadPattern : payloadPattern;
-            _bridge = new IteMarkerBridge(_pendingSession, pattern, _ite.SubmitMarkerScan);
+            _bridge = new IteMarkerBridge(
+                _pendingSession, stabilizerProfile, platformOffsets, _ite.SubmitMarkerScan);
             _pendingSession = null;
         }
 

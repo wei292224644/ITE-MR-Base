@@ -50,19 +50,26 @@ namespace MRBase.Ite.Host.Tests
                 };
                 driver.Session.MarkerLost += (_, __) => lost++;
 
+                // 驱动层只管投喂窗口；会话由宿主经桥接推进，这里代替它推。
+                void Step(float dt)
+                {
+                    driver.Tick(dt);
+                    driver.Session.Tick(dt);
+                }
+
                 driver.Trigger("wm0l5qcn_ibd");
-                driver.Tick(0.05f);
+                Step(0.05f);
 
                 Assert.AreEqual(1, observed);
                 Assert.AreEqual("******wm0l5qcn_ibd******", lastPayload);
                 Assert.AreEqual(0, lost);
 
-                driver.Tick(0.4f);
+                Step(0.4f);
                 Assert.AreEqual(0, lost, "投喂尚未超过滞回");
 
-                driver.Tick(1.1f);
+                Step(1.1f);
                 Assert.AreEqual(1, lost);
-                driver.Tick(1f);
+                Step(1f);
                 Assert.AreEqual(1, lost, "持续缺席只派发一次 Lost");
             }
             finally

@@ -28,14 +28,14 @@
 
 ## 4. 宿主：桥接改造
 
-- [ ] 4.1 `IteMarkerBridge` 删除正则与 tourId 剥壳，改为原样透传"原始 payload + 标记种类 + 位姿"
-- [ ] 4.2 接入 `MarkerStabilizer`：`MarkerObserved` 喂入、`MarkerLost` 时 `Reset`
+- [x] 4.1 `IteMarkerBridge` 删除正则与 tourId 剥壳，改为原样透传"原始 payload + 标记种类 + 位姿"
+- [x] 4.2 接入 `MarkerStabilizer`：`MarkerObserved` 喂入、`MarkerLost` 时 `Reset`
 - [x] 4.3 修掉 smoothTime 失效：平滑时间常数必须大于典型帧间隔，否则平滑退化为逐帧跳变（当前默认 0.01 使 `t` 恒为 1）
 - [x] 4.4 防抖参数按平台各存一套，落在可编辑的配置资产上（阈值、smoothTime、稳定帧数）
-- [ ] 4.5 接上 `PlatformOffsetConfig`：稳定之后、透传之前施加平台偏移；identity 时行为不变
+- [x] 4.5 接上 `PlatformOffsetConfig`：稳定之后、透传之前施加平台偏移；identity 时行为不变
 - [x] 4.6 `MarkerStabilizer` 的稳定判定由帧计数改为时间制（"连续稳定 X 秒"），`Feed` 已收 `deltaTime`；两端参数起点 0.4–0.5 s
-- [ ] 4.7 同帧多个标记判稳时只提交最先判稳的那个（桥接里一个"本帧已提交"标志位）
-- [ ] 4.8 EditMode 测试：持续可见只提交一次、丢失后重新稳定再提交一次、偏移生效、identity 偏移不改变行为、同帧两个标记只提交第一个、时间制窗口在不同派发速率下等价
+- [x] 4.7 同帧多个标记判稳时只提交最先判稳的那个（桥接里一个"本帧已提交"标志位）
+- [x] 4.8 EditMode 测试：持续可见只提交一次、丢失后重新稳定再提交一次、偏移生效、identity 偏移不改变行为、同帧两个标记只提交第一个、时间制窗口在不同派发速率下等价
 
 ## 5. 宿主：装配点
 
