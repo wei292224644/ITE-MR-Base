@@ -4,6 +4,7 @@
     "references": [
         "MRBase.Localization",
         "MRBase.Localization.Native",
+        "MRBase.Core",
         "MRBase.Common",
         "Uality.IteTour",
         "Unity.UGUI",

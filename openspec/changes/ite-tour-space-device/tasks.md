@@ -39,12 +39,12 @@
 
 ## 5. 宿主：装配点
 
-- [ ] 5.1 `MRBase.Ite.Host.asmdef` 增加对 `MRBase.Core` 的引用
-- [ ] 5.2 `IteHostBootstrap` 相机改为"序列化覆盖 → 解析 `MRContext.Camera` → 报错停用"三段
-- [ ] 5.3 `networkAvailable` 改为运行时可达性判定，保留注入入口供测试与强制离线调试
-- [ ] 5.4 增加"由外部触发启动"的入口，编辑器场景保持自启动
-- [ ] 5.5 `HeadsetPresenceAdapter` 在 PICO 上注入读 `PXR_Plugin.System.UserPresenceChangedAction` / `Pxr_GetPSensorState` 的实现（构造函数已有 `Func<bool?>` 注入点，不改其形状）
-- [ ] 5.6 EditMode 测试：三段解析的三条分支各自可观察
+- [x] 5.1 `MRBase.Ite.Host.asmdef` 增加对 `MRBase.Core` 的引用
+- [x] 5.2 `IteHostBootstrap` 相机改为"序列化覆盖 → 解析 `MRContext.Camera` → 报错停用"三段
+- [x] 5.3 `networkAvailable` 改为运行时可达性判定，保留注入入口供测试与强制离线调试
+- [x] 5.4 增加"由外部触发启动"的入口，编辑器场景保持自启动
+- [x] 5.5 `HeadsetPresenceAdapter` 在 PICO 上注入读 `PXR_Plugin.System.UserPresenceChangedAction` / `Pxr_GetPSensorState` 的实现（构造函数已有 `Func<bool?>` 注入点，不改其形状）
+- [x] 5.6 EditMode 测试：三段解析的三条分支各自可观察
 
 ## 6. 宿主：设备输入 rig
 

@@ -6,7 +6,9 @@
         "MRBase.Localization",
         "Uality.IteTour",
         "UnityEngine.TestRunner",
-        "UnityEditor.TestRunner"
+        "UnityEditor.TestRunner",
+        "MRBase.Core",
+        "Unity.XR.CoreUtils"
     ],
     "includePlatforms": [
         "Editor"

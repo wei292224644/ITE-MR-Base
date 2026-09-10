@@ -1,4 +1,5 @@
 using System;
+using System.Threading.Tasks;
 using UnityEngine;
 using Uality.IteTour.Config;
 using Uality.IteTour.Core;
@@ -30,7 +31,8 @@ namespace MRBase.Ite.Host
         private Transform tourRoot;
 
         [SerializeField]
-        [Tooltip("用于识别谁进出触发体积，通常是 XR Origin 的主相机")]
+        [Tooltip("用于识别谁进出触发体积。留空则运行时解析 MRContext 的 XR 相机——" +
+                 "内容场景是加性加载的，引用不到 MRCore 里的相机")]
         private Transform xrCamera;
 
         [Header("标记桥接")]
@@ -48,11 +50,17 @@ namespace MRBase.Ite.Host
 
         [Header("行为")]
         [SerializeField]
-        [Tooltip("关掉可用于离线调试：跳过全部下载与版本查询，直接读本地缓存")]
-        private bool networkAvailable = true;
+        [Tooltip("强制离线调试：跳过全部下载与版本查询，直接读本地缓存。" +
+                 "不勾则按运行时网络可达性判定")]
+        private bool forceOffline;
+
+        [SerializeField]
+        [Tooltip("勾选则 Start 里自跑加载链（编辑器验收场景）。真机由设备 rig 在就绪后触发")]
+        private bool startOnAwake = true;
 
         private IteRuntime _ite;
         private HeadsetPresenceAdapter _headsetPresence;
+        private PicoHeadsetPresence _picoPresence;
         private MarkerTrackingSession _pendingSession;
         private IteMarkerBridge _bridge;
         private bool _eventsHooked;
@@ -87,13 +95,19 @@ namespace MRBase.Ite.Host
                 return true;
             }
 
+            var camera = ResolveCamera();
+            if (camera == null)
+            {
+                return false;
+            }
+
             _ite = IteRuntime.Create(new IteBootstrap
             {
                 Config = config,
                 AnchorRoot = anchorRoot,
                 TourRoot = tourRoot,
-                Camera = xrCamera,
-                IsNetworkAvailable = () => networkAvailable,
+                Camera = camera,
+                IsNetworkAvailable = IsNetworkAvailable,
             });
 
             if (_ite == null)
@@ -102,7 +116,13 @@ namespace MRBase.Ite.Host
             }
 
             HookRuntimeEvents();
-            _headsetPresence = new HeadsetPresenceAdapter(_ite.SetHeadsetMounted);
+
+            // PICO 有专门的佩戴状态通道，读到就用它；读不到（含 Quest）退回通用输入设备。
+            // 这样调用点不需要平台分支，也不必赌某一端恰好上报（design D19）。
+            _picoPresence = new PicoHeadsetPresence();
+            _headsetPresence = new HeadsetPresenceAdapter(
+                _ite.SetHeadsetMounted,
+                () => _picoPresence.Read() ?? HeadsetPresenceAdapter.ReadUserPresence());
             TryBindMarkerSession();
 
             if (_bridge == null)
@@ -113,7 +133,58 @@ namespace MRBase.Ite.Host
             return true;
         }
 
-        private async void Start()
+        /// <summary>
+        /// 相机按「序列化覆盖 → 运行时解析 → 报错」三段取得（design D2）。
+        ///
+        /// 不能只靠序列化引用：内容场景以加性方式加载在 MRCore 之上，
+        /// 而 Unity 不支持跨场景序列化引用，XR 相机在设备场景里根本指不上。
+        /// 也不重试等待——重试会把「还在等」和「配错了」混成同一个现象。
+        /// </summary>
+        private Transform ResolveCamera()
+        {
+            if (xrCamera != null)
+            {
+                return xrCamera;
+            }
+
+            var context = MRContext.Instance;
+            if (context != null && context.Camera != null)
+            {
+                return context.Camera.transform;
+            }
+
+            Debug.LogError(
+                "[ITE Host] 取不到相机：序列化字段为空，且 MRContext 尚无 XR 相机。" +
+                "编辑器场景请在字段里指定桌面相机；真机场景请等 XR 就绪后再启动装配点。", this);
+            return null;
+        }
+
+        /// <summary>
+        /// 联网与否按**运行时**可达性判定（design D13）。
+        /// 序列化开关等于「打包时决定现场有没有网」，那会让离线自愈路径在现场断网时根本走不进去。
+        /// </summary>
+        private bool IsNetworkAvailable()
+        {
+            if (forceOffline)
+            {
+                return false;
+            }
+
+            return _networkProbe != null
+                ? _networkProbe()
+                : Application.internetReachability != NetworkReachability.NotReachable;
+        }
+
+        /// <summary>替换可达性判定，供测试与特殊部署使用。</summary>
+        public void SetNetworkProbe(Func<bool> probe) => _networkProbe = probe;
+
+        private Func<bool> _networkProbe;
+
+        /// <summary>
+        /// 由外部触发加载链（design D15）。真机上设备 rig 在相机可解析、观测源可打开之后调它。
+        /// 重复调用无害：<see cref="IteRuntime.StartAsync"/> 自己只跑一次。
+        /// </summary>
+        public async Task StartRuntimeAsync()
         {
             if (!TryCreateRuntime())
             {
@@ -122,6 +193,16 @@ namespace MRBase.Ite.Host
             }
 
             await _ite.StartAsync();
+        }
+
+        private async void Start()
+        {
+            if (!startOnAwake)
+            {
+                return;
+            }
+
+            await StartRuntimeAsync();
         }
 
         private void Update()
@@ -234,6 +315,8 @@ namespace MRBase.Ite.Host
         private void OnDestroy()
         {
             UnhookRuntimeEvents();
+            _picoPresence?.Dispose();
+            _picoPresence = null;
             _bridge?.Dispose();
             _bridge = null;
             _pendingSession = null;
