@@ -11,7 +11,7 @@
 
 - [x] 2.1 `IteSpaceScene.Tour` 增加与 `tourID` 平级的 AprilTag ID 字段，可缺省；补 EditMode 测试覆盖"字段缺失仍装配"与"旧版描述文件可加载"
 - [x] 2.2 定义包自有的标记种类枚举（QR 文本 / AprilTag ID），MUST NOT 引用宿主 `MarkerPlatform`
-- [ ] 2.3 实现标记身份解析：QR 文本解析器（首版按 1.1 的实测格式，收敛在单一入口可替换）与 AprilTag ID 反查
+- [x] 2.3 实现标记身份解析：QR 文本解析器（首版按 1.1 的实测格式，收敛在单一入口可替换）与 AprilTag ID 反查
 - [ ] 2.4 `IteRuntime` 扫码入口改为接受"原始 payload + 标记种类 + 位姿"，内部解析后再走 `TourScanPolicy`
 - [ ] 2.5 解析失败与 tourId 不在场景中两种情况各输出一条含原始 payload 的日志
 - [ ] 2.6 EditMode 测试：两端 payload 形状各自解析、无法解析的 payload、解析出的 tourId 不存在
