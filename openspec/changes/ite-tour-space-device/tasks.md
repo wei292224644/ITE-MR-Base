@@ -23,8 +23,8 @@
 - [ ] 3.2 "平台未配置"与"平台 SDK 未安装"报成两条可区分的错误
 - [ ] 3.3 `MarkerHookTestRig` 改用工厂，删除其 `#if MRBASE_*` 分支
 - [ ] 3.4 全库检索确认观测源装配路径上只剩工厂一处平台条件编译
-- [ ] 3.5 `PicoFiducialObservationSource` 增加 margin 下限过滤（可调字段，起点 20），低于下限的检测不进 `Poll()` 返回；`MarkerObservation` 的字段形状不变
-- [ ] 3.6 EditMode 测试：低 margin 检测被滤、真检测不被误伤
+- [x] 3.5 `PicoFiducialObservationSource` 增加 margin 下限过滤（可调字段，起点 20），低于下限的检测不进 `Poll()` 返回；`MarkerObservation` 的字段形状不变
+- [x] 3.6 EditMode 测试：低 margin 检测被滤、真检测不被误伤
 
 ## 4. 宿主：桥接改造
 

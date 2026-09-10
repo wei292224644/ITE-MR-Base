@@ -48,6 +48,9 @@ public sealed class PicoFiducialObservationSource : MonoBehaviour, IMarkerObserv
     [Tooltip("四边形边线的亚像素精修。角点精度直接进单应，默认应开。")]
     public bool refineEdges = true;
     [Range(0.1f, 1f)] public float decodeSharpening = 0.25f;
+    [Tooltip("解码置信度下限。低于它的检测直接丢弃，不派发。真检测实测落在 76-100，" +
+             "假检测实测 3.8——下限取中间，几乎不可能误伤真码。")]
+    [Range(0f, 60f)] public float minDecisionMargin = 20f;
     [Tooltip("原生检测器的线程数。0 = 按 CPU 核数自动。")]
     [Range(0, 8)] public int detectorThreads = 0;
     [Tooltip("相机缓冲区行序。选错的表现是位姿沿 Y 镜像而非报错，所以必须显式，不能靠试。" +
@@ -395,6 +398,24 @@ public sealed class PicoFiducialObservationSource : MonoBehaviour, IMarkerObserv
         while (detectResults.TryDequeue(out DetectedMarker detected))
         {
             lastDetection = $"id={detected.Id} hamming={detected.Hamming} margin={detected.DecisionMargin:F1}";
+
+            // 低置信检测在这里就丢掉,不进 Poll() 的返回。
+            //
+            // 实测依据(2026-09-04,445 次检测):出现过一个场上根本不存在的 tag 64,
+            // hamming=2 margin=3.8,位姿解在相机正前方 22 cm,照常派发给了业务层并存活 1.01 s。
+            // 真检测的 margin 分布是 76.5-99.6(n=444,p50=91.1)——双峰间隔极大,
+            // 下限落在中间几乎不可能误伤真码。
+            //
+            // 过滤放在这里而不是给 MarkerObservation 加质量字段:契约层只吐原始信息不做质量判断,
+            // 且 margin 是 AprilTag 专有概念,Quest 的 QR 没有对应物,塞进公共载荷等于为一端污染契约。
+            if (!FiducialConfidencePolicy.ShouldAccept(detected.DecisionMargin, minDecisionMargin))
+            {
+                Debug.Log(
+                    $"[PicoFiducialObservationSource] 丢弃低置信检测 tag {detected.Id} " +
+                    $"margin={detected.DecisionMargin:F1} < {minDecisionMargin:F1}");
+                continue;
+            }
+
             if (detected.HasPose)
             {
                 lock (gate)
