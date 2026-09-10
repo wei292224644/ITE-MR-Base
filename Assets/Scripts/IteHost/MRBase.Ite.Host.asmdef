@@ -9,7 +9,9 @@
         "Uality.IteTour",
         "Unity.UGUI",
         "Unity.TextMeshPro",
-        "Unity.InputSystem"
+        "Unity.InputSystem",
+        "Unity.XR.OpenXR",
+        "Unity.XR.PICO"
     ],
     "includePlatforms": [],
     "excludePlatforms": [],
@@ -18,6 +20,12 @@
     "precompiledReferences": [],
     "autoReferenced": true,
     "defineConstraints": [],
-    "versionDefines": [],
+    "versionDefines": [
+        {
+            "name": "com.unity.xr.picoxr",
+            "expression": "",
+            "define": "MRBASE_HAS_PICO_SDK"
+        }
+    ],
     "noEngineReferences": false
 }

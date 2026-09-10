@@ -48,14 +48,14 @@
 
 ## 6. 宿主：设备输入 rig
 
-- [ ] 6.1 新增设备输入组件：经工厂取观测源、构造 `MarkerTrackingSession`、每帧 `Tick`、注入装配点
-- [ ] 6.2 解析到相机后挂载 trigger 碰撞体 + kinematic `Rigidbody`，销毁时只撤除自己挂的那些
-- [ ] 6.3 校验相机 layer 与触发体积 layer 在碰撞矩阵中互相碰撞，不满足时报错
-- [ ] 6.4 XR 就绪后再触发 `IteRuntime.StartAsync`；XR 始终未就绪时报错停用，不静默等待
-- [ ] 6.5 观测源打开失败时输出与 3.2 两类错误可区分的第三条日志
-- [ ] 6.6 接 `OnApplicationPause`：暂停 `MarkerTrackingSession.Pause()`、恢复 `Resume()`；PICO 侧按 1.6 的实测结论决定是否需要重开相机会话
-- [ ] 6.7 订阅重定位通知并触发强制重扫：Quest 走 `XRInputSubsystem.trackingOriginUpdated`，PICO 走 `PXR_Plugin.System.RecenterSuccess`
-- [ ] 6.8 Quest 侧显式 `OpenXRSettings.SetAllowRecentering(false)` 加固
+- [x] 6.1 新增设备输入组件：经工厂取观测源、构造 `MarkerTrackingSession`、每帧 `Tick`、注入装配点
+- [x] 6.2 解析到相机后挂载 trigger 碰撞体 + kinematic `Rigidbody`，销毁时只撤除自己挂的那些
+- [x] 6.3 校验相机 layer 与触发体积 layer 在碰撞矩阵中互相碰撞，不满足时报错
+- [x] 6.4 XR 就绪后再触发 `IteRuntime.StartAsync`；XR 始终未就绪时报错停用，不静默等待
+- [x] 6.5 观测源打开失败时输出与 3.2 两类错误可区分的第三条日志
+- [x] 6.6 接 `OnApplicationPause`：暂停 `MarkerTrackingSession.Pause()`、恢复 `Resume()`；PICO 侧按 1.6 的实测结论决定是否需要重开相机会话
+- [x] 6.7 订阅重定位通知并触发强制重扫：Quest 走 `XRInputSubsystem.trackingOriginUpdated`，PICO 走 `PXR_Plugin.System.RecenterSuccess`
+- [x] 6.8 Quest 侧显式 `OpenXRSettings.SetAllowRecentering(false)` 加固
 
 ## 7. 场景、构建与 MRCore 清理
 
