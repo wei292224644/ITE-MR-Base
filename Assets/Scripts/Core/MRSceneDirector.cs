@@ -28,6 +28,9 @@ public class MRSceneDirector : StaticInstance<MRSceneDirector>
     readonly List<string> m_ContentScenes = new();
     string m_BootSceneName;
 
+    /// <summary>正在切入、尚未设为激活场景的内容场景名。</summary>
+    string m_PendingActivation;
+
     protected override void AfterAwake()
     {
         m_BootSceneName = gameObject.scene.name;
@@ -40,12 +43,35 @@ public class MRSceneDirector : StaticInstance<MRSceneDirector>
         // 代价是「不许 Single」从优化建议变成了承重约束：没有 DDOL 兜底，一次 Single
         // 会把整套 XR 装配连根销毁。所以在这里守住，而不是只写在注释里。
         SceneManager.sceneLoaded += WarnOnSingleLoad;
+        SceneManager.sceneLoaded += ActivateOnLoad;
 
         if (!string.IsNullOrEmpty(firstScene))
             Load(firstScene);
     }
 
-    void OnDestroy() => SceneManager.sceneLoaded -= WarnOnSingleLoad;
+    void OnDestroy()
+    {
+        SceneManager.sceneLoaded -= WarnOnSingleLoad;
+        SceneManager.sceneLoaded -= ActivateOnLoad;
+    }
+
+    /// <summary>
+    /// 新场景必须在它自己的 <c>Start</c> 之前成为激活场景。<c>sceneLoaded</c> 恰好落在
+    /// 该场景的 Awake/OnEnable 之后、Start 之前。
+    ///
+    /// 晚一步（等 <c>isDone</c> 再设）的后果是：内容场景在 Start 里运行时新建的根对象
+    /// （MRUK 运行时、ITE 的帧驱动……）全部落进**上一个**内容场景，随后跟着它被卸掉，
+    /// 且不报任何错——真机上表现为扫码与区域触发静默失效（design D26）。
+    /// Awake 里新建的对象这里仍救不了，那一刻场景还没加载完。
+    /// </summary>
+    void ActivateOnLoad(Scene scene, LoadSceneMode mode)
+    {
+        if (scene.name != m_PendingActivation)
+            return;
+
+        m_PendingActivation = null;
+        SceneManager.SetActiveScene(scene);
+    }
 
     static void WarnOnSingleLoad(Scene scene, LoadSceneMode mode)
     {
@@ -111,15 +137,14 @@ public class MRSceneDirector : StaticInstance<MRSceneDirector>
         var previous = CurrentScene;
         CurrentScene = sceneName;
 
+        // 新场景设为激活场景：运行时 Instantiate 的对象、以及场景级的 RenderSettings
+        // 都跟着它走，行为与 Single 时一致。设的时机在 ActivateOnLoad 里——必须赶在
+        // 新场景的 Start 之前，等到这里 isDone 之后才设就晚了（design D26）。
+        m_PendingActivation = sceneName;
+
         var load = SceneManager.LoadSceneAsync(sceneName, LoadSceneMode.Additive);
         while (load != null && !load.isDone)
             yield return null;
-
-        // 新场景设为激活场景：运行时 Instantiate 的对象、以及场景级的 RenderSettings
-        // 都跟着它走，行为与 Single 时一致。
-        var loaded = SceneManager.GetSceneByName(sceneName);
-        if (loaded.IsValid() && loaded.isLoaded)
-            SceneManager.SetActiveScene(loaded);
 
         // 后卸旧的：先卸会出现一帧没有任何内容场景，切换时闪一下。
         if (!string.IsNullOrEmpty(previous) && previous != sceneName)

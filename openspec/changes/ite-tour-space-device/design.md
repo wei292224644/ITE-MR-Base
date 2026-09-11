@@ -217,6 +217,18 @@ M3 实测单帧检测（1280×960，n=63）：p50 **71.7 ms**、p95 79.6、max 1
 
 **按现有 tour space 的逻辑，不改语义、不做补偿、不加验收门槛**——该逻辑是既定的。做 anchor 持久化或重定位是另一个量级的工程，真要做另开。
 
+### D26 内容场景在自己的 Start 之前成为激活场景
+
+**真机发现（2026-09-11，Quest 产品包）**：从 `BloomTest` 切进 `IteTour` 后扫码与区域触发全部静默失效。`MRSceneDirector.SwitchTo` 原先等 `load.isDone` 之后才 `SetActiveScene`，而那时新场景的 `Start` 已经跑完；设备 rig 在 `Start` 里经工厂装起的 MRUK 运行时对象（OVRManager + MRUK）、`IteRuntime` 构造时建的 `[ITE] Runtime Driver`，都落进了仍是激活场景的 `BloomTest`，随即跟着它被卸掉——日志里 MRUK 在订阅后 42 ms 即 `OnDisable`，初始化之后再无 `OnScanPromptChanged`。探针包里没有 `BloomTest`、没有「卸上一个」这一步，所以一直没暴露。
+
+**选择**：在 `SceneManager.sceneLoaded` 里把切入目标设为激活场景。Unity 保证它落在该场景 Awake/OnEnable 之后、Start 之前，于是所有内容场景在 Start 里新建的根对象都归属自己的场景。修在导演一处，所有内容场景一次覆盖。这是 MR 基座行为，与 ITE 无关。
+
+**否决的替代**：
+- **各消费方自己把对象挪进正确场景**（安装器 `MoveGameObjectToScene`、包里的驱动也挪）——同一个时序错误要在每个运行时建对象的地方各修一遍，漏一处就是又一次静默失效；而且包对宿主的场景结构零知识，没有资格知道「正确场景」是哪个。
+- **一律 `DontDestroyOnLoad`**——掩盖时序错误而不是纠正它，并把本应随内容场景退出的东西（ITE 驱动）变成全程常驻；MRCore 的「常驻靠不卸载、不靠 DDOL」原则也因此破例。
+
+**已知边界**：Awake 里新建的根对象仍会落进上一个场景（那一刻场景尚未加载完）——本工程运行时建对象都在 Start 或更晚，暂不处理。MRUK/OVRManager 由此随 `IteTour` 生灭，离开再进入会重建一次；OVRManager 反复重建在真机上是否有副作用未验证，出现问题再把它们提为全程常驻。
+
 ## Risks / Trade-offs
 
 - **现场码的印制格式与假设不符** → 前置真机测量任务排在实现之前；解析器按可替换写，改动收敛到一处实现。
