@@ -118,13 +118,14 @@ public static class QuestMrukRuntimeInstaller
     /// <summary>
     /// 本工程的 Quest passthrough 走 OpenXR + AR Foundation（<c>PlatformRuntime</c> 装 ARCameraManager），
     /// 而这里为了 MRUK 又建了一个 Meta 自己的 OVRCameraRig/OVRManager —— 两套合成路径并存。
-    /// OVRManager 起来后会接管 Meta 运行时的合成器配置，其中 eyeFovPremultipliedAlphaMode 决定
-    /// 应用层的 alpha 怎么和 passthrough 合成。它一旦被置成 false（非预乘），半透明物体会被按
-    /// 直通 alpha 再乘一次，暗色半透明材质就塌成纯黑 —— 手部用的 Unity_Hand_Dark 正是暗色
-    /// Transparent 材质，症状就是"半透明手变全黑、腕部真实皮肤还在"。
+    /// eyeFovPremultipliedAlphaMode 决定应用层 alpha 怎么和 passthrough 合成；Meta 默认 true，
+    /// 官方 EnableUnpremultipliedAlpha Building Block 明确警告不要乱关。这里读一次真实值，
+    /// 非 true 就恢复，并把前后值打进日志。
     ///
-    /// Meta 的默认值是 true，且官方 EnableUnpremultipliedAlpha Building Block 明确警告不要乱关。
-    /// 这里读一次真实值：非 true 就恢复，并把前后值打进日志，好在真机上把因果钉死。
+    /// 注意：它**不是**「手部变黑」的原因。那个猜测已被真机否定（2026-09-11：getter 走原生
+    /// ovrp_GetEyeFovPremultipliedAlphaMode，读数恒为 true，且未创建 OVRManager 的场景里手同样
+    /// 发黑）。真因是 XRI 手部材质缺 URP 的 _SURFACE_TYPE_TRANSPARENT 关键字、混合参数为不透明，
+    /// 见提交「fix(hands): XRI 手部材质补齐 URP 透明表面关键字」。这里只保留为守护与诊断。
     /// </summary>
     private static void RestoreEyeFovPremultipliedAlpha()
     {
