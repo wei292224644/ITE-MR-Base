@@ -229,6 +229,18 @@ M3 实测单帧检测（1280×960，n=63）：p50 **71.7 ms**、p95 79.6、max 1
 
 **已知边界**：Awake 里新建的根对象仍会落进上一个场景（那一刻场景尚未加载完）——本工程运行时建对象都在 Start 或更晚，暂不处理。MRUK/OVRManager 由此随 `IteTour` 生灭，离开再进入会重建一次；OVRManager 反复重建在真机上是否有副作用未验证，出现问题再把它们提为全程常驻。
 
+### D27 glTFast 的 URP 着色器全量打进包（Always Included Shaders）
+
+**真机发现（2026-09-11，Quest 产品包）**：tour 模型整片洋红、左右眼不一致。glTFast 运行时按名字取自己的 Shader Graph 生成材质，而这些着色器不被任何场景或资源引用，打包时被剔除——glTFast 文档 *Missing Shader Variants* 一节描述的正是这个症状（Editor 正常、包里洋红）。左右眼不一致是退回的错误着色器不支持单通道双眼渲染所致。源工程 `ite-space-tour` 同样没有任何包含机制，不可作参照。
+
+**选择**：把 glTFast 的四个 URP Shader Graph（`glTF-pbrMetallicRoughness`、`glTF-unlit`、`glTF-pbrSpecularGlossiness`、`URP/glTF-pbrMetallicRoughness-Clearcoat`）加进 Always Included Shaders，全部变体入包。内容由服务端下发，材质特性在出包时不可知——只有与内容无关的包含方式才成立。
+
+**否决的替代**：
+- **在 Editor 里跑一遍现有 tour，录 ShaderVariantCollection 放进 Preloaded Shaders**——包小，但只覆盖录制时那几个 tour 的材质组合；服务端换一种组合即缺变体，而工程关着 *Strict Shader Variant Matching*，缺变体不报错、只静默渲染错。
+- **Resources 下放占位材质**——覆盖面问题与上一条相同，且要人工维护特性组合清单。
+
+**代价**：包体与出包时长增加，首次出包实测记录于此；若不可接受，先去掉 Clearcoat 与 SpecularGlossiness（前者依赖少见扩展，后者是已废弃扩展）。这是宿主的出包配置而非包内逻辑：包对宿主零依赖，着色器包含只能由出包方负责。
+
 ## Risks / Trade-offs
 
 - **现场码的印制格式与假设不符** → 前置真机测量任务排在实现之前；解析器按可替换写，改动收敛到一处实现。
