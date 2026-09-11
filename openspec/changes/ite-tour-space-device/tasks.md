@@ -1,6 +1,7 @@
 ## 1. 前置真机测量（不改代码）
 
-- [ ] 1.1 用现有 `MRBase/Build/Marker Hook Test/Quest Development` 出包，在 Quest 上读一次现场标记，记录 rawPayload 原文与位姿抖动幅度
+- [x] 1.1 用现有 `MRBase/Build/Marker Hook Test/Quest Development` 出包，在 Quest 上读一次现场标记，记录 rawPayload 原文与位姿抖动幅度
+  - 2026-09-11 实测：rawPayload 原文 `******wm0l5qcn_ibd******`（与 `QrPayloadFormat` 外壳一致）；静置 404 次观测，位置极差 x 0.000 / y 0.001 / z 0.003 m。探针须出 Release 包，见 `BuildScript` 注释
 - [ ] 1.2 用 `MRBase/Build/Marker Hook Test/PICO Development` 出包，在 PICO 上读一次现场标记，记录 AprilTag ID、位姿抖动幅度、以及 `tagSizeMeters` 与工作距离的实测关系
 - [ ] 1.3 Quest 侧读一次 `InputDevices` 的 `userPresence`；PICO 侧改验 `PXR_Plugin.System.UserPresenceChangedAction` 是否到达（原生通道已确认存在，见 design D19）
 - [ ] 1.5 两端各触发一次系统重定位，记录内容与实物错开多少、以及 Quest 侧 `OpenXRSettings.AllowRecentering` 的实际默认值
