@@ -39,7 +39,10 @@ namespace Uality.IteTour.Core
     /// </summary>
     public static class QrPayloadFormat
     {
-        /// <summary>当前印制格式。真机核实前沿用源工程的外壳。</summary>
+        /// <summary>
+        /// 当前印制格式：六个星号包住 tourId。已由内容方确认，打印夹具按同一模板生成
+        /// （<c>docs/test-fixtures/marker-sheets/</c>）。预期会变成一个地址，届时只换这里。
+        /// </summary>
         private static readonly Regex Shell = new Regex(@"^\*{6}(.*?)\*{6}$", RegexOptions.Compiled);
 
         public static bool TryParseTourId(string rawPayload, out string tourId)
