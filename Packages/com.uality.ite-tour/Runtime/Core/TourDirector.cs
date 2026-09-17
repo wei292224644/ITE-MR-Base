@@ -270,19 +270,32 @@ namespace Uality.IteTour.Core
                 return;
             }
 
+            if (ReferenceEquals(_activeTour, tour))
+            {
+                if (pose.HasValue)
+                {
+                    tour.ChangeTourObjectTransform(pose.Value.position, pose.Value.rotation);
+                }
+
+                _ = tour.Enable();
+                return;
+            }
+
             DeactivateCurrent();
 
             _activeTour = tour;
-
-            // 与源实现一致：不等内容构建完就返回，构建完成由 OnTourSceneLoaded 通知
-            _ = tour.Enable();
 
             if (pose.HasValue)
             {
                 tour.ChangeTourObjectTransform(pose.Value.position, pose.Value.rotation);
             }
 
+            // 先广播再 Enable。已建树时 Enable 是空操作、不再派发组件侧 Loaded
+            // （LoadTrigger 不能重放）；宿主超时由 IteRuntime 在 Activated 回调里补一次。
             TourActivated?.Invoke(tour.TourId);
+
+            // 与源实现一致：不等内容构建完就返回，构建完成由 OnTourSceneLoaded 通知
+            _ = tour.Enable();
         }
 
         private void Reanchor(IteTourObject tour, Pose pose, bool consumesSecondAnchor)

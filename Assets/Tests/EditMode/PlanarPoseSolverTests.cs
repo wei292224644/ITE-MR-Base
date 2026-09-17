@@ -128,11 +128,12 @@ public class PlanarPoseSolverTests
     [Test]
     public void ToUnityCameraSpace_WithFrontalMarker_FacesTheCamera()
     {
-        // 模型点按 +Y 朝上定义（marker 自己的朝向），而 OpenCV 图像 +Y 朝下，
-        // 所以正视时解出的 R 是绕 X 转 180°，转换必须把这一下抵消掉。
+        // 模型点按 OpenCV 物体系定义（+Y 朝下、+Z 朝板内），与图像 +Y 同向，
+        // 所以「标正对相机、印刷体朝上」就是单位旋转。转换要把物体系也翻过来
+        // （design D30）：产出的 Pose 必须法线指回相机、上方是世界上方。
         Matrix4x4 truth = Matrix4x4.TRS(
             new Vector3(0f, 0f, 1f),
-            Quaternion.Euler(180f, 0f, 0f),
+            Quaternion.identity,
             Vector3.one);
         Vector2[] imagePoints = ProjectAll(truth, SquareModel);
         Assert.IsTrue(PlanarPoseSolver.TrySolve(

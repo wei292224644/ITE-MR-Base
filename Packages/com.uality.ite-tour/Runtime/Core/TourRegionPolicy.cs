@@ -54,7 +54,7 @@ namespace Uality.IteTour.Core
             };
 
             // 当前 Tour 仍在待扫描范围内，或还没扫过第一次码：不动
-            if (state.ForcedScanPending || Contains(pending, state.ActiveTourId))
+            if (state.ForcedScanPending || TourIdLists.Contains(pending, state.ActiveTourId))
             {
                 return decision;
             }
@@ -107,7 +107,7 @@ namespace Uality.IteTour.Core
             for (int i = 0; i < tours.Count; i++)
             {
                 if (tours[i].DisplayType == IteSpaceScene.Tour.DisplayType.regionalTrigger
-                    && Contains(pending, tours[i].TourId))
+                    && TourIdLists.Contains(pending, tours[i].TourId))
                 {
                     candidates.Add(tours[i].TourId);
                 }
@@ -116,22 +116,5 @@ namespace Uality.IteTour.Core
             return candidates;
         }
 
-        private static bool Contains(IReadOnlyList<string> ids, string id)
-        {
-            if (ids == null || string.IsNullOrEmpty(id))
-            {
-                return false;
-            }
-
-            for (int i = 0; i < ids.Count; i++)
-            {
-                if (ids[i] == id)
-                {
-                    return true;
-                }
-            }
-
-            return false;
-        }
     }
 }

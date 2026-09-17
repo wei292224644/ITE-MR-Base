@@ -100,7 +100,7 @@ namespace Uality.IteTour.Core
             // 相机在某些触发体积内时，只认这些 Tour 的码；集合为空表示不设限。
             if (state.PendingTourIds != null
                 && state.PendingTourIds.Count > 0
-                && !Contains(state.PendingTourIds, markerId))
+                && !TourIdLists.Contains(state.PendingTourIds, markerId))
             {
                 return ScanDecision.Ignore;
             }
@@ -157,17 +157,5 @@ namespace Uality.IteTour.Core
             return false;
         }
 
-        private static bool Contains(IReadOnlyList<string> ids, string id)
-        {
-            for (int i = 0; i < ids.Count; i++)
-            {
-                if (ids[i] == id)
-                {
-                    return true;
-                }
-            }
-
-            return false;
-        }
     }
 }

@@ -75,7 +75,9 @@ namespace Uality.IteTour.Tests
 
                 Assert.DoesNotThrow(() =>
                 {
-                    fixture.Runtime.SubmitMarkerScan("marker-1", Pose.identity);
+                    fixture.Runtime.SubmitMarkerScan(MarkerKind.QrText, "******marker-1******", Pose.identity);
+                    fixture.Runtime.SubmitMarkerScan(MarkerKind.AprilTagId, "250", Pose.identity);
+                    fixture.Runtime.SubmitMarkerScan(MarkerKind.QrText, null, Pose.identity);
                     fixture.Runtime.SetHeadsetMounted(false);
                     fixture.Runtime.SetHeadsetMounted(true);
                     Assert.IsFalse(fixture.Runtime.ActivateTour("no-such-tour"));

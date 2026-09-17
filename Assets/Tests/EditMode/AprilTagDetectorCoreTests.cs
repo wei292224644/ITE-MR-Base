@@ -80,6 +80,46 @@ public class AprilTagDetectorCoreTests
     }
 
     /// <summary>
+    /// 位姿的**物理语义**：标正对相机、印刷面朝人、印刷体朝上时，解出的 pose 必须
+    /// 法线指回相机、up 与印刷体的上同向（design D30）。
+    ///
+    /// 与 <see cref="TrySolvePose_WithObliqueTag_RecoversTruthPose"/> 分开写，因为那条
+    /// 用 <c>ToUnityCameraSpace(truth)</c> 当期望值——两边用同一套约定，整体转了 180°
+    /// 也测不出来。2026-09-17 PICO 真机就漏在这里：内容上下翻转且背面朝人。
+    ///
+    /// 期望值只用相机系的基向量表达，不经被测函数，这是这条用例成立的前提。
+    /// </summary>
+    [Test]
+    public void TrySolvePose_WithFrontalUprightTag_FacesCameraAndKeepsPrintedUp()
+    {
+        // 单位旋转 = 标正对相机、印刷体朝上：OpenCV 物体系下模型 +X = 图像右、
+        // 模型 +Y = 图像下（印刷体的下）、模型 +Z = 背离相机（板内）。
+        Matrix4x4 truth = Matrix4x4.TRS(
+            new Vector3(0f, 0f, 0.7f), Quaternion.identity, Vector3.one);
+        byte[] frame = RenderFrame(truth);
+
+        using var core = new AprilTagDetectorCore(ImageWidth, ImageHeight, 1);
+        var results = new List<AprilTagDetectorCore.TagObservation>();
+        core.Detect(frame, results);
+        Assert.AreEqual(1, results.Count);
+
+        Assert.IsTrue(AprilTagDetectorCore.TrySolvePose(
+            results[0], TagSizeMeters, Fx, Fy, Cx, Cy, out Pose solved));
+
+        Vector3 forward = solved.rotation * Vector3.forward;
+        Vector3 up = solved.rotation * Vector3.up;
+
+        Debug.Log($"[AprilTagDetectorCore] frontal: pos={solved.position:F3} fwd={forward:F3} up={up:F3}");
+
+        // Unity 相机系：+Z 是视线方向，所以「指回相机」= -Z。
+        Assert.Less(Vector3.Angle(forward, Vector3.back), 5f,
+            "法线必须指回相机——朝反了内容就是背面对人");
+        Assert.Less(Vector3.Angle(up, Vector3.up), 5f,
+            "up 必须与印刷体的上同向——反了内容就是上下翻转");
+        Assert.Less(Vector3.Distance(solved.position, new Vector3(0f, 0f, 0.7f)), 0.010f);
+    }
+
+    /// <summary>
     /// 这个用例同时钉死两件事：角点顺序与模型点的对应关系，以及位姿的原点和轴向。
     /// 角点顺序若旋转一位，还原出的旋转会差 90°，断言立刻红。
     /// </summary>

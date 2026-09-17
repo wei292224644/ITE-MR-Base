@@ -152,6 +152,11 @@ public class MRSceneDirector : StaticInstance<MRSceneDirector>
             var old = SceneManager.GetSceneByName(previous);
             if (old.IsValid() && old.isLoaded)
                 yield return SceneManager.UnloadSceneAsync(old);
+
+            // 卸场景只销毁 GameObject，不回收资源：贴图、网格、AudioClip 仍占着内存，
+            // 直到这一句。运行时从磁盘/网络造出来的资源（glTF 模型、下载的贴图）尤其如此，
+            // 它们不属于任何场景，没人替它们回收。切场景本来就要停顿，这里扫一次最省事。
+            yield return Resources.UnloadUnusedAssets();
         }
     }
 

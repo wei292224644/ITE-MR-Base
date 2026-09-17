@@ -36,7 +36,8 @@ namespace Uality.IteTour.Core
         /// <summary>相机进出本 Tour 的触发体积。由编排层转给 <see cref="TourDirector"/>。</summary>
         public Action<string, VolumeTransition> OnCameraVolumeTransition;
 
-        private bool _isDestroyed;
+        private TourSceneLifecycle _scene;
+        private Task _building;
         private IteSpaceScene.Tour.DisplayType _displayType;
         private string _tourId;
         private Data.IteTour _tour;
@@ -52,6 +53,9 @@ namespace Uality.IteTour.Core
         public IteSpaceScene.Tour.DisplayType DisplayType => _displayType;
 
         public Data.IteTour Tour => _tour;
+
+        /// <summary>内容树已建好。再次 <see cref="Enable"/> 不会重建，也不再派发 <see cref="OnTourSceneLoaded"/>。</summary>
+        public bool IsSceneReady => _scene.IsReady;
 
         /// <summary>
         /// 注入锚点、偏移与相机 Transform。装配时调用一次。
@@ -69,8 +73,8 @@ namespace Uality.IteTour.Core
         /// <summary>由触发体积上的 <see cref="TourVolumeTrigger"/> 调用。</summary>
         internal void NotifyVolumeTransition(Collider other, VolumeTransition transition)
         {
-            if (_isDestroyed
-                || _displayType == IteSpaceScene.Tour.DisplayType.alwaysDisplayed
+            if (_scene.IsDestroyed
+                || !TourAssembly.AllowsTriggerVolume(_displayType)
                 || !SceneRoles.IsCamera(_camera, other != null ? other.transform : null))
             {
                 return;
@@ -81,7 +85,7 @@ namespace Uality.IteTour.Core
 
         public async Task CreateTourObject(IteSpaceScene.Tour tour, Data.IteTour tourData)
         {
-            if (_isDestroyed) return;
+            if (_scene.IsDestroyed) return;
 
             _tourId = tour.tourID;
             _tour = tourData;
@@ -138,34 +142,159 @@ namespace Uality.IteTour.Core
 
         public void SetVolumeObjectActive(bool isActive)
         {
-            if (_isDestroyed) return;
+            if (_scene.IsDestroyed) return;
+
+            // alwaysDisplayed 不参与区域触发。决策收在 Tour 自己，避免
+            // SetAllVolumesActive 把 ChangeDisplayType 刚关掉的体积重新打开。
+            if (isActive && !TourAssembly.AllowsTriggerVolume(_displayType))
+            {
+                _volumeObject.SetActive(false);
+                return;
+            }
+
             _volumeObject.SetActive(isActive);
         }
 
         public async Task Enable()
         {
-            if (_isDestroyed) return;
-            gameObject.SetActive(true);
-            await CreateTourScene();
-            OnTourSceneLoaded?.Invoke();
+            if (_scene.IsDestroyed) return;
 
-            _canAnchor = true;
+            gameObject.SetActive(true);
+
+            if (_scene.IsReady)
+            {
+                return;
+            }
+
+            if (_building != null)
+            {
+                await _building;
+                if (_scene.IsDestroyed) return;
+                if (_scene.IsReady) return;
+            }
+
+            if (!_scene.TryBeginBuild(out var generation))
+            {
+                if (_building != null)
+                {
+                    await _building;
+                }
+
+                return;
+            }
+
+            var build = BuildSceneAsync(generation);
+            _building = build;
+            try
+            {
+                await build;
+            }
+            finally
+            {
+                if (ReferenceEquals(_building, build))
+                {
+                    _building = null;
+                }
+            }
         }
 
         public void Disable()
         {
-            if (_isDestroyed) return;
+            TearDownScene(force: false);
+        }
+
+        public void Destroy()
+        {
+            TearDownScene(force: true);
+            _scene.Destroy();
+            ReleaseAssets();
+        }
+
+        /// <summary>
+        /// 释放本 Tour 运行时加载出来的资源。
+        ///
+        /// 这批资源不属于任何场景：<c>GltfImport</c> 自己持有导入产生的 Mesh/Texture/
+        /// Material/AnimationClip，Sprite 与 AudioClip 是 UnityWebRequest 当场造出来的。
+        /// 销毁 GameObject 只断引用，对象本身留在内存里，连卸场景都不回收——换一次 tour
+        /// 就涨一次，直到 OOM。
+        ///
+        /// 只在 <see cref="Destroy"/> 走这条：<see cref="Disable"/> 之后还可能 Enable
+        /// 回来，内容树要靠这批资源重建。
+        /// </summary>
+        private void ReleaseAssets()
+        {
+            if (_tour?.Assets == null)
+            {
+                return;
+            }
+
+            foreach (var asset in _tour.Assets.Values)
+            {
+                switch (asset)
+                {
+                    case EMWModelAsset model:
+                        model.GltfImport?.Dispose();
+                        model.GltfImport = null;
+                        if (model.Json?.audio != null)
+                        {
+                            foreach (var audio in model.Json.audio)
+                            {
+                                DestroyAsset(audio.audioClip);
+                                audio.audioClip = null;
+                            }
+                        }
+
+                        break;
+
+                    case RichTextAsset richText:
+                        if (richText.spriteInstance != null)
+                        {
+                            // Sprite 与它的 Texture2D 是两个对象，只销毁 Sprite 会漏掉大头。
+                            DestroyAsset(richText.spriteInstance.texture);
+                            DestroyAsset(richText.spriteInstance);
+                            richText.spriteInstance = null;
+                        }
+
+                        DestroyAsset(richText.audioInstance);
+                        richText.audioInstance = null;
+                        break;
+                }
+            }
+        }
+
+        private static void DestroyAsset(UnityEngine.Object asset)
+        {
+            if (asset == null)
+            {
+                return;
+            }
+
+            if (Application.isPlaying)
+            {
+                Destroy(asset);
+            }
+            else
+            {
+                DestroyImmediate(asset);
+            }
+        }
+
+        private void TearDownScene(bool force)
+        {
+            if (_scene.IsDestroyed) return;
+
+            if (!force && TourAssembly.RetainsSceneWhenDeactivated(_displayType))
+            {
+                _canAnchor = false;
+                return;
+            }
+
+            _scene.TearDown();
             DestroyTourScene();
 
             // 源实现此处先 ResetSecondAnchor()（置 true）再置 false，前者是死调用（D14）。
             // 连同只有它一个调用方的 ResetSecondAnchor 一并删除。
             _canAnchor = false;
-        }
-
-        public void Destroy()
-        {
-            Disable();
-            _isDestroyed = true;
         }
 
         /// <summary>本 Tour 当前是否还允许一次二次锚定。</summary>
@@ -188,10 +317,9 @@ namespace Uality.IteTour.Core
         {
             _displayType = displayType;
 
-            // 一直显示的 Tour 不需要触发体积
-            if (displayType == IteSpaceScene.Tour.DisplayType.alwaysDisplayed)
+            if (!TourAssembly.AllowsTriggerVolume(displayType))
             {
-                _volumeObject.SetActive(false);
+                SetVolumeObjectActive(false);
             }
         }
 
@@ -203,7 +331,7 @@ namespace Uality.IteTour.Core
         /// </summary>
         private async Task LoadAssets(Dictionary<string, Asset> assets)
         {
-            if (_isDestroyed || assets == null) return;
+            if (_scene.IsDestroyed || assets == null) return;
 
             foreach (var pair in assets)
             {
@@ -261,25 +389,45 @@ namespace Uality.IteTour.Core
                 TourAssetPaths.RichTextImage(_tourId, richText.Id));
         }
 
+        private async Task BuildSceneAsync(int generation)
+        {
+            try
+            {
+                await CreateTourScene(generation);
+                if (!_scene.TryMarkReady(generation))
+                {
+                    return;
+                }
+
+                _canAnchor = true;
+                OnTourSceneLoaded?.Invoke();
+            }
+            catch
+            {
+                _scene.Abandon(generation);
+                throw;
+            }
+        }
+
         /// <summary>
         /// 构建 Tour 的第一个场景：逐实体建 GameObject，按 <see cref="ComponentLoadOrder"/>
         /// 挂组件并依次 await 各自的 <c>Constructor</c>。
         /// </summary>
-        private async Task CreateTourScene()
+        private async Task CreateTourScene(int generation)
         {
-            if (_isDestroyed || !TryGetFirstScene(out var scene))
+            if (!_scene.IsCurrentBuild(generation) || !TryGetFirstScene(out var scene))
             {
                 return;
             }
 
             foreach (var entityData in scene.Entities.Values)
             {
-                if (_isDestroyed)
+                if (!_scene.IsCurrentBuild(generation))
                 {
                     return;
                 }
 
-                await CreateEntity(entityData);
+                await CreateEntity(entityData, generation);
             }
         }
 
@@ -303,7 +451,7 @@ namespace Uality.IteTour.Core
             return true;
         }
 
-        private async Task CreateEntity(Data.Entity entityData)
+        private async Task CreateEntity(Data.Entity entityData, int generation)
         {
             var go = new GameObject(entityData.Id, typeof(EventEmitter), typeof(Entity));
             go.transform.SetParent(_mainGroupObject.transform, false);
@@ -314,6 +462,12 @@ namespace Uality.IteTour.Core
 
             foreach (var componentData in ComponentLoadOrder.Sort(entityData.Components))
             {
+                if (!_scene.IsCurrentBuild(generation))
+                {
+                    Destroy(go);
+                    return;
+                }
+
                 var componentType = ComponentRegistry.Resolve(componentData.ComponentType);
                 if (componentType == null)
                 {
@@ -328,6 +482,12 @@ namespace Uality.IteTour.Core
                 }
             }
 
+            if (!_scene.IsCurrentBuild(generation))
+            {
+                Destroy(go);
+                return;
+            }
+
             // alwaysDisplayed 的 Tour 忽略实体自身的初始显隐，全部显示
             if (_displayType != IteSpaceScene.Tour.DisplayType.alwaysDisplayed)
             {
@@ -337,7 +497,7 @@ namespace Uality.IteTour.Core
 
         private void DestroyTourScene()
         {
-            if (_isDestroyed) return;
+            if (_scene.IsDestroyed) return;
 
             foreach (Transform child in _mainGroupObject.transform)
             {

@@ -207,7 +207,11 @@ public sealed class AprilTagDetectorCore : IDisposable
         // 角点与模型点的对应取自 apriltag 官方位姿估计器（apriltag_pose.c:497-502）：
         //   p[0]={-s, s, 0}  p[1]={s, s, 0}  p[2]={s, -s, 0}  p[3]={-s, -s, 0}
         // 它与 PlanarPoseSolver 用的是同一套归一化（(u-cx)/fx, (v-cy)/fy, 1），可直接沿用。
-        // 写反 Y 号的表现是位置对、旋转差约 180°——由 EditMode 测试断言（design D12）。
+        //
+        // 这套模型点与合成渲染器（AprilTagDetectorCoreTests.SampleTag）的行序是绑定的：
+        // 它的 +Y 与图像 +Y 同向（向下），即印刷体的**下**方，+Z 朝板内背离观察者 ——
+        // 标准的 OpenCV 物体系。换成「+Y 朝上」再喂进来，渲染出的标就是镜像，apriltag
+        // 一个都认不出。物体系 → Unity 物体系的那一步归 ToUnityCameraSpace（design D30）。
         var modelPoints = new[]
         {
             new Vector2(-half, half),

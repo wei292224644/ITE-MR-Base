@@ -19,6 +19,9 @@ namespace Uality.IteTour.Core
 
         private bool _started;
 
+        /// <summary>装配时收下的标记绑定，供 <see cref="SubmitMarkerScan"/> 反查。</summary>
+        private readonly List<MarkerBinding> _bindings = new List<MarkerBinding>();
+
         /// <summary>
         /// 装配运行时。必需项缺失时返回 <c>null</c> 并逐项报名，不抛异常——
         /// 装配错误发生在宿主的 <c>Awake</c> 里，抛出去只会变成一条没有上下文的堆栈。
@@ -61,7 +64,19 @@ namespace Uality.IteTour.Core
                 bootstrap.Camera);
 
             _director = new TourDirector(_assembler);
-            _director.TourActivated += id => OnTourActivated?.Invoke(id);
+            _director.TourActivated += id =>
+            {
+                OnTourActivated?.Invoke(id);
+
+                // alwaysDisplayed 在装配时已经建树并派发过组件侧 OnTourSceneLoaded。
+                // 再次 Activate 不再重建，组件事件不能重放（LoadTrigger 会再跑一遍）。
+                // 宿主超时监视仍需要一次 Loaded，由这里补发给宿主。
+                var tour = _assembler.Find(id);
+                if (tour != null && tour.IsSceneReady)
+                {
+                    OnTourSceneLoaded?.Invoke(id);
+                }
+            };
             _director.TourDeactivated += id => OnTourDeactivated?.Invoke(id);
             _director.ScanPromptChanged += prompt => OnScanPromptChanged?.Invoke(prompt);
 
@@ -149,14 +164,26 @@ namespace Uality.IteTour.Core
             OnSpaceSceneLoaded?.Invoke(scene);
             OnLoadProgress?.Invoke(LoadProgress.SceneParsed);
 
+            var tours = TourAssembly.EnabledTours(scene.tours);
+            if (tours.Count == 0)
+            {
+                throw new Exception("No enabled tours in IteSpaceScene: " + _bootstrap.Config.SceneName);
+            }
+
+            _bindings.Clear();
+
             int completed = 0;
-            foreach (var tour in scene.tours)
+            foreach (var tour in tours)
             {
                 var data = await _pipeline.FetchTourAsync(tour.tourID);
                 await _assembler.CreateAsync(tour, data);
 
+                // 绑定在装配时收下：这里 IteSpaceScene.Tour 就在手上，
+                // 不必为了一个字段去改 IteTourObject 的形状。
+                _bindings.Add(new MarkerBinding(tour.tourID, tour.aprilTagID));
+
                 completed++;
-                OnLoadProgress?.Invoke(LoadProgress.ForTours(completed, scene.tours.Length));
+                OnLoadProgress?.Invoke(LoadProgress.ForTours(completed, tours.Count));
             }
 
             OnLoadProgress?.Invoke(1f);
@@ -224,9 +251,51 @@ namespace Uality.IteTour.Core
             }
         }
 
-        /// <summary>宿主推入扫码结果。包不订阅任何平台的标记事件。</summary>
-        public void SubmitMarkerScan(string markerId, Pose pose)
-            => _director.SubmitMarkerScan(markerId, pose);
+        /// <summary>
+        /// 宿主推入一次扫码：**原始 payload + 标记种类 + 位姿**（design D5）。包不订阅任何
+        /// 平台的标记事件，也不认识宿主的平台类型——种类用包自有的 <see cref="MarkerKind"/>。
+        ///
+        /// payload 到 tourId 的解析在这里完成，宿主侧不做任何解析：payload 的形状由内容方
+        /// 定义且会变，焊在宿主意味着内容每改一次码，宿主就要出一次包。
+        /// </summary>
+        public void SubmitMarkerScan(MarkerKind kind, string rawPayload, Pose pose)
+        {
+            var outcome = MarkerIdentity.Resolve(kind, rawPayload, _bindings, out string tourId);
+            if (outcome != MarkerResolution.Resolved)
+            {
+                LogUnresolved(outcome, kind, rawPayload, tourId);
+                return;
+            }
+
+            _director.SubmitMarkerScan(tourId, pose);
+        }
+
+        /// <summary>
+        /// 解析不出时必须出声：静默丢弃与「根本没扫到」在真机上不可区分。
+        /// 两种失败分开说——一种是码的形状不对（该找内容方），
+        /// 一种是码对但场景里没这个 Tour（该找空间场景描述）。
+        /// </summary>
+        private void LogUnresolved(MarkerResolution outcome, MarkerKind kind, string rawPayload, string tourId)
+        {
+            if (outcome == MarkerResolution.Unparsable)
+            {
+                Debug.Log($"[ITE] 标记 payload 解析不出 tourId，已忽略：kind={kind} payload=\"{rawPayload}\"");
+                return;
+            }
+
+            var available = string.Join("、", AssembledTourIds);
+            var who = tourId != null ? $"tourId=\"{tourId}\"" : $"payload=\"{rawPayload}\"";
+            Debug.Log($"[ITE] 标记解析出的 Tour 不在场景中，已忽略：kind={kind} {who}；当前可用：{available}");
+        }
+
+        /// <summary>
+        /// 宿主要求下一次扫码无条件生效。用于「上一次锚定不再可信」的场合——
+        /// 例如系统重定位改了追踪原点：内容在世界坐标里没动，物理世界却整个转了过去，
+        /// 不重扫就会一直偏着（design D18）。
+        ///
+        /// 与摘下/戴上不同：这里**不停用当前 Tour**，只是要求重扫。
+        /// </summary>
+        public void RequireScan() => _director.RequireScan();
 
         /// <summary>宿主推入头显佩戴状态。摘下暂停导览，重新戴上要求重新扫码。</summary>
         public void SetHeadsetMounted(bool mounted)
@@ -236,11 +305,6 @@ namespace Uality.IteTour.Core
         public void Shutdown()
         {
             _assembler.DestroyAll();
-
-            if (_driver == null)
-            {
-                return;
-            }
 
             // 编辑器里（非播放态）Destroy 不会真的销毁，驱动对象会留在场景里
             if (Application.isPlaying)

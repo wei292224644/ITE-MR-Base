@@ -11,7 +11,7 @@ namespace Uality.IteTour.Tests
     /// <summary>
     /// <see cref="ZipContentDownloader.ExtractAsync"/> 的落盘验证：真实构造 zip 文件，
     /// 覆盖 <see cref="ZipTopLevel.Preserve"/> / <see cref="ZipTopLevel.Strip"/> 两种语义，
-    /// 以及"声明 Strip 但 zip 无公共顶层目录"时的报错路径。
+    /// 以及"声明 Strip 但 zip 无公共顶层目录"时的扁平回退路径。
     ///
     /// 全部走 <see cref="ZipContentDownloader.ExtractSync"/>（同步），不用 <c>async Task</c>
     /// 测试方法：Unity 的 Test Runner 里跑 <c>async Task</c> 测试、内部再 <c>await Task.Run(...)</c>，
@@ -136,8 +136,33 @@ namespace Uality.IteTour.Tests
             Assert.That(Directory.Exists(Path.Combine(OutputFolder, "__MACOSX")), Is.False);
         }
 
+        /// <summary>
+        /// 内容方把文件夹**里的东西**直接压成扁平包（空间场景描述在 zip 根上）时，
+        /// Strip 应原样落盘而不是中止。2026-09-17 PICO 实测：重传的 thirdDemo.zip
+        /// 正是这种布局，原先的抛异常把整条加载链打死（design D29）。
+        /// </summary>
         [Test]
-        public void ExtractSync_Strip_ThrowsWhenNoCommonTopLevelDirectory()
+        public void ExtractSync_Strip_FallsBackToFlatWhenNoCommonTopLevelDirectory()
+        {
+            CreateZip(new[]
+            {
+                ("thirdDemo.json", "{}"),
+                ("assets/logo.png", "x"),
+            });
+
+            ZipContentDownloader.ExtractSync(ZipPath, OutputFolder, ZipTopLevel.Strip);
+
+            Assert.That(File.Exists(Path.Combine(OutputFolder, "thirdDemo.json")), Is.True,
+                "读取侧按 {folder}/{sceneName}.json 找文件，扁平包落盘后正好就在这里");
+            Assert.That(File.Exists(Path.Combine(OutputFolder, "assets", "logo.png")), Is.True);
+        }
+
+        /// <summary>
+        /// 多个互不相同的顶层目录同样没有公共顶层，但它**不是**扁平包。
+        /// 与上一条走同一支（原样落盘），这里钉住不会有人再把它改回抛异常。
+        /// </summary>
+        [Test]
+        public void ExtractSync_Strip_KeepsDistinctTopLevelDirectories()
         {
             CreateZip(new[]
             {
@@ -145,11 +170,10 @@ namespace Uality.IteTour.Tests
                 ("b/y.json", "{}"),
             });
 
-            Assert.Throws<InvalidDataException>(() =>
-                ZipContentDownloader.ExtractSync(ZipPath, OutputFolder, ZipTopLevel.Strip));
+            ZipContentDownloader.ExtractSync(ZipPath, OutputFolder, ZipTopLevel.Strip);
 
-            Assert.That(Directory.Exists(OutputFolder), Is.False,
-                "报错必须中止解压，MUST NOT 把条目按原样落盘");
+            Assert.That(File.Exists(Path.Combine(OutputFolder, "a", "x.json")), Is.True);
+            Assert.That(File.Exists(Path.Combine(OutputFolder, "b", "y.json")), Is.True);
         }
 
         [Test]

@@ -241,6 +241,34 @@ M3 实测单帧检测（1280×960，n=63）：p50 **71.7 ms**、p95 79.6、max 1
 
 **代价**：包体与出包时长增加，首次出包实测记录于此；若不可接受，先去掉 Clearcoat 与 SpecularGlossiness（前者依赖少见扩展，后者是已废弃扩展）。这是宿主的出包配置而非包内逻辑：包对宿主零依赖，着色器包含只能由出包方负责。
 
+### D29 空间场景包的扁平布局不是错误
+
+**真机发现（2026-09-17，PICO 产品包）**：内容方为补 `aprilTagID` 重传了 `thirdDemo.zip`，新包把 `thirdDemo.json` 与 `assets/` 直接压在 zip 根上，不再套 `thirdDemo/` 一层。加载链当场死在 `ZipContentDownloader.ResolveStripPrefix`：`Strip` 语义原先要求全部条目位于同一个顶层目录之下，否则抛 `InvalidDataException` 并中止（D1）。表现是 `[ITE Host] 加载链失败`，内容一个字都进不来。
+
+**选择**：`Strip` 改为「有唯一公共顶层就剥，没有就按扁平原样落盘」，并记一条日志说明走了哪支。两种布局的**落盘结果本来就一致**——读取侧按 `{folder}/{sceneName}.json` 找文件，剥掉 `thirdDemo/` 与本来就没有这一层，结果同一个目录树。既然一致，就不该有一种是致命错误。
+
+**否决的替代**：
+- **要求内容方套回文件夹重压**——打包动作是人在 Finder 里做的（对文件夹右键压缩 vs 选中内容压缩），两种习惯都会再出现；而这个失败只在真机上现形、且是整条链致命。把不变量押在别人的鼠标动作上不成立。
+- **宿主侧按 sceneName 猜前缀**（存在 `{sceneName}/` 就剥）——把「顶层目录叫什么」这条隐式约定写死进代码，内容方改一次命名就再错一次，且错得静默。
+
+**保留的强制**：`Preserve`（tour 包）语义不动；zip-slip 校验（`ZipEntryPath`）对两种布局一样拦截——放宽的只是「必须有顶层目录」，不是落盘边界。
+
+### D30 标记位姿的物体系换算归 `ToUnityCameraSpace`
+
+**真机发现（2026-09-17，PICO 产品包）**：AprilTag 唤醒通了，但内容方向反了。日志里标正对相机时 `rot=(357.9, 1.4, 179.3)` —— 位置完全正确，旋转绕标记的 X 轴差 180°：内容上下翻转且背面朝人。
+
+**原因**：`PlanarPoseSolver.ToUnityCameraSpace` 只换了**相机系**（OpenCV 图像 +Y 向下 → Unity +Y 向上，翻一次 y），没换**标记自己的物体系**。求解用的模型点取自 apriltag 官方 `apriltag_pose.c`，是标准 OpenCV 物体系（x 右、y 朝下即印刷体的下、z = x×y 朝板内背离观察者）；而挂内容的一方要的是 Unity 物体系（y 朝上、z 朝板外指向观察者）。两者差的正是绕 X 的 180°。
+
+**原有测试为什么没拦住**：`AprilTagDetectorCoreTests.TrySolvePose_WithObliqueTag_RecoversTruthPose` 拿 `ToUnityCameraSpace(truth)` 当期望值——两边用同一套约定，整体转了 180° 误差恒为零。它钉的是「角点顺序与求解器自洽」，不是「哪边是上」。物理语义一条都没有。
+
+**选择**：物体系换算放进 `ToUnityCameraSpace`（取 marker 的 `-y` 当上方、`-z` 当法线），函数契约明确写成「入参模型点按 OpenCV 物体系给」。同时补两条**只用相机系基向量表达期望值**的用例（不经被测函数）：`PlanarPoseSolverTests.ToUnityCameraSpace_WithFrontalMarker_FacesTheCamera` 与 `AprilTagDetectorCoreTests.TrySolvePose_WithFrontalUprightTag_FacesCameraAndKeepsPrintedUp`，断言标正对相机时法线指回相机、up 与印刷体的上同向。修复前后各跑一次：修复前后者红在 `179.29°`，修复后 43/43 绿。
+
+**否决的替代**：
+- **让调用方按 Unity 物体系（y 朝上）喂模型点**，转换器只管相机系。听起来分层更干净，但物体系朝向与**角点顺序**是绑定的：官方模型点的 y 号与 apriltag 报出的角点顺序配对，翻了 y 就等于把标渲染成镜像——试过，`AprilTagDetectorCoreTests` 10 条用例连检出都没了（apriltag 解不了镜像的码）。「OpenCV → Unity」本来就是这个函数的名字，这一步正属于它。
+- **用 `PlatformOffsetConfig.picoMarkerToTargetOffset` 配一个 180° 补偿**。偏移是给「标记贴纸位置与内容锚点的物理差异」留的旋钮，拿它盖换算错误会让两端偏移永久不对称，且下一个用这条求解链的功能还要再补一次。
+
+**已知边界**：Quest 侧位姿直接来自 MRUK trackable 的 transform，不经这条求解链，语义未受本条影响；两端是否真正一致仍待 9.5 的 Quest 半边目视确认。
+
 ## Risks / Trade-offs
 
 - **现场码的印制格式与假设不符** → 前置真机测量任务排在实现之前；解析器按可替换写，改动收敛到一处实现。

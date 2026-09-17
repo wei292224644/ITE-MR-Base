@@ -100,15 +100,31 @@ public static class PlanarPoseSolver
     /// <summary>
     /// 把 <see cref="TrySolve"/> 解出的 OpenCV 相机系变换转成 Unity 相机系的 Pose。
     ///
-    /// 两套约定只差图像 Y 轴的朝向（OpenCV 向下、Unity 向上），所以位置和各轴向量
-    /// 各翻一次 y 即可。marker 的 +Z 是板面法线，转换后指回相机——挂在这个 Pose 上的物体
-    /// 默认就是正对观察者的。
+    /// **两套坐标系都要换，不止相机系那一套**（design D30）：
+    ///
+    /// 1. **相机系**：OpenCV 图像 +Y 向下、Unity +Y 向上 —— 位置与各轴向量各翻一次 y。
+    /// 2. **marker 自己的物体系**：入参的模型点是 OpenCV 物体系（x 右、**y 朝下**，
+    ///    于是 z = x×y **朝板内**、背离观察者），而挂内容的一方要的是 Unity 物体系
+    ///    （x 右、y 朝上、z 朝板外指向观察者）。所以取 marker 的 <c>-y</c> 当上方、
+    ///    <c>-z</c> 当法线。
+    ///
+    /// 漏掉第 2 步的表现是位置完全正确、旋转绕 marker 的 X 轴差 180°：内容上下翻转且
+    /// 背面朝人。2026-09-17 PICO 真机实测就是这个（标正对相机时 rot=(357.9, 1.4, 179.3)）。
+    ///
+    /// 为什么这一步在这里，而不是让调用方按 Unity 物体系喂点：物体系的朝向与**角点顺序**
+    /// 是绑定的（apriltag 官方 <c>apriltag_pose.c</c> 的模型点就是 y 朝下），改标签等于
+    /// 把标渲染成镜像，apriltag 一个都认不出 —— 试过，10 条用例连检出都没了。本函数的名字
+    /// 就是「OpenCV → Unity」，这一步正属于它。
+    ///
+    /// **前置条件：模型点按 OpenCV 物体系给（y 朝下）。** 按 y 朝上给点的调用方会静默
+    /// 翻 180°，由 <c>PlanarPoseSolverTests</c> 与 <c>AprilTagDetectorCoreTests</c> 的
+    /// 「正对标」用例各钉一次。
     /// </summary>
     public static Pose ToUnityCameraSpace(Matrix4x4 markerToCamera)
     {
         Vector3 position = FlipY(markerToCamera.MultiplyPoint3x4(Vector3.zero));
-        Vector3 up = FlipY(markerToCamera.MultiplyVector(Vector3.up));
-        Vector3 normal = FlipY(markerToCamera.MultiplyVector(Vector3.forward));
+        Vector3 up = FlipY(markerToCamera.MultiplyVector(Vector3.down));
+        Vector3 normal = FlipY(markerToCamera.MultiplyVector(Vector3.back));
         return new Pose(position, Quaternion.LookRotation(normal, up));
     }
 

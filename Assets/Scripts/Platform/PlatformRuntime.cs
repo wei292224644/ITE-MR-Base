@@ -41,9 +41,44 @@ public static class PlatformRuntime
     [RuntimeInitializeOnLoadMethod(RuntimeInitializeLoadType.AfterSceneLoad)]
     static void Install()
     {
+        SilenceMetaGlobalHookOnPico();
+
         // AfterSceneLoad 只对启动场景触发一次，后续场景要靠 sceneLoaded。
         EnablePassthrough();
         SceneManager.sceneLoaded += (_, __) => EnablePassthrough();
+    }
+
+    /// <summary>
+    /// PICO 包里停掉 MRUK 的进程级 hook 对象。
+    ///
+    /// MRUK 包自带 <c>MRUKGlobalContext.CreateInstance</c>（<c>[RuntimeInitializeOnLoadMethod</c>
+    /// <c>(BeforeSceneLoad)]</c>），无条件建一个 DontDestroyOnLoad 对象，每帧调
+    /// <c>MRUK.UpdateGlobalContext()</c> → <c>OVRPlugin</c>。而 PICO 包按 <c>BuildScript</c> 的
+    /// <c>excludePluginRoot</c> 剔掉了 Meta 的原生插件（两端 <c>.so</c> 重名，Gradle 会失败），
+    /// 托管代码却照样进包——于是每帧一次 <c>DllNotFoundException</c>。
+    ///
+    /// 2026-09-17 PICO 实测：30 秒 14655 行日志里 8712 行是这一条，logcat 环形缓冲被冲爆，
+    /// 真机上再也读不到自己的日志；每帧抛异常本身也不便宜。
+    ///
+    /// 停用而不销毁：它的 <c>OnDestroy</c> 会「好心」重建自己并报一条 LogError，销毁等于
+    /// 换一种刷屏。停用后 <c>Update</c> 不再跑，<c>OnDestroy</c> 不触发。
+    ///
+    /// 按名字找而不按类型：<c>MRUKGlobalContext</c> 是 Meta 程序集的 <c>internal</c> 类型，
+    /// 宿主程序集拿不到它。名字来自 <c>nameof</c>，与类名同生同死。
+    /// </summary>
+    static void SilenceMetaGlobalHookOnPico()
+    {
+#if MRBASE_PICO
+        // hideFlags = HideInHierarchy，只影响 Inspector 显示，Find 仍然找得到。
+        var hook = GameObject.Find("MRUKGlobalContext");
+        if (hook == null)
+        {
+            return;
+        }
+
+        hook.SetActive(false);
+        Debug.Log("[PlatformRuntime] PICO 包无 Meta 原生插件，已停用 MRUKGlobalContext（否则每帧抛 OVRPlugin 未找到）。");
+#endif
     }
 
     /// <summary>幂等：重复调用不会重复装配。</summary>

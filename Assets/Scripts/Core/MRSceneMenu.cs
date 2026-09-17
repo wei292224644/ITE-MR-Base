@@ -72,6 +72,27 @@ public class MRSceneMenu : MonoBehaviour
         }
 
         m_Built = true;
+        FitHeightToContent();
+    }
+
+    /// <summary>
+    /// 面板高度跟着按钮数走。场景清单来自 Build Settings，会长——写死的高度会在某次
+    /// 加场景之后悄悄把末尾几个按钮挤到面板外（没有 Mask，它们其实还在渲染，只是掉到
+    /// 视野下方），表现为「菜单少了几项」。和按钮本身一样，这里也不许有第二份清单。
+    /// </summary>
+    void FitHeightToContent()
+    {
+        if (buttonTemplate == null || transform is not RectTransform panel)
+            return;
+        if (buttonTemplate.transform.parent is not RectTransform content)
+            return;
+
+        // content 用 stretch 锚点贴着 panel，sizeDelta 是负的内缩量，取反即上下留白之和。
+        var inset = -content.sizeDelta.y;
+
+        LayoutRebuilder.ForceRebuildLayoutImmediate(content);
+        var needed = LayoutUtility.GetPreferredHeight(content) + inset;
+        panel.sizeDelta = new Vector2(panel.sizeDelta.x, needed);
     }
 
     void TryAttachToCamera()

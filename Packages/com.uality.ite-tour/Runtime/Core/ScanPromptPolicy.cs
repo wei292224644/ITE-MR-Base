@@ -87,7 +87,7 @@ namespace Uality.IteTour.Core
 
             for (int i = 0; i < tours.Count; i++)
             {
-                if (tours[i].DisplayType == displayType && Contains(pending, tours[i].TourId))
+                if (tours[i].DisplayType == displayType && TourIdLists.Contains(pending, tours[i].TourId))
                 {
                     ids.Add(tours[i].TourId);
                 }
@@ -96,22 +96,5 @@ namespace Uality.IteTour.Core
             return ids;
         }
 
-        private static bool Contains(IReadOnlyList<string> ids, string id)
-        {
-            if (ids == null || string.IsNullOrEmpty(id))
-            {
-                return false;
-            }
-
-            for (int i = 0; i < ids.Count; i++)
-            {
-                if (ids[i] == id)
-                {
-                    return true;
-                }
-            }
-
-            return false;
-        }
     }
 }

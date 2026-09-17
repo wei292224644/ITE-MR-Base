@@ -83,12 +83,15 @@
 
 - [x] 9.1 Quest 出包，跑通：联网首跑 → `OnInitialized`
   - 2026-09-11：清空缓存首跑 3 分钟内 `OnInitialized`；复跑空间场景（ETag）与已下 tour（版本号）命中缓存跳过下载。途中发现两处：切场景时序致扫码与区域触发静默失效（已修，D26）；159 MB 的 tour 包下载一度断流、下载器无超时而永久等待（待修）
-- [ ] 9.2 PICO 出包，跑通：联网首跑 → `OnInitialized`
+- [x] 9.2 PICO 出包，跑通：联网首跑 → `OnInitialized`
+  - 2026-09-17：清空缓存首跑 44 s 到 `OnInitialized`（空间场景 + 5 个 tour 全下），随后 `OnScanPromptChanged Visible`。途中修了三处：内容方重传的空间场景包是扁平布局、`Strip` 解压抛异常打死整条链（D29）；MRUK 包的进程级 hook 在 PICO 上每帧抛 `DllNotFoundException: OVRPlugin`，30 s 内 8712 行日志冲爆 logcat（已在 `PlatformRuntime` 停用该对象）；标记位姿绕标记 X 轴翻 180°，内容上下翻转且背面朝人（D30）
 - [ ] 9.3 两端调防抖参数至稳定判定可靠触发，实测值回填 4.4 的配置资产
-- [ ] 9.4 两端验收：未扫码时区域触发不生效（强制扫码语义）
+- [x] 9.4 两端验收：未扫码时区域触发不生效（强制扫码语义）
   - Quest 侧 2026-09-11：`OnInitialized` 后提示 `Visible`，扫码前无任何 tour 激活
+  - PICO 侧 2026-09-17：同样 `OnInitialized` → `OnScanPromptChanged Visible`，扫码前无任何 tour 激活；扫 AprilTag id00 后才 `OnTourActivated` 并转 `Hidden`
 - [ ] 9.5 两端验收：首次扫真码激活并渲染，tour 世界位姿落在标记位姿（含偏移）上
   - Quest 侧 2026-09-11：扫 `marker_id00` 二维码 → `OnTourActivated wm0l5qcn_ibd` → `OnTourSceneLoaded`，提示收起；位姿是否落在标记上待目视确认
+  - PICO 侧 2026-09-17：扫 AprilTag id00（`margin≈105`、`hamming=2`、0.49 m）→ `OnTourActivated wm0l5qcn_ibd` → `OnTourSceneLoaded`，提示收起。首轮方向反了（`rot=(357.9, 1.4, 179.3)`，物体系换算漏了一半，见 D30）；修复后目视确认方向正确。**Quest 半边的位姿仍待目视确认**
 - [ ] 9.6 两端验收：区域自动切换，前一个 tour 被停用销毁
 - [ ] 9.7 两端验收：内容元素 UI 渲染（圆角框材质、按钮贴图、中文富文本无缺字）
 - [ ] 9.8 两端验收：`regionalTrigger` 类型 tour 的标记持续在视野内不消耗二次锚定许可；丢失后重扫才消耗且不重建内容

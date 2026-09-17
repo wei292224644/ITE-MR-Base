@@ -88,6 +88,12 @@ public static class BuildScript
             excludePluginRoot: k_MetaPackageRoot);
     }
 
+    [MenuItem("MRBase/Build/Queue Pico")]
+    public static void QueuePico()
+    {
+        QueueBuild(BuildPico, "Pico");
+    }
+
 
     [MenuItem("MRBase/Build/Marker Hook Test/Quest Development")]
     public static void BuildMarkerHookTestQuest()

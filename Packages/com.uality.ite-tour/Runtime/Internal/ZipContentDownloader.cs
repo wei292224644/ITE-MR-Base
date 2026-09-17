@@ -74,10 +74,10 @@ namespace Uality.IteTour.Internal
         /// （见 <see cref="ZipEntryPath"/>）。<c>__MACOSX/</c> 条目（macOS Finder
         /// 压缩产物）恒被忽略。
         /// </summary>
-        /// <exception cref="InvalidDataException">
-        /// <paramref name="topLevel"/> 为 <see cref="ZipTopLevel.Strip"/>，但条目并非全部
-        /// 位于同一个顶层目录之下——MUST NOT 静默按原样落盘。
-        /// </exception>
+        /// <remarks>
+        /// <paramref name="topLevel"/> 为 <see cref="ZipTopLevel.Strip"/> 而条目并非全部位于
+        /// 同一个顶层目录之下时，按扁平布局原样落盘并记一条日志（design D29）。
+        /// </remarks>
         public static Task ExtractAsync(
             string zipFilePath, string outputFolder, ZipTopLevel topLevel = ZipTopLevel.Preserve)
             => Task.Run(() => ExtractSync(zipFilePath, outputFolder, topLevel));
@@ -160,8 +160,12 @@ namespace Uality.IteTour.Internal
 
             if (!ZipTopLevelResolver.TryFindCommonTopLevel(names, out string top))
             {
-                throw new InvalidDataException(
-                    $"[IteTour] zip 内容不存在唯一公共顶层目录，无法按 Strip 语义解压: {zipFilePath}");
+                // 内容方的打包习惯有两种，都出现过：对文件夹右键压缩（条目带 {sceneName}/ 顶层）、
+                // 选中文件夹里的东西压缩（条目直接在根上）。两种布局的落盘结果本来就该一样，
+                // 硬性要求顶层目录只会让后一种在真机上炸掉——2026-09-17 PICO 实测：内容方重传的
+                // thirdDemo.zip 是扁平的，整条加载链死在这里（design D29）。
+                Debug.Log($"[IteTour] zip 无公共顶层目录，按扁平布局原样解压: {zipFilePath}");
+                return null;
             }
 
             return top + "/";
