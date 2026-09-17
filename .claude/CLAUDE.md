@@ -31,6 +31,15 @@ Unity 6 (6000.4.4f1) MR/VR project targeting two headsets from one codebase: Met
 
 ## Commands
 
+**Driving Unity — always `unity` CLI + the `unity-cli` skill, always inside the user's open Editor.** Every Unity operation (build, tests, scene/asset edits, inspecting Editor state) goes through the `unity` CLI against the user's running Editor, following `.claude/skills/unity-cli/SKILL.md`. Do **not** use a Unity MCP server.
+
+**Builds run in that Editor — never headless, never a cloned project, never a background task.** A second Unity process competes for the machine's memory (it has been OOM-killed mid-session) and builds a copy of the project rather than what the Editor has, so its result proves nothing about the user's project. Queue the `BuildScript` menu item in the running Editor and wait for `[BuildScript] 构建成功` in `~/Library/Logs/Unity/Editor.log`.
+
+- `unity status --project-path <repo>` → the Editor must be `ready`. If it won't connect, check Safe Mode (`unity pipeline list`) before anything else.
+- Inspect / act: `unity command eval --project-path <repo> '<C#>'` (list everything with `unity command`).
+- Build: queue the `BuildScript` menu item from inside the Editor, e.g. `unity command eval --project-path <repo> 'UnityEditor.EditorApplication.ExecuteMenuItem("MRBase/Build/Marker Hook Test/Queue Quest Development"); return "queued";'` — the `Queue*` entries defer the build until the CLI call returns. Follow progress with `unity command console` / `get_console_logs` and the `[BuildScript] 构建成功` line.
+- The headless recipes below are only for when **no** Editor is open on this project.
+
 **Build** — always through `BuildScript` (`Assets/Scripts/Editor/BuildScript.cs`), never Unity's own Build Settings dialog (it skips loader/plugin setup and produces a black-screen or crashing package):
 
 - Editor menu: `MRBase/Build/Quest`, `MRBase/Build/Pico`, `MRBase/Build/Dry Run Quest|Pico` (validates config, no packaging), `MRBase/Build/Marker Hook Test/*`, `MRBase/Build/Gsplat Bench/Quest`.
@@ -68,6 +77,8 @@ Unity 6 (6000.4.4f1) MR/VR project targeting two headsets from one codebase: Met
 - `Editor` (`MRBase.Build.Editor`) — `BuildScript` only.
 
 **Build gotchas the script guards against** (see comments in `BuildScript.cs` for the "why"): a project-wide audio Spatializer plugin setting silently makes one platform's build wrong; PICO requires `PXR_Settings` registered in `EditorBuildSettings` config objects or ~20 manifest entries silently fail to write with a "successful" build; both platforms' Android native plugins must be build-scoped or Gradle fails on duplicate `.so` names.
+
+**Quest: never ship a `Development` build.** On Horizon OS v207 (runtime 207.218.0) a Development build hangs inside XR startup — main thread blocked in `StartXRSDK`, no scene ever loads, the headset sits on the loading screen with no error. Dropping `AllowDebugging` alone does not fix it; the identical content as Release starts fine (verified 2026-09-11). The Quest probe entries therefore build Release — `Debug.Log` still reaches logcat.
 
 ## 决策原则：以架构最优为判据
 

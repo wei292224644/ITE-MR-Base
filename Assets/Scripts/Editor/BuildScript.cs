@@ -99,7 +99,11 @@ public static class BuildScript
             "Builds/MarkerHookTest/Quest/MarkerHookTest-Quest.apk",
             excludePluginRoot: k_PicoPackageRoot,
             sceneOverride: ProbeScenes(k_MarkerHookTestScene),
-            buildOptions: BuildOptions.Development | BuildOptions.AllowDebugging);
+            // Release，不是 Development。Horizon OS v207（runtime 207.218.0）上 Development 构建的包
+            // 在 XR 启动内部卡死：主线程停在 StartXRSDK 里、场景从未加载，头显永远停在加载界面。
+            // 去掉 AllowDebugging 仍卡，同内容的 Release 包正常（2026-09-11 实测）。探针只靠 logcat，
+            // Debug.Log 在 Release 包里照样输出（同 GsplatBench）。PICO 入口无此现象，未改。
+            buildOptions: BuildOptions.None);
     }
 
     [MenuItem("MRBase/Build/Marker Hook Test/Queue Quest Development")]
