@@ -72,9 +72,9 @@
 
 - [ ] 5.1 `unity command run_tests --project-path . --mode EditMode` —— 必须 **389/389**，
       且**测试总数不变**（总数变了说明动了代码，违反 D8）
-- [ ] 5.2 `git status` 核对改动面：只应有 `openspec/constitution.md`、
+- [x] 5.2 `git status` 核对改动面：只应有 `openspec/constitution.md`、
       `docs/architecture/srp-audit.md`、本 change 目录。`Assets/` 与 `Packages/` 下零改动
-- [ ] 5.3 把 proposal 里仍未确认的 `[ASSUMED]` 逐条复核：能在实施中验掉的直接验掉并改写为结论，
+- [x] 5.3 把 proposal 里仍未确认的 `[ASSUMED]` 逐条复核：能在实施中验掉的直接验掉并改写为结论，
       剩余的原样留在 proposal 中
 - [ ] 5.4 用清单第一名起下一个 change（`/opsx:propose`），并在其 `design.md` 里**实际填一次**
       变更轴清单，作为门槛的首次真实演练

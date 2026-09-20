@@ -91,8 +91,11 @@ PICO 佩戴通道、网络判定策略、会话注入时序、失败呈现。这
 - **`[已验证]`** 反向测试样本 `StaticInstance.cs`：已深读，判出**一条**轴
   （`BindInstanceForTesting` 与 `Awake` 共享 `_instance`，按合并规则并入）。D9 反向测试通过。
       （若它也 ≥2 轴，需再换样本；35 行的 helper 出错概率低，故未在 propose 阶段深读）
-- [ ] `[ASSUMED]` `IteHostBootstrap` 的六条轴由浅读得出，**未做 git 考古坐实**；按判据，其中可能有
-      `[推测轴]` 要被划掉 — 影响：srp-audit.md 里它的排名（本 change 不预设它是第一名）
+- **`[已验证]`** `IteHostBootstrap` 的六条轴已逐条取证：**3 条坐实**（场景装配契约 ← `IteSceneSetup`、
+  会话注入 ← `IteEditorFakeScan`+`IteDeviceMarkerRig`、失败呈现 ← `IteHmdPanel`），
+  **3 条 `[推测轴]`**（包事件转发 / PICO 佩戴通道 / 网络判定——三者全 private 无消费者，
+  且 `df057ec`、`0b71471` 均非单独触发）。得分 3 × 6 = 18，**排第 3**，不是第一名
+  （第一是 `IteTourObject` 4 × 15 = 60）。「不预设第一名」兑现。
 - [ ] `[ASSUMED]` ITE 包内违反项的**修改**受 `ite-tour-space-device/design.md` D1–D35 约束，提 change 前需
       先读那条决策链。审计本身不受限 — 影响：后续包内 change 的前置条件
 - **`[已确认]`** `SacredRelic/` 记为「**暂缓，启用则补审**」，不当作待删代码。`srp-audit.md` 须写明：
