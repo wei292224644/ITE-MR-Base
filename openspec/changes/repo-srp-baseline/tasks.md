@@ -33,7 +33,7 @@
 - [x] 2.4 浅扫 `Assets/Scripts/Core/`（9 文件 / 893 行）
 - [x] 2.5 浅扫 `Assets/Scripts/Editor/`（3 文件 / 970 行）+ `IceSpriteFx/`（3）+ `Transitions/`（2）
       + `Diagnostics/`（1）+ `Platform/`（1）+ `Common/`（1）
-- [ ] 2.6 浅扫 `Packages/com.uality.ite-tour/Runtime/Core/`（22 文件 / 2686 行）
+- [x] 2.6 浅扫 `Packages/com.uality.ite-tour/Runtime/Core/`（22 文件 / 2686 行）
 - [ ] 2.7 浅扫 `Packages/com.uality.ite-tour/Runtime/Components/`（18 文件 / 1755 行）
 - [ ] 2.8 浅扫 `Packages/com.uality.ite-tour/Runtime/Internal/`（14）+ `Data/`（5）+ `Convert/`（3）
       + `Config/`（1）

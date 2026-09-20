@@ -1,7 +1,7 @@
 # SRP 变更轴审计清单
 
 > 建立：2026-09-20 · 判据：`openspec/constitution.md` 条款 I / II
-> 状态：**第一遍浅扫进行中**（Assets/Scripts 九模块已完成，ITE 包待扫）（⬜ 未扫 / 🔍 已浅扫 / ✅ 已考古坐实）
+> 状态：**第一遍浅扫进行中**（Assets/Scripts 九模块 + ITE 包 Core 已完成）（⬜ 未扫 / 🔍 已浅扫 / ✅ 已考古坐实）
 
 这是一份**活文档**。后续每个重构 change 完成后回来更新对应行，不要让它随 change 归档。
 判据、五条豁免与 waiver 机制见 `openspec/constitution.md`；
@@ -143,28 +143,28 @@
 
 | 文件 | 行数 | 轴数 | 轴（一句话） | 状态 |
 |---|---|---|---|---|
-| `Entity.cs` | 38 | — | — | ⬜ |
-| `IteBootstrap.cs` | 86 | — | — | ⬜ |
-| `IteContentPipeline.cs` | 325 | — | — | ⬜ |
-| `IteRuntime.cs` | 323 | — | — | ⬜ |
-| `IteRuntimeDriver.cs` | 18 | — | — | ⬜ |
-| `IteTourAssembler.cs` | 123 | — | — | ⬜ |
-| `IteTourObject.cs` | 524 | — | — | ⬜ |
-| `LoadProgress.cs` | 24 | — | — | ⬜ |
-| `MarkerFrame.cs` | 25 | — | — | ⬜ |
-| `MarkerIdentity.cs` | 161 | — | — | ⬜ |
-| `MarkerKind.cs` | 20 | — | — | ⬜ |
-| `ScanPromptPolicy.cs` | 100 | — | — | ⬜ |
-| `SceneRoles.cs` | 27 | — | — | ⬜ |
-| `TourAnchoring.cs` | 56 | — | — | ⬜ |
-| `TourAssembly.cs` | 41 | — | — | ⬜ |
-| `TourAssetPaths.cs` | 43 | — | — | ⬜ |
-| `TourDirector.cs` | 333 | — | — | ⬜ |
-| `TourIdLists.cs` | 26 | — | — | ⬜ |
-| `TourRegionPolicy.cs` | 120 | — | — | ⬜ |
-| `TourScanPolicy.cs` | 161 | — | — | ⬜ |
-| `TourSceneLifecycle.cs` | 87 | — | — | ⬜ |
-| `TourVolumeTrigger.cs` | 25 | — | — | ⬜ |
+| `Entity.cs` | 38 | 1 | 实体激活钩子语义变 | 🔍 |
+| `IteBootstrap.cs` | 86 | 1 | 装配契约与校验项变（`MissingRequired`/`Validate` 共享字段集） | 🔍 |
+| `IteContentPipeline.cs` | 325 | 3 候选 | 服务端接口与 JSON 契约变（`FetchSpaceSceneAsync:73`/`FetchTourAsync:100`）/ 资源加载变（`LoadSceneSpritesAsync:129`）/ 缓存版本判定变（`ShouldDownloadTourPackage:176`） | 🔍 |
+| `IteRuntime.cs` | 323 | 3 候选 | 加载链编排变（`StartAsync:130`）/ 对外事件面变（8 个 `event`）/ 标记扫码提交入口变（`SubmitMarkerScan`，D32） | 🔍 |
+| `IteRuntimeDriver.cs` | 18 | 1 | MonoBehaviour 驱动宿主变 | 🔍 |
+| `IteTourAssembler.cs` | 123 | 1 | tour 实例装配与生命周期变（`CreateAsync`/`Find`/`DestroyAll` 共享 `_liveTours`） | 🔍 |
+| `IteTourObject.cs` | 524 | 4 候选 | 内容树构建变（`CreateTourObject:86`）/ 场景绑定与锚定变换变（`BindScene:66`/`ChangeTourObjectTransform:134`）/ 触发体积进出通知变（`NotifyVolumeTransition:74`）/ 场景就绪世代变（`IsSceneReady:58`）—— handoff #2 已记它初始化顺序有问题 | 🔍 |
+| `LoadProgress.cs` | 24 | 1 | 加载进度算法变（纯 static） | 🔍 |
+| `MarkerFrame.cs` | 25 | 1 | 标记→内容锚点固定旋转变（design D32） | 🔍 |
+| `MarkerIdentity.cs` | 161 | 1 | 标记身份解析语义变（`Resolve:82` 建在 `TryParseTourId:48` 之上，同一条链，合并记一条） | 🔍 |
+| `MarkerKind.cs` | 20 | 1 | 标记种类枚举变 | 🔍 |
+| `ScanPromptPolicy.cs` | 100 | 1 | 扫码提示策略变 | 🔍 |
+| `SceneRoles.cs` | 27 | 1 | 场景角色识别变 | 🔍 |
+| `TourAnchoring.cs` | 56 | 1 | 锚定几何变（design D33 刚提成纯函数） | 🔍 |
+| `TourAssembly.cs` | 41 | 1 | 装配与展示类型策略变 | 🔍 |
+| `TourAssetPaths.cs` | 43 | 1 | 资源路径约定变 | 🔍 |
+| `TourDirector.cs` | 333 | 4 候选 | 导览激活与切换变（`ActivateById:99`/`Observe:56`）/ 扫码策略变（`RequireScan:71`/`SubmitMarkerScan:113`）/ 佩戴状态驱动变（`SetHeadsetMounted:80`）/ 区域进出待选变（`PendingTourIds:68`） | 🔍 |
+| `TourIdLists.cs` | 26 | 1 | id 列表工具变（纯 static） | 🔍 |
+| `TourRegionPolicy.cs` | 120 | 1 | 区域进出判定策略变 | 🔍 |
+| `TourScanPolicy.cs` | 161 | 1 | 扫码决策策略变 | 🔍 |
+| `TourSceneLifecycle.cs` | 87 | 1 | 场景构建世代机变 | 🔍 |
+| `TourVolumeTrigger.cs` | 25 | 1 | 触发体积转发变 | 🔍 |
 
 ### ite-tour/Components（18 文件）
 
