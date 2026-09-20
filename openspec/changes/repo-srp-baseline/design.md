@@ -80,6 +80,25 @@ CRITICAL 会 advisory-block（`SKILL.md:68`）。**但 `SKILL.md:37` 规定
 **代价**：门槛检查的是「清单在不在、格式对不对」，不是「轴数对不对」。数轴的准确性靠人。
 这是接受的——机械门槛的作用是让轴清单**无法被省略**，判断本身本来就该由人做并留下记录。
 
+**实测补充（apply 任务 1.8）：格式必须迁就解析器，否则条款静默失效。**
+第一版 constitution 用自定义标题（`## SRP-1 — …` + `**Level**: MUST` + `### Criterion`）写成，
+`openspec instructions analyze --change` 返回 `constitutionPresent: true` 但
+**`clauses` 解析出 0 条**——条款一条都没进检查，门槛生效即死，且没有任何报错。
+改为 `openspec instructions constitution --json` 给出的模板格式后解析正常：
+
+- 罗马数字 id + 标题 + `(MUST)` / `(SHOULD)`；
+- 每条至少一行 `- CRITERION[structure]:` 或 `CRITERION[judgment]:`，
+  下挂 `PASS:` / `FAIL:` 例子；
+- 顶部 `> Version: X.Y · Last amended: YYYY-MM-DD`。
+
+改后实测：`clauses` = 2 条，`id` = `I` / `II`，`level` = `MUST`，`type` = `structure`。
+（`PASS`/`FAIL` 在返回里为 `None`——解析器不提取它们，criterion 的 text 才是检查依据；
+例子仍保留，它们是给人读的。）
+
+因此判据拆成两条条款：**I** 管「清单段落存在且每类一行」，**II** 管「新增多轴类须有编号决策、
+援引豁免 5 须给可计算量」。writingRules 要求「One principle per clause」，
+原先那种一条巨型条款也过不了。判据全文作为附录留在同一文件里，条款只承载它的机械检查面。
+
 ### D3 — 阈值为 ≥2 条轴，不放宽到 ≥3
 
 **选了什么**：≥2 条互不相干的轴即违反。

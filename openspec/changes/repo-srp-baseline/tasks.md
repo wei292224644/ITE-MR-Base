@@ -17,7 +17,7 @@
 - [x] 1.7 验证豁免 5 可用且不滥用：对 `Assets/Scripts/Platform/PlatformRuntime.cs` 套判据，
       期望判出三轴（passthrough 开法 / 重定位事件源 / MRUK 包行为）、命中豁免 5 不判违反、
       但三条轴仍须逐条登记进审计清单
-- [ ] 1.8 运行 `openspec instructions analyze --change repo-srp-baseline --json`，确认
+- [x] 1.8 运行 `openspec instructions analyze --change repo-srp-baseline --json`，确认
       `constitutionPresent: true` 且新条款出现在 `clauses[]` 里、level 为 MUST
 
 ## 2. 审计第一遍 — 全量浅扫（114 文件，零遗漏）
