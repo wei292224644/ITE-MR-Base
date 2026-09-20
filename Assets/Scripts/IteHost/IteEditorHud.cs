@@ -1,3 +1,9 @@
+// 桌面验收脚手架：只在 Editor 里存在，不进设备包。
+//
+// 为什么是 #if UNITY_EDITOR 而不是 Editor-only 的 asmdef：Unity 不允许把 Editor 程序集里的
+// MonoBehaviour 挂到 GameObject 上（AddComponent 直接返回 null，场景里的引用变成 Missing）。
+// 条件编译能达到同样的目的——类型在播放器构建里根本不存在——而场景与预制体的引用不受影响。
+#if UNITY_EDITOR
 using TMPro;
 using UnityEngine;
 using UnityEngine.UI;
@@ -11,7 +17,9 @@ namespace MRBase.Ite.Host
     [AddComponentMenu("ITE/Editor HUD")]
     public sealed class IteEditorHud : MonoBehaviour
     {
-        [SerializeField] IteHostBootstrap host;
+        [SerializeField]
+        [Tooltip("装配点。留空则在本场景里找")]
+        IteHostBootstrap host;
         [SerializeField] float refreshIntervalSeconds = 0.2f;
 
         private TMP_Text _text;
@@ -23,6 +31,18 @@ namespace MRBase.Ite.Host
 
         private void Start()
         {
+            // 连线跨预制体（HUD 在 harness 预制体里，装配点在 IteTourRig 里），预制体资产
+            // 存不了场景引用。没有兜底时 HUD 会画出来但永远空白——看不出是"没连上"还是"真没数据"。
+            if (host == null)
+            {
+                host = FindFirstObjectByType<IteHostBootstrap>();
+            }
+
+            if (host == null)
+            {
+                Debug.LogError("[ITE Editor] 场景里没有 IteHostBootstrap，HUD 无数据可显示。", this);
+            }
+
             BuildCanvas();
             TryHook();
         }
@@ -135,3 +155,4 @@ namespace MRBase.Ite.Host
         private void OnDestroy() => Unhook();
     }
 }
+#endif

@@ -1,3 +1,9 @@
+// 桌面验收脚手架：只在 Editor 里存在，不进设备包。
+//
+// 为什么是 #if UNITY_EDITOR 而不是 Editor-only 的 asmdef：Unity 不允许把 Editor 程序集里的
+// MonoBehaviour 挂到 GameObject 上（AddComponent 直接返回 null，场景里的引用变成 Missing）。
+// 条件编译能达到同样的目的——类型在播放器构建里根本不存在——而场景与预制体的引用不受影响。
+#if UNITY_EDITOR
 using UnityEngine;
 
 #if ENABLE_INPUT_SYSTEM
@@ -12,7 +18,9 @@ namespace MRBase.Ite.Host
     [AddComponentMenu("ITE/Editor Fake Scan")]
     public sealed class IteEditorFakeScan : MonoBehaviour
     {
-        [SerializeField] IteHostBootstrap host;
+        [SerializeField]
+        [Tooltip("装配点。留空则在本场景里找")]
+        IteHostBootstrap host;
         [SerializeField] Transform cameraTransform;
         [SerializeField]
         string[] tourIds =
@@ -24,7 +32,10 @@ namespace MRBase.Ite.Host
             "hkdaowxy_0hu",
         };
         [SerializeField] float markerDistance = EditorFakeScan.DefaultDistance;
-        [SerializeField] float feedSeconds = 0.35f;
+
+        [SerializeField]
+        [Tooltip("一次触发持续投喂多久。必须大于 MarkerStabilizerProfile 的 stableSeconds，否则永远判不稳")]
+        float feedSeconds = 1f;
         [SerializeField] float lostAfterSeconds = 1f;
 
         private MockObservationSource _source;
@@ -54,10 +65,23 @@ namespace MRBase.Ite.Host
             _source = new MockObservationSource();
             _session = new MarkerTrackingSession(_source, lostAfterSeconds);
             _session.Open();
-            if (host != null)
+
+            // 与 IteDeviceMarkerRig 同一套：连线为空就自己找，找不到出声。
+            // 这里的连线跨预制体（本组件在 harness 预制体里，装配点在 IteTourRig 里），
+            // 预制体资产存不了场景引用——没有兜底时，把 harness 拖进新场景会得到
+            // 「按键有响应、会话在跑、就是没人接」的静默失效。
+            if (host == null)
             {
-                host.AttachMarkerSession(_session);
+                host = FindFirstObjectByType<IteHostBootstrap>();
             }
+
+            if (host == null)
+            {
+                Debug.LogError("[ITE Editor] 场景里没有 IteHostBootstrap，假扫码不会驱动任何导览。", this);
+                return;
+            }
+
+            host.AttachMarkerSession(_session);
         }
 
         private void Update()
@@ -153,3 +177,4 @@ namespace MRBase.Ite.Host
         }
     }
 }
+#endif

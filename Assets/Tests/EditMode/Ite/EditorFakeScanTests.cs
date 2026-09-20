@@ -1,5 +1,7 @@
+using System.Text.RegularExpressions;
 using NUnit.Framework;
 using UnityEngine;
+using UnityEngine.TestTools;
 using MRBase.Ite.Host;
 
 namespace MRBase.Ite.Host.Tests
@@ -39,6 +41,9 @@ namespace MRBase.Ite.Host.Tests
             var go = new GameObject("driver");
             try
             {
+                // 这里测的是驱动层本身，场景里没有装配点——正是驱动层该出声的情形。
+                LogAssert.Expect(LogType.Error, new Regex("没有 IteHostBootstrap"));
+
                 var driver = go.AddComponent<IteEditorFakeScan>();
                 int observed = 0;
                 int lost = 0;
