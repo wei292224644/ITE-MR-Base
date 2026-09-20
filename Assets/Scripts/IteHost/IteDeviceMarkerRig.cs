@@ -1,9 +1,5 @@
 using System.Collections;
 using UnityEngine;
-using UnityEngine.XR;
-#if MRBASE_PICO && MRBASE_HAS_PICO_SDK
-using Unity.XR.PXR;
-#endif
 
 namespace MRBase.Ite.Host
 {
@@ -11,7 +7,8 @@ namespace MRBase.Ite.Host
     /// 真机上的输入层：取观测源、建会话、注入装配点，并承担三件只有头显上才存在的事——
     /// 触发体积的物理前提、应用生命周期、系统重定位。
     ///
-    /// 与编辑器驱动层（<see cref="IteEditorFakeScan"/>）是同一位置的两种实现：
+    /// 与编辑器驱动层（<c>IteEditorFakeScan</c>，在 Editor-only 的 EditorHarness 程序集里）
+    /// 是同一位置的两种实现：
     /// 引用方向都是输入层 → 装配点，装配点对两者都无知。
     ///
     /// **不 Tick 会话** —— 那归桥接（<see cref="IteMarkerBridge.Tick"/>），
@@ -195,20 +192,16 @@ namespace MRBase.Ite.Host
         /// </summary>
         private void HookRecenter()
         {
-#if MRBASE_PICO && MRBASE_HAS_PICO_SDK
-            PXR_Plugin.System.RecenterSuccess += HandleRecentered;
-            _recenterHooked = true;
-#else
-            var subsystem = GetInputSubsystem();
-            if (subsystem != null)
+            if (_recenterHooked)
             {
-                subsystem.trackingOriginUpdated += HandleTrackingOriginUpdated;
-                _recenterHooked = true;
+                return;
             }
 
-            // 加固：关掉「世界原点跟随系统重定位」。关掉之后这边基本不会再触发，语义仍成立。
-            UnityEngine.XR.OpenXR.OpenXRSettings.SetAllowRecentering(false);
-#endif
+            // 两端的事件源不同（PICO 走 PXR，其余走 XRInputSubsystem），但那是平台差异，
+            // 归 PlatformRuntime 独占——这里只表达「重定位了要重扫」。
+            PlatformRuntime.HookRecenter();
+            PlatformRuntime.Recentered += HandleRecentered;
+            _recenterHooked = true;
         }
 
         private void UnhookRecenter()
@@ -218,19 +211,10 @@ namespace MRBase.Ite.Host
                 return;
             }
 
-#if MRBASE_PICO && MRBASE_HAS_PICO_SDK
-            PXR_Plugin.System.RecenterSuccess -= HandleRecentered;
-#else
-            var subsystem = GetInputSubsystem();
-            if (subsystem != null)
-            {
-                subsystem.trackingOriginUpdated -= HandleTrackingOriginUpdated;
-            }
-#endif
+            PlatformRuntime.Recentered -= HandleRecentered;
+            PlatformRuntime.UnhookRecenter();
             _recenterHooked = false;
         }
-
-        private void HandleTrackingOriginUpdated(XRInputSubsystem _) => HandleRecentered();
 
         private void HandleRecentered()
         {
@@ -250,13 +234,6 @@ namespace MRBase.Ite.Host
         }
 
         private IteHmdPanel _panel;
-
-        private static XRInputSubsystem GetInputSubsystem()
-        {
-            var subsystems = new System.Collections.Generic.List<XRInputSubsystem>();
-            SubsystemManager.GetSubsystems(subsystems);
-            return subsystems.Count > 0 ? subsystems[0] : null;
-        }
 
         /// <summary>
         /// 灭屏 / 摘下 / 切系统菜单都会走这里。暂停期间会话不派发也**不累计缺席时长**——

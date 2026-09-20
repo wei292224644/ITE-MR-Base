@@ -128,4 +128,71 @@ public static class PlatformRuntime
         Debug.LogWarning("[PlatformRuntime] 未设置 MRBASE_QUEST / MRBASE_PICO，跳过 passthrough 装配。");
 #endif
     }
+
+    /// <summary>
+    /// 系统重定位（recenter）发生了。两端的事件源不同，订阅方不必知道是哪一端。
+    ///
+    /// - PICO：<c>PXR_Plugin.System.RecenterSuccess</c>。
+    /// - 其余（Quest / OpenXR）：<c>XRInputSubsystem.trackingOriginUpdated</c>，
+    ///   并额外关掉「世界原点跟随系统重定位」——关掉之后这条基本不再触发，语义仍成立。
+    ///
+    /// 放在这里而不是订阅方自己 <c>#if</c>：平台分叉只在这一个文件里（见类注释），
+    /// 加第三个平台时要改的是本文件，不是每一个关心重定位的组件。
+    /// </summary>
+    public static event System.Action Recentered;
+
+    private static bool _recenterHooked;
+
+    /// <summary>幂等：重复调用只装一次。</summary>
+    public static void HookRecenter()
+    {
+        if (_recenterHooked)
+        {
+            return;
+        }
+
+#if MRBASE_PICO && MRBASE_HAS_PICO_SDK
+        PXR_Plugin.System.RecenterSuccess += RaiseRecentered;
+        _recenterHooked = true;
+#else
+        var subsystem = GetInputSubsystem();
+        if (subsystem != null)
+        {
+            subsystem.trackingOriginUpdated += HandleTrackingOriginUpdated;
+            _recenterHooked = true;
+        }
+
+        UnityEngine.XR.OpenXR.OpenXRSettings.SetAllowRecentering(false);
+#endif
+    }
+
+    public static void UnhookRecenter()
+    {
+        if (!_recenterHooked)
+        {
+            return;
+        }
+
+#if MRBASE_PICO && MRBASE_HAS_PICO_SDK
+        PXR_Plugin.System.RecenterSuccess -= RaiseRecentered;
+#else
+        var subsystem = GetInputSubsystem();
+        if (subsystem != null)
+        {
+            subsystem.trackingOriginUpdated -= HandleTrackingOriginUpdated;
+        }
+#endif
+        _recenterHooked = false;
+    }
+
+    private static void HandleTrackingOriginUpdated(UnityEngine.XR.XRInputSubsystem _) => RaiseRecentered();
+
+    private static void RaiseRecentered() => Recentered?.Invoke();
+
+    private static UnityEngine.XR.XRInputSubsystem GetInputSubsystem()
+    {
+        var subsystems = new System.Collections.Generic.List<UnityEngine.XR.XRInputSubsystem>();
+        SubsystemManager.GetSubsystems(subsystems);
+        return subsystems.Count > 0 ? subsystems[0] : null;
+    }
 }

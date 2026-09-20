@@ -3,7 +3,8 @@
     "rootNamespace": "",
     "references": [
         "Unity.XR.ARFoundation",
-        "Unity.XR.PICO"
+        "Unity.XR.PICO",
+        "Unity.XR.OpenXR"
     ],
     "includePlatforms": [],
     "excludePlatforms": [],

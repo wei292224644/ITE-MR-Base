@@ -2,6 +2,7 @@
     "name": "MRBase.Ite.Host",
     "rootNamespace": "MRBase.Ite.Host",
     "references": [
+        "MRBase.Platform",
         "MRBase.Localization",
         "MRBase.Localization.Native",
         "MRBase.Core",
