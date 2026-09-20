@@ -72,3 +72,37 @@
 （passthrough 开法变 / 系统重定位事件源变 / MRUK 包行为变），而 `.claude/CLAUDE.md` 已成文
 「全部平台分叉的唯一落点」「do not add new `#if MRBASE_*` elsewhere」——拆开即把 `#if MRBASE_*`
 散回各处，轴数 × 文件数变多。命中豁免 5，不判违反；三条轴仍登记在审计清单里。
+
+### Criterion（structure，机械检查）
+
+**criterionType**: `structure`
+
+检查对象：change 的 `design.md`。按顺序机械核对四项，**不做主观判断**：
+
+1. **段落存在**。`design.md` 含且仅含一个标题为 `## 变更轴清单` 的段落。
+   - 豁免：该 change 满足豁免 3（单文件 + 不新增类 + 不动 `public` 面）时，本项跳过。
+   - 该 change 不新增也不修改任何类时（如纯文档 change），段落仍须存在，内容写「无（本 change 不新增、不修改任何类）」。
+2. **每类一行**。该 change 新增或修改的**每个**类，在清单里各占一行，格式为：
+
+   ```
+   | <类型全名> | <新增|修改> | <轴数> | <每条轴一句话，用 / 分隔> |
+   ```
+
+3. **多轴新增类须有编号决策**。清单中任何标注为 `新增` 且轴数 ≥2 的行，
+   `design.md` 里必须有一条编号决策（`### D<n> —` 开头）提到该类型名。
+4. **援引豁免 5 须指明落点**。任何声明命中豁免 5 的行，该行或其编号决策中必须出现一个可引用位置
+   （文件路径、`spec.md` 或 `design.md` 的章节号）。
+
+以上四项皆可由「文本里有没有这段、有几行、行里有没有这个名字」确定。
+**本条款不检查轴数判断是否正确**——那由人做、由清单公开可审兜住。
+
+### Waiver（存量不倒查的实现机制）
+
+存量违反**不**通过放宽或删除本条款文字来放过。改用 waiver：
+
+- waiver 的 `principle` 必须等于 `SRP-1`；
+- waiver 的 `reason` 必须指向 `docs/architecture/srp-audit.md` 中对应的登记项；
+- **未登记的违反不自动获得豁免**——先补登记，否则按新增违反处理。
+
+依据：`.claude/skills/openspec-analyze-change/SKILL.md:17`「Constitution is non-negotiable during
+analyze. On MUST violations, adjust the plan — do NOT reinterpret or delete clauses.」

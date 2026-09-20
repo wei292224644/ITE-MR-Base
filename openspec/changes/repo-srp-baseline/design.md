@@ -236,10 +236,12 @@ SRP 条款要求的是**特定一段清单**，是前者的机械化子集，重
 4. 回滚方式：删除 `openspec/constitution.md` 即让门槛整体失效（`constitutionPresent: false` →
    analyze 跳过该 pass，`SKILL.md:28`）。`srp-audit.md` 可独立留存，它本身无副作用。
 
-## 本 change 自身的变更轴清单
+## 变更轴清单
 
-按 D2 要求自举一遍：**本 change 不新增、不修改任何类**（D8），故清单为空。
-适用的正是「单文件豁免」的同类情形——纯文档 change。此段保留，用于示范清单在 design 中的位置与标题。
+无（本 change 不新增、不修改任何类）。
+
+按 constitution `SRP-1` 的 structure criterion 第 1 项自举：纯文档 change 也须保留本段落，
+标题必须正好是 `## 变更轴清单`，内容写明无类改动。此段同时示范清单在 `design.md` 中的位置。
 
 ## Open Questions
 
