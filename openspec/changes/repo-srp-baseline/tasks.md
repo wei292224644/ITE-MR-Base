@@ -29,7 +29,7 @@
       并写入「已知未覆盖区」段落，四处分别标注性质——GsplatBench **待删**（永不补审）、
       SacredRelic **暂缓**（接回活场景必须补审）、`wu.yize.gsplat` **跨仓**、`Assets/Tests/` **判据不适用**
 - [x] 2.2 浅扫 `Assets/Scripts/Localization/`（20 文件 / 2498 行）
-- [ ] 2.3 浅扫 `Assets/Scripts/IteHost/`（11 文件 / 1719 行）——含 handoff #7 的 `IteHostBootstrap`
+- [x] 2.3 浅扫 `Assets/Scripts/IteHost/`（11 文件 / 1719 行）——含 handoff #7 的 `IteHostBootstrap`
 - [ ] 2.4 浅扫 `Assets/Scripts/Core/`（9 文件 / 893 行）
 - [ ] 2.5 浅扫 `Assets/Scripts/Editor/`（3 文件 / 970 行）+ `IceSpriteFx/`（3）+ `Transitions/`（2）
       + `Diagnostics/`（1）+ `Platform/`（1）+ `Common/`（1）

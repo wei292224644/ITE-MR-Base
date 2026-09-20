@@ -1,7 +1,7 @@
 # SRP 变更轴审计清单
 
 > 建立：2026-09-20 · 判据：`openspec/constitution.md` 条款 I / II
-> 状态：**第一遍浅扫进行中**（Localization 已完成）（⬜ 未扫 / 🔍 已浅扫 / ✅ 已考古坐实）
+> 状态：**第一遍浅扫进行中**（Localization / IteHost 已完成）（⬜ 未扫 / 🔍 已浅扫 / ✅ 已考古坐实）
 
 这是一份**活文档**。后续每个重构 change 完成后回来更新对应行，不要让它随 change 归档。
 判据、五条豁免与 waiver 机制见 `openspec/constitution.md`；
@@ -56,17 +56,17 @@
 
 | 文件 | 行数 | 轴数 | 轴（一句话） | 状态 |
 |---|---|---|---|---|
-| `EditorFakeScan.cs` | 32 | — | — | ⬜ |
-| `EditorFlyMotion.cs` | 44 | — | — | ⬜ |
-| `HeadsetPresenceAdapter.cs` | 75 | — | — | ⬜ |
-| `IteDeviceMarkerRig.cs` | 277 | — | — | ⬜ |
-| `IteEditorFakeScan.cs` | 180 | — | — | ⬜ |
-| `IteEditorFly.cs` | 112 | — | — | ⬜ |
-| `IteEditorHud.cs` | 158 | — | — | ⬜ |
-| `IteEditorHudText.cs` | 49 | — | — | ⬜ |
-| `IteHmdPanel.cs` | 298 | — | — | ⬜ |
-| `IteHostBootstrap.cs` | 350 | — | — | ⬜ |
-| `IteMarkerBridge.cs` | 144 | — | — | ⬜ |
+| `EditorFakeScan.cs` | 32 | 1 | 桌面假扫码的位姿与载荷格式变（纯 static helper） | 🔍 |
+| `EditorFlyMotion.cs` | 44 | 1 | 桌面飞行运动学变（纯 static helper） | 🔍 |
+| `HeadsetPresenceAdapter.cs` | 75 | 1 | 佩戴状态读取源变 | 🔍 |
+| `IteDeviceMarkerRig.cs` | 277 | 3 候选 | 观测源构建与失败呈现变 / 运行时启动时序变（注入后触发 `StartRuntimeAsync`）/ 会话生命周期变（`OnDestroy:258`） | 🔍 |
+| `IteEditorFakeScan.cs` | 180 | 2 候选 | 假扫码触发方式变（`Trigger:142`/`Update:87`）/ 会话投喂与丢失模拟变（`Tick:160`） | 🔍 |
+| `IteEditorFly.cs` | 112 | 1 | 桌面飞行输入映射变 | 🔍 |
+| `IteEditorHud.cs` | 158 | 2 候选 | HUD 展示内容变（`Update:50`）/ runtime 事件挂接变（`Start:32`/`OnDestroy:155` 的 Hook/Unhook） | 🔍 |
+| `IteEditorHudText.cs` | 49 | 1 | HUD 文本格式变（纯 static） | 🔍 |
+| `IteHmdPanel.cs` | 298 | 3 候选 | 面板展示与布局变 / runtime 与 host.Failed 事件挂接变 / 重定位跟随变（`NotifyRecentered:79`） | 🔍 |
+| `IteHostBootstrap.cs` | 350 | 6 候选 | 场景装配契约变 / 包事件签名变 / PICO 佩戴通道变 / 网络判定策略变 / 会话注入时序变 / 失败呈现变 —— handoff #7 的本体 | 🔍 |
+| `IteMarkerBridge.cs` | 144 | 1 | 标记桥接语义变（会话事件→防抖→提交，状态链共享，按合并规则记一条） | 🔍 |
 
 ### Editor（3 文件）
 
