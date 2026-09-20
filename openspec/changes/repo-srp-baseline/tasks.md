@@ -34,12 +34,12 @@
 - [x] 2.5 浅扫 `Assets/Scripts/Editor/`（3 文件 / 970 行）+ `IceSpriteFx/`（3）+ `Transitions/`（2）
       + `Diagnostics/`（1）+ `Platform/`（1）+ `Common/`（1）
 - [x] 2.6 浅扫 `Packages/com.uality.ite-tour/Runtime/Core/`（22 文件 / 2686 行）
-- [ ] 2.7 浅扫 `Packages/com.uality.ite-tour/Runtime/Components/`（18 文件 / 1755 行）
-- [ ] 2.8 浅扫 `Packages/com.uality.ite-tour/Runtime/Internal/`（14）+ `Data/`（5）+ `Convert/`（3）
+- [x] 2.7 浅扫 `Packages/com.uality.ite-tour/Runtime/Components/`（18 文件 / 1755 行）
+- [x] 2.8 浅扫 `Packages/com.uality.ite-tour/Runtime/Internal/`（14）+ `Data/`（5）+ `Convert/`（3）
       + `Config/`（1）
-- [ ] 2.9 **零遗漏核对**：`srp-audit.md` 里有记录的文件数必须等于 114；逐行比对 `find` 输出，
+- [x] 2.9 **零遗漏核对**：`srp-audit.md` 里有记录的文件数必须等于 114；逐行比对 `find` 输出，
       差一个都要补
-- [ ] 2.10 统计第一遍判出 ≥2 轴的类数量，与 proposal 中 `[ASSUMED]` 的 15–25 估计比对。
+- [x] 2.10 统计第一遍判出 ≥2 轴的类数量，与 proposal 中 `[ASSUMED]` 的 15–25 估计比对。
       若远超 25，先重估第 3 组的任务拆分再往下做
 
 ## 3. 审计第二遍 — 候选深读 + git 考古坐实

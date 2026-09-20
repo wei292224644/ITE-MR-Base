@@ -1,7 +1,7 @@
 # SRP 变更轴审计清单
 
 > 建立：2026-09-20 · 判据：`openspec/constitution.md` 条款 I / II
-> 状态：**第一遍浅扫进行中**（Assets/Scripts 九模块 + ITE 包 Core 已完成）（⬜ 未扫 / 🔍 已浅扫 / ✅ 已考古坐实）
+> 状态：**第一遍浅扫已完成（114/114）**，第二遍考古进行中（⬜ 未扫 / 🔍 已浅扫 / ✅ 已考古坐实）
 
 这是一份**活文档**。后续每个重构 change 完成后回来更新对应行，不要让它随 change 归档。
 判据、五条豁免与 waiver 机制见 `openspec/constitution.md`；
@@ -172,24 +172,24 @@
 
 | 文件 | 行数 | 轴数 | 轴（一句话） | 状态 |
 |---|---|---|---|---|
-| `ActionComponents.cs` | 400 | — | — | ⬜ |
-| `ActionSettings.cs` | 212 | — | — | ⬜ |
-| `AnimationAudioMap.cs` | 51 | — | — | ⬜ |
-| `AutoRotate.cs` | 28 | — | — | ⬜ |
-| `BaseActionComponents.cs` | 30 | — | — | ⬜ |
-| `BaseComponent.cs` | 40 | — | — | ⬜ |
-| `BaseElementComponent.cs` | 13 | — | — | ⬜ |
-| `BaseTriggerComponent.cs` | 54 | — | — | ⬜ |
-| `ComponentLoadOrder.cs` | 72 | — | — | ⬜ |
-| `ComponentRegistry.cs` | 47 | — | — | ⬜ |
-| `EMWModelRenderElement.cs` | 106 | — | — | ⬜ |
-| `ElementComponents.cs` | 134 | — | — | ⬜ |
-| `IteTourElementPrefabs.cs` | 18 | — | — | ⬜ |
-| `PrimitiveShapes.cs` | 77 | — | — | ⬜ |
-| `RichTextElement.cs` | 161 | — | — | ⬜ |
-| `RichTextLayout.cs` | 23 | — | — | ⬜ |
-| `TriggerComponents.cs` | 75 | — | — | ⬜ |
-| `VideoPlaneElement.cs` | 214 | — | — | ⬜ |
+| `ActionComponents.cs` | 400 | 3 类各 1 | 多类文件：PlayAudio / Spin / PlayAnimation 三个 action 组件各 1 轴。判据按**类**判，故不违反；但三者互不相干却同住一个 400 行文件，记一笔 | 🔍 |
+| `ActionSettings.cs` | 212 | 1 | 动作参数契约变 | 🔍 |
+| `AnimationAudioMap.cs` | 51 | 1 | 动画音频映射构建变 | 🔍 |
+| `AutoRotate.cs` | 28 | 1 | 自转行为变 | 🔍 |
+| `BaseActionComponents.cs` | 30 | 1 | 动作组件基类契约变 | 🔍 |
+| `BaseComponent.cs` | 40 | 1 | 组件基类服务定位变（`Awake:23` 用 `GetComponentInParent`——handoff #2 否决改注入的原因） | 🔍 |
+| `BaseElementComponent.cs` | 13 | 1 | 元素组件基类契约变 | 🔍 |
+| `BaseTriggerComponent.cs` | 54 | 1 | 触发派发变（`Dispatch:25`） | 🔍 |
+| `ComponentLoadOrder.cs` | 72 | 1 | 组件加载顺序规则变 | 🔍 |
+| `ComponentRegistry.cs` | 47 | 1 | 组件类型解析变 | 🔍 |
+| `EMWModelRenderElement.cs` | 106 | 2 候选 | 模型加载与动画控制器变（`Constructor:31`）/ 点击事件注入变（`InjectTapEvent:104`） | 🔍 |
+| `ElementComponents.cs` | 134 | 2 类各 1 | 多类文件：EMWModelRender / RichText 两个元素组件各 1 轴 | 🔍 |
+| `IteTourElementPrefabs.cs` | 18 | 1 | 元素预制体清单变 | 🔍 |
+| `PrimitiveShapes.cs` | 77 | 1 | 基本体形状映射变 | 🔍 |
+| `RichTextElement.cs` | 161 | 2 候选 | 富文本渲染与布局变（`Constructor:41`）/ 音频播放控制变（`ToggleAudio:121`/`PauseAudio:133`/`PlayAudio:144`） | 🔍 |
+| `RichTextLayout.cs` | 23 | 1 | 富文本布局算法变 | 🔍 |
+| `TriggerComponents.cs` | 75 | 3 类各 1 | 多类文件：Load / Tap / Approximate 三个触发组件各 1 轴 | 🔍 |
+| `VideoPlaneElement.cs` | 214 | 2 候选 | 视频播放控制变（`PlayVideo:151`/`PauseVideo:163`）/ 播放器 UI 控制变（`SetControllerActive:194`） | 🔍 |
 
 ### ite-tour/Internal（14 文件）
 
@@ -197,20 +197,20 @@
 
 | 文件 | 行数 | 轴数 | 轴（一句话） | 状态 |
 |---|---|---|---|---|
-| `AnimationAudioController.cs` | 57 | — | — | ⬜ |
-| `BoxColliderWireframeDrawer.cs` | 86 | — | — | ⬜ |
-| `ContentAssetLoader.cs` | 166 | — | — | ⬜ |
-| `EventEmitter.cs` | 48 | — | — | ⬜ |
-| `HierarchyBoundsCalculator.cs` | 89 | — | — | ⬜ |
-| `LegacyAnimationController.cs` | 104 | — | — | ⬜ |
-| `Matrix4x4Extensions.cs` | 47 | — | — | ⬜ |
-| `RoundedBoxUIProperties.cs` | 88 | — | — | ⬜ |
-| `SpacePackageEtagCache.cs` | 23 | — | — | ⬜ |
-| `TourVersionCache.cs` | 26 | — | — | ⬜ |
-| `ZipContentDownloader.cs` | 204 | — | — | ⬜ |
-| `ZipEntryPath.cs` | 63 | — | — | ⬜ |
-| `ZipTopLevel.cs` | 26 | — | — | ⬜ |
-| `ZipTopLevelResolver.cs` | 82 | — | — | ⬜ |
+| `AnimationAudioController.cs` | 57 | 1 | 动画音频驱动变 | 🔍 |
+| `BoxColliderWireframeDrawer.cs` | 86 | 1 | 线框绘制变 | 🔍 |
+| `ContentAssetLoader.cs` | 166 | 2 候选 | 资源类型加载变（`LoadSpriteAsync:62`/`LoadAudioClipAsync:76`/`LoadGlbAsync:100`）/ HTTP etag 探测变（`FetchEtagAsync:143`） | 🔍 |
+| `EventEmitter.cs` | 48 | 1 | 事件总线契约变 | 🔍 |
+| `HierarchyBoundsCalculator.cs` | 89 | 2 候选 | 包围盒计算变（`CalculateLocalBounds:10`）/ Gizmo 绘制变（`DrawLocalBoundsGizmo:77`） | 🔍 |
+| `LegacyAnimationController.cs` | 104 | 1 | 遗留动画控制契约变 | 🔍 |
+| `Matrix4x4Extensions.cs` | 47 | 1 | 矩阵扩展数学变 | 🔍 |
+| `RoundedBoxUIProperties.cs` | 88 | 1 | 圆角网格修饰变 | 🔍 |
+| `SpacePackageEtagCache.cs` | 23 | 1 | 空间包 etag 缓存键与存储变 | 🔍 |
+| `TourVersionCache.cs` | 26 | 1 | tour 版本缓存键与存储变 | 🔍 |
+| `ZipContentDownloader.cs` | 204 | 2 候选 | 下载流程变（`DownloadAndExtractAsync:34`）/ 解压实现变（`ExtractAsync:81`/`ExtractSync:92`） | 🔍 |
+| `ZipEntryPath.cs` | 63 | 1 | zip 条目路径安全解析变 | 🔍 |
+| `ZipTopLevel.cs` | 26 | 1 | zip 顶层枚举变 | 🔍 |
+| `ZipTopLevelResolver.cs` | 82 | 1 | zip 顶层目录判定变 | 🔍 |
 
 ### ite-tour/Data（5 文件）
 
@@ -218,11 +218,11 @@
 
 | 文件 | 行数 | 轴数 | 轴（一句话） | 状态 |
 |---|---|---|---|---|
-| `ActionData.cs` | 117 | — | — | ⬜ |
-| `ElementData.cs` | 146 | — | — | ⬜ |
-| `TriggerData.cs` | 37 | — | — | ⬜ |
-| `IteSpaceScene.cs` | 112 | — | — | ⬜ |
-| `IteTourData.cs` | 114 | — | — | ⬜ |
+| `ActionData.cs` | 117 | 1 | 动作数据契约变（DTO） | 🔍 |
+| `ElementData.cs` | 146 | 1 | 元素数据契约变（DTO） | 🔍 |
+| `TriggerData.cs` | 37 | 1 | 触发数据契约变（DTO） | 🔍 |
+| `IteSpaceScene.cs` | 112 | 1 | 空间场景数据契约变（DTO） | 🔍 |
+| `IteTourData.cs` | 114 | 1 | 导览数据契约变（DTO） | 🔍 |
 
 ### ite-tour/Convert（3 文件）
 
@@ -230,9 +230,9 @@
 
 | 文件 | 行数 | 轴数 | 轴（一句话） | 状态 |
 |---|---|---|---|---|
-| `AssetConverter.cs` | 54 | — | — | ⬜ |
-| `ComponentActionConverter.cs` | 58 | — | — | ⬜ |
-| `ComponentConverter.cs` | 64 | — | — | ⬜ |
+| `AssetConverter.cs` | 54 | 1 | Asset 多态反序列化契约变 | 🔍 |
+| `ComponentActionConverter.cs` | 58 | 1 | ComponentAction 多态反序列化契约变 | 🔍 |
+| `ComponentConverter.cs` | 64 | 1 | Component 多态反序列化契约变 | 🔍 |
 
 ### ite-tour/Config（1 文件）
 
@@ -240,7 +240,7 @@
 
 | 文件 | 行数 | 轴数 | 轴（一句话） | 状态 |
 |---|---|---|---|---|
-| `IteRuntimeConfig.cs` | 53 | — | — | ⬜ |
+| `IteRuntimeConfig.cs` | 53 | 1 | 运行时配置与 URL 模板变 | 🔍 |
 
 ## 疑似但未坐实
 
