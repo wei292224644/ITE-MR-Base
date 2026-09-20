@@ -86,10 +86,10 @@ PICO 佩戴通道、网络判定策略、会话注入时序、失败呈现。这
 
 以下为 AI 未经确认的假设，显式带进后续实施：
 
-- [ ] `[ASSUMED]` 第二遍深读的候选数量估为 **15–25 个类**，纯属未验证估计；第一遍浅扫完才知真实数量，
-      若远超 25 个，工作量与 tasks 拆分都要重估 — 影响：tasks.md 的任务粒度与工期
-- [ ] `[ASSUMED]` 新的反向测试样本 `Assets/Scripts/Common/StaticInstance.cs`（35 行）判为一条轴。
-      仅据 CLAUDE.md「dependency-free helper」的描述，未深读 — 影响：D9 反向测试
+- **`[已验证]`** 第二遍候选数量：第一遍浅扫 **114/114** 完成（零遗漏核对通过），判出 **24 个候选**
+  （≥2 候选轴，含已命中豁免 5 的 `PlatformRuntime`）。落在原估 **15–25** 区间内，第 3 组任务拆分无需重估。
+- **`[已验证]`** 反向测试样本 `StaticInstance.cs`：已深读，判出**一条**轴
+  （`BindInstanceForTesting` 与 `Awake` 共享 `_instance`，按合并规则并入）。D9 反向测试通过。
       （若它也 ≥2 轴，需再换样本；35 行的 helper 出错概率低，故未在 propose 阶段深读）
 - [ ] `[ASSUMED]` `IteHostBootstrap` 的六条轴由浅读得出，**未做 git 考古坐实**；按判据，其中可能有
       `[推测轴]` 要被划掉 — 影响：srp-audit.md 里它的排名（本 change 不预设它是第一名）

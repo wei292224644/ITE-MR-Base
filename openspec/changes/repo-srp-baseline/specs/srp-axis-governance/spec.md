@@ -136,15 +136,24 @@ MUST NOT 通过放宽或删除条款文字来放过存量。
 `docs/architecture/srp-audit.md` SHALL 满足：
 
 - 审计范围内**每一个** `.cs` 文件都有轴数记录，零遗漏；
-- 每个 ≥2 轴的类，其**每一条**轴 MUST 附一个 commit hash（证明该轴曾单独触发过修改）或显式标记 `[推测轴]`；
+- 每个 ≥2 轴的类，其**每一条**轴 MUST 附三类凭据之一，或显式标记 `[推测轴]`：
+  ① commit hash（该轴曾单独触发过修改）；② 只取用该轴 public 面的外部消费者（文件与取用点）；
+  ③ 带日期与现象的独立实测记录；
 - 清单 SHALL 按「坐实轴数 × 消费者数」排序；
 - 文档 MUST 显式列出**已知未覆盖区**（GsplatBench、SacredRelic、`wu.yize.gsplat` submodule、`Assets/Tests/`），
   MUST NOT 把覆盖范围表述为「全仓」。
 
 #### Scenario: 坐实不了的轴被划掉
-- **WHEN** 某条候选轴在 git 历史中找不到任何单独触发它的提交
+- **WHEN** 某条候选轴三类凭据（历史 / 消费面 / 实测记录）一个都拿不出
 - **THEN** 该轴 SHALL 标记 `[推测轴]`
 - **AND** MUST NOT 计入用于排序的坐实轴数
+
+#### Scenario: 年轻仓库里靠消费面坐实
+- **WHEN** 某类的多条轴全部在同一两个提交中引入，无一条被单独触发
+- **AND** 存在多个外部消费者，各自只取用其中一条轴的 public 面
+      （如 `IteEditorHud`→`Runtime`、`IteEditorFakeScan`→`AttachMarkerSession`）
+- **THEN** 这些轴 SHALL 凭消费面证据坐实
+- **AND** MUST NOT 因 git 历史沉默而全部降级为 `[推测轴]`
 
 #### Scenario: 判据须能通过反向测试
 - **WHEN** 用一个已知职责单一的类（`Assets/Scripts/Common/StaticInstance.cs`，35 行，

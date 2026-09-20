@@ -53,8 +53,22 @@
 `Assets/Scripts/Editor/BuildScript.cs` 640 行只有一条坐实轴「出包配置变」；
 `Assets/Scripts/IteHost/IteHostBootstrap.cs` 350 行六条候选轴。行数与轴数不相关，甚至反向。
 
-**可证伪要求**：一条轴若在 git 历史里从未**单独触发**过修改，标记为 `[推测轴]`，
-不计入用于排序的坐实轴数。判据的结论必须能被 git 历史反驳。
+**可证伪要求**：每条轴必须有**可引用的凭据**才算坐实，否则标记 `[推测轴]`，不计入排序用的坐实轴数。
+凭据满足以下**任一**条即可：
+
+1. **历史证据**：git 上有一次单独触发该轴的提交（记 commit hash）。
+2. **消费面证据**：存在一个外部消费者，只取用该轴的 public 面。多个消费者各自只依赖一条轴的表面，
+   这就证明了轴的独立性——这是**现在时**的证据，可随时复核。
+   例：`IteEditorHud` 只取 `Runtime`+`MarkerBridge`、`IteEditorFakeScan` 只取 `AttachMarkerSession`、
+   `IteDeviceMarkerRig` 只取 `StartRuntimeAsync`、`IteHmdPanel` 只取 `Failed`。
+3. **实测记录证据**：代码注释或某个 `design.md` 记有该轴的独立实测事件（含日期与现象）。
+   例：`PlatformRuntime.SilenceMetaGlobalHookOnPico` 的 2026-09-17 PICO 实测。
+
+**为什么不能只认 git 历史**（2026-09-20 实测得出）：本仓 2026-07-27 起共 236 个提交，
+候选类各自只被改过 3–7 次，代码基本一次写成。实测 `IteHostBootstrap` 的六条轴全部塌进
+`df057ec` 与 `0b71471` 两个提交，无一条被单独触发；`IteTourObject` 四条塌进 3 个提交。
+只认历史的话坐实轴数普遍为 0，排序公式全体归零，判据自废。
+**git 的沉默不是「轴不存在」的证据，只说明这段代码还没被改第二次。**
 
 ## 五条豁免
 

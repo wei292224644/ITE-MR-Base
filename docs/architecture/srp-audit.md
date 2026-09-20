@@ -1,7 +1,8 @@
 # SRP 变更轴审计清单
 
 > 建立：2026-09-20 · 判据：`openspec/constitution.md` 条款 I / II
-> 状态：**第一遍浅扫已完成（114/114）**，第二遍考古进行中（⬜ 未扫 / 🔍 已浅扫 / ✅ 已考古坐实）
+> 状态：**两遍均已完成**（114/114 浅扫；24 个候选逐条取证）
+> 图例：🔍 已浅扫（单轴，未取证）· ✅ 已逐条取证
 
 这是一份**活文档**。后续每个重构 change 完成后回来更新对应行，不要让它随 change 归档。
 判据、五条豁免与 waiver 机制见 `openspec/constitution.md`；
@@ -9,8 +10,10 @@
 
 ## 覆盖范围
 
-审计范围 **114 个 `.cs`**。轴数一栏的含义：`坐实/候选`——坐实轴附 commit hash，
-无法坐实的标 `[推测轴]` 且不计入排序。
+审计范围 **114 个 `.cs`**。轴数一栏 `坐实/候选` 的含义：一条轴要算**坐实**，需拿出三类凭据之一
+——① git 单独触发的提交；② 只取用该轴 public 面的外部消费者；③ 带日期与现象的独立实测记录。
+三类都拿不出的标 `[推测轴]`，不计入排序。三类凭据的由来见 `design.md` D12
+（只认 git 历史会让本仓坐实轴数普遍归零）。
 
 ### 已知未覆盖区（本清单**不是**全仓）
 
@@ -29,7 +32,7 @@
 
 | 文件 | 行数 | 轴数 | 轴（一句话） | 状态 |
 |---|---|---|---|---|
-| `AprilTagDetectorCore.cs` | 251 | 2 候选 | native AprilTag 绑定变（`Detect:129`/`Dispose:240`）/ 位姿解算方式变（`TrySolvePose:197`，static，不共享检测句柄） | 🔍 |
+| `AprilTagDetectorCore.cs` | 251 | 2 坐实 / 2 | 检测 ← `PicoFiducialObservationSource` / 位姿解算 ← `PicoFiducialObservationSource` | ✅ |
 | `FiducialConfidencePolicy.cs` | 14 | 1 | 置信度阈值策略变 | 🔍 |
 | `IMarkerObservationSource.cs` | 25 | 1 | 观测源契约变 | 🔍 |
 | `MarkerObservation.cs` | 28 | 1 | 观测数据契约变 | 🔍 |
@@ -39,14 +42,14 @@
 | `MockObservationSource.cs` | 60 | 1 | `IMarkerObservationSource` 契约变（测试替身） | 🔍 |
 | `AxisGizmo.cs` | 129 | 1 | 轴向可视化约定变 | 🔍 |
 | `MarkerHookTestHud.cs` | 152 | 1 | 探针 HUD 展示内容变 | 🔍 |
-| `MarkerHookTestRig.cs` | 213 | 2 候选 | 探针可视化（box/label）变 / 会话生命周期与暂停恢复变（`Awake:45`/`Update:69`/`Pause:87`） | 🔍 |
+| `MarkerHookTestRig.cs` | 213 | 0 坐实 / 2 | 探针专用，两条轴均 `[推测轴]` | ✅ |
 | `MarkerSourceFactory.cs` | 71 | 1 | 平台源选择与失败分类变 | 🔍 |
-| `PicoFiducialObservationSource.cs` | 472 | 3 候选 | PICO 企业相机 API 变（`Open:121`/`Close:148`）/ AprilTag 检测参数与流程变 / 帧抓取时序变（`Update:300`） | 🔍 |
+| `PicoFiducialObservationSource.cs` | 472 | 0 坐实 / 3 | 经 `IMarkerObservationSource` 契约被用，三条轴无分别的消费面 → 全部 `[推测轴]` | ✅ |
 | `PicoHeadsetPresence.cs` | 60 | 1 | PICO 佩戴通道 API 变 | 🔍 |
 | `QuestMrukRuntimeInstaller.cs` | 187 | 1 | MRUK 初始化方式变 | 🔍 |
 | `QuestObservationSource.cs` | 137 | 1 | MRUK QRCode API 变 | 🔍 |
 | `PicoEnterpriseCameraPose.cs` | 32 | 1 | PICO 相机位姿约定变 | 🔍 |
-| `PlanarPoseSolver.cs` | 377 | 2 候选 | 平面位姿解算算法变（`TrySolve:20`）/ Unity 相机空间转换约定变（`ToUnityCameraSpace:123`，design D30） | 🔍 |
+| `PlanarPoseSolver.cs` | 377 | 2 坐实 / 2 | 解算算法 ← `AprilTagDetectorCore` / 相机空间转换 ← `PicoEnterpriseCameraPose`（design D30） | ✅ |
 | `PlatformOffsetConfig.cs` | 11 | 1 | 贴纸与锚点物理偏移配置变 | 🔍 |
 | `PoseMath.cs` | 11 | 1 | 位姿复合数学变 | 🔍 |
 
@@ -59,13 +62,13 @@
 | `EditorFakeScan.cs` | 32 | 1 | 桌面假扫码的位姿与载荷格式变（纯 static helper） | 🔍 |
 | `EditorFlyMotion.cs` | 44 | 1 | 桌面飞行运动学变（纯 static helper） | 🔍 |
 | `HeadsetPresenceAdapter.cs` | 75 | 1 | 佩戴状态读取源变 | 🔍 |
-| `IteDeviceMarkerRig.cs` | 277 | 3 候选 | 观测源构建与失败呈现变 / 运行时启动时序变（注入后触发 `StartRuntimeAsync`）/ 会话生命周期变（`OnDestroy:258`） | 🔍 |
-| `IteEditorFakeScan.cs` | 180 | 2 候选 | 假扫码触发方式变（`Trigger:142`/`Update:87`）/ 会话投喂与丢失模拟变（`Tick:160`） | 🔍 |
+| `IteDeviceMarkerRig.cs` | 277 | 0 坐实 / 3 | 三条轴全无外部消费者、git 亦非单独触发 → 全部 `[推测轴]` | ✅ |
+| `IteEditorFakeScan.cs` | 180 | 0 坐实 / 2 | 两条轴均 `[推测轴]` | ✅ |
 | `IteEditorFly.cs` | 112 | 1 | 桌面飞行输入映射变 | 🔍 |
-| `IteEditorHud.cs` | 158 | 2 候选 | HUD 展示内容变（`Update:50`）/ runtime 事件挂接变（`Start:32`/`OnDestroy:155` 的 Hook/Unhook） | 🔍 |
+| `IteEditorHud.cs` | 158 | 0 坐实 / 2 | 两条轴均 `[推测轴]` | ✅ |
 | `IteEditorHudText.cs` | 49 | 1 | HUD 文本格式变（纯 static） | 🔍 |
-| `IteHmdPanel.cs` | 298 | 3 候选 | 面板展示与布局变 / runtime 与 host.Failed 事件挂接变 / 重定位跟随变（`NotifyRecentered:79`） | 🔍 |
-| `IteHostBootstrap.cs` | 350 | 6 候选 | 场景装配契约变 / 包事件签名变 / PICO 佩戴通道变 / 网络判定策略变 / 会话注入时序变 / 失败呈现变 —— handoff #7 的本体 | 🔍 |
+| `IteHmdPanel.cs` | 298 | 1 坐实 / 3 | 仅重定位 ← `IteDeviceMarkerRig` 坐实；面板展示与事件挂接无外部消费者 → `[推测轴]` | ✅ |
+| `IteHostBootstrap.cs` | 350 | 3 坐实 / 6 | **坐实**：场景装配契约 ← `IteSceneSetup` / 会话注入 ← `IteEditorFakeScan`+`IteDeviceMarkerRig` / 失败呈现 ← `IteHmdPanel`。**`[推测轴]`**：包事件转发、PICO 佩戴通道、网络判定（三者全 private 无消费者，且 `df057ec`/`0b71471` 均非单独触发） | ✅ |
 | `IteMarkerBridge.cs` | 144 | 1 | 标记桥接语义变（会话事件→防抖→提交，状态链共享，按合并规则记一条） | 🔍 |
 
 ### Editor（3 文件）
@@ -75,7 +78,7 @@
 | 文件 | 行数 | 轴数 | 轴（一句话） | 状态 |
 |---|---|---|---|---|
 | `BuildScript.cs` | 640 | 1 坐实 + 1 推测 | 出包配置变（入口与平台配置合并，证据 `1959911`/`f8f935a`/`9d7b902`）/ adb 装机行为变 `[推测轴]`（仅 `3079a7a` 附带） | ✅ |
-| `IteSceneSetup.cs` | 248 | 3 候选 | rig 预制体结构变（`CreateRigPrefab:28`）/ 设备场景组装变（`CreateDeviceScene:74`）/ 编辑器场景迁移路径变（`MigrateEditorScene:123`） | 🔍 |
+| `IteSceneSetup.cs` | 248 | 0 坐实 / 3 | Editor 菜单工具，零消费者；三条轴均 `[推测轴]` | ✅ |
 | `ManifestGuard.cs` | 82 | 1 | Android manifest 后处理规则变 | 🔍 |
 
 ### Core（9 文件）
@@ -89,7 +92,7 @@
 | `MRContext.cs` | 53 | 1 | XR 查找面变（`Camera`/`Origin`） | 🔍 |
 | `MRSceneDirector.cs` | 174 | 1 | 加性场景切换语义变（`Load:120`/`UnloadCurrent:164` 与内容场景清单共享 `CurrentScene`，合并记一条） | 🔍 |
 | `MRSceneMenu.cs` | 110 | 1 | 场景菜单交互变 | 🔍 |
-| `PalmsTogetherGesture.cs` | 208 | 2 候选 | 双判定源并行对照变（`Source` 枚举 + `trackerA`/`trackerB`）/ 手势事件语义变（`Performed:40`/`Released:43`） | 🔍 |
+| `PalmsTogetherGesture.cs` | 208 | 1 坐实 / 2 | 仅双源对照 ← `DiagnosticsHud` 坐实；手势事件无外部消费者 → `[推测轴]` | ✅ |
 | `PalmsTogetherHoldTracker.cs` | 49 | 1 | 保持时长判定变 | 🔍 |
 | `PalmsTogetherJointMath.cs` | 83 | 1 | 关节几何判定变（纯 static + Tuning） | 🔍 |
 | `XrCameraAnchor.cs` | 56 | 1 | 相机锚定跟随变 | 🔍 |
@@ -102,7 +105,7 @@
 |---|---|---|---|---|
 | `IceSpriteFxDisableXrSimulator.cs` | 31 | 1 | XR 模拟器拆除方式变 | 🔍 |
 | `IceSpriteFxTestInput.cs` | 61 | 1 | 测试输入映射变 | 🔍 |
-| `IceSpritePresence.cs` | 304 | 2 候选 | 出现/消失动画变（`Appear:88`/`Vanish:93`）/ 传送行为变（`TeleportTo:101`） | 🔍 |
+| `IceSpritePresence.cs` | 304 | 2 坐实 / 2 | 出现消失 ← `IceSpriteFxTestInput` / 传送 ← `IceSpriteFxTestInput` | ✅ |
 
 ### Transitions（2 文件）
 
@@ -119,7 +122,7 @@
 
 | 文件 | 行数 | 轴数 | 轴（一句话） | 状态 |
 |---|---|---|---|---|
-| `DiagnosticsHud.cs` | 246 | 2 候选 | 采集指标项变 / HUD 渲染与布局变（`Update:49`） | 🔍 |
+| `DiagnosticsHud.cs` | 246 | 0 坐实 / 2 | 零消费者；两条轴均 `[推测轴]` | ✅ |
 
 ### Platform（1 文件）
 
@@ -145,11 +148,11 @@
 |---|---|---|---|---|
 | `Entity.cs` | 38 | 1 | 实体激活钩子语义变 | 🔍 |
 | `IteBootstrap.cs` | 86 | 1 | 装配契约与校验项变（`MissingRequired`/`Validate` 共享字段集） | 🔍 |
-| `IteContentPipeline.cs` | 325 | 3 候选 | 服务端接口与 JSON 契约变（`FetchSpaceSceneAsync:73`/`FetchTourAsync:100`）/ 资源加载变（`LoadSceneSpritesAsync:129`）/ 缓存版本判定变（`ShouldDownloadTourPackage:176`） | 🔍 |
-| `IteRuntime.cs` | 323 | 3 候选 | 加载链编排变（`StartAsync:130`）/ 对外事件面变（8 个 `event`）/ 标记扫码提交入口变（`SubmitMarkerScan`，D32） | 🔍 |
+| `IteContentPipeline.cs` | 325 | 2 坐实 / 3 | 服务端接口 ← `IteRuntime` / 资源加载 ← `IteRuntime`。缓存版本判定无外部消费者 → `[推测轴]` | ✅ |
+| `IteRuntime.cs` | 323 | 3 坐实 / 3 | 加载链 ← `IteHostBootstrap` / 事件面 ← `IteEditorHud`+`IteHmdPanel`+`IteHostBootstrap` / 扫码提交 ← `IteHostBootstrap` | ✅ |
 | `IteRuntimeDriver.cs` | 18 | 1 | MonoBehaviour 驱动宿主变 | 🔍 |
 | `IteTourAssembler.cs` | 123 | 1 | tour 实例装配与生命周期变（`CreateAsync`/`Find`/`DestroyAll` 共享 `_liveTours`） | 🔍 |
-| `IteTourObject.cs` | 524 | 4 候选 | 内容树构建变（`CreateTourObject:86`）/ 场景绑定与锚定变换变（`BindScene:66`/`ChangeTourObjectTransform:134`）/ 触发体积进出通知变（`NotifyVolumeTransition:74`）/ 场景就绪世代变（`IsSceneReady:58`）—— handoff #2 已记它初始化顺序有问题 | 🔍 |
+| `IteTourObject.cs` | 524 | 4 坐实 / 4 | 内容树构建 ← `IteTourAssembler` / 场景绑定与锚定 ← `IteTourAssembler`+`TourDirector` / 触发体积进出 ← `TourVolumeTrigger`+`TourDirector` / 场景就绪世代 ← `IteRuntime`（四条均由消费面坐实） | ✅ |
 | `LoadProgress.cs` | 24 | 1 | 加载进度算法变（纯 static） | 🔍 |
 | `MarkerFrame.cs` | 25 | 1 | 标记→内容锚点固定旋转变（design D32） | 🔍 |
 | `MarkerIdentity.cs` | 161 | 1 | 标记身份解析语义变（`Resolve:82` 建在 `TryParseTourId:48` 之上，同一条链，合并记一条） | 🔍 |
@@ -159,7 +162,7 @@
 | `TourAnchoring.cs` | 56 | 1 | 锚定几何变（design D33 刚提成纯函数） | 🔍 |
 | `TourAssembly.cs` | 41 | 1 | 装配与展示类型策略变 | 🔍 |
 | `TourAssetPaths.cs` | 43 | 1 | 资源路径约定变 | 🔍 |
-| `TourDirector.cs` | 333 | 4 候选 | 导览激活与切换变（`ActivateById:99`/`Observe:56`）/ 扫码策略变（`RequireScan:71`/`SubmitMarkerScan:113`）/ 佩戴状态驱动变（`SetHeadsetMounted:80`）/ 区域进出待选变（`PendingTourIds:68`） | 🔍 |
+| `TourDirector.cs` | 333 | 4 坐实 / 4 | 激活切换 ← `IteRuntime` / 扫码策略 ← `IteRuntime`+`IteHostBootstrap` / 佩戴状态 ← `IteRuntime` / 区域待选 ← `TourScanPolicy`+`TourRegionPolicy`+`IteEditorHud` | ✅ |
 | `TourIdLists.cs` | 26 | 1 | id 列表工具变（纯 static） | 🔍 |
 | `TourRegionPolicy.cs` | 120 | 1 | 区域进出判定策略变 | 🔍 |
 | `TourScanPolicy.cs` | 161 | 1 | 扫码决策策略变 | 🔍 |
@@ -182,14 +185,14 @@
 | `BaseTriggerComponent.cs` | 54 | 1 | 触发派发变（`Dispatch:25`） | 🔍 |
 | `ComponentLoadOrder.cs` | 72 | 1 | 组件加载顺序规则变 | 🔍 |
 | `ComponentRegistry.cs` | 47 | 1 | 组件类型解析变 | 🔍 |
-| `EMWModelRenderElement.cs` | 106 | 2 候选 | 模型加载与动画控制器变（`Constructor:31`）/ 点击事件注入变（`InjectTapEvent:104`） | 🔍 |
+| `EMWModelRenderElement.cs` | 106 | 2 坐实 / 2 | 模型动画 ← `ElementComponents` / 点击注入 ← `ElementComponents` | ✅ |
 | `ElementComponents.cs` | 134 | 2 类各 1 | 多类文件：EMWModelRender / RichText 两个元素组件各 1 轴 | 🔍 |
 | `IteTourElementPrefabs.cs` | 18 | 1 | 元素预制体清单变 | 🔍 |
 | `PrimitiveShapes.cs` | 77 | 1 | 基本体形状映射变 | 🔍 |
-| `RichTextElement.cs` | 161 | 2 候选 | 富文本渲染与布局变（`Constructor:41`）/ 音频播放控制变（`ToggleAudio:121`/`PauseAudio:133`/`PlayAudio:144`） | 🔍 |
+| `RichTextElement.cs` | 161 | 3 坐实 / 2 | 渲染 ← `IteTourObject`+`ComponentLoadOrder` / 音频控制 ← `ActionComponents` / 点击注入 ← `ElementComponents` | ✅ |
 | `RichTextLayout.cs` | 23 | 1 | 富文本布局算法变 | 🔍 |
 | `TriggerComponents.cs` | 75 | 3 类各 1 | 多类文件：Load / Tap / Approximate 三个触发组件各 1 轴 | 🔍 |
-| `VideoPlaneElement.cs` | 214 | 2 候选 | 视频播放控制变（`PlayVideo:151`/`PauseVideo:163`）/ 播放器 UI 控制变（`SetControllerActive:194`） | 🔍 |
+| `VideoPlaneElement.cs` | 214 | 2 坐实 / 2 | 视频控制 ← `ElementComponents` / 点击注入 ← `ElementComponents`。播放器 UI 无消费者 → `[推测轴]` | ✅ |
 
 ### ite-tour/Internal（14 文件）
 
@@ -199,15 +202,15 @@
 |---|---|---|---|---|
 | `AnimationAudioController.cs` | 57 | 1 | 动画音频驱动变 | 🔍 |
 | `BoxColliderWireframeDrawer.cs` | 86 | 1 | 线框绘制变 | 🔍 |
-| `ContentAssetLoader.cs` | 166 | 2 候选 | 资源类型加载变（`LoadSpriteAsync:62`/`LoadAudioClipAsync:76`/`LoadGlbAsync:100`）/ HTTP etag 探测变（`FetchEtagAsync:143`） | 🔍 |
+| `ContentAssetLoader.cs` | 166 | 2 坐实 / 2 | 资源加载 ← `IteContentPipeline`+`IteTourObject` / etag 探测 ← `IteContentPipeline` | ✅ |
 | `EventEmitter.cs` | 48 | 1 | 事件总线契约变 | 🔍 |
-| `HierarchyBoundsCalculator.cs` | 89 | 2 候选 | 包围盒计算变（`CalculateLocalBounds:10`）/ Gizmo 绘制变（`DrawLocalBoundsGizmo:77`） | 🔍 |
+| `HierarchyBoundsCalculator.cs` | 89 | 1 坐实 / 2 | 仅包围盒 ← `EMWModelRenderElement` 坐实；Gizmo 绘制无外部消费者 → `[推测轴]` | ✅ |
 | `LegacyAnimationController.cs` | 104 | 1 | 遗留动画控制契约变 | 🔍 |
 | `Matrix4x4Extensions.cs` | 47 | 1 | 矩阵扩展数学变 | 🔍 |
 | `RoundedBoxUIProperties.cs` | 88 | 1 | 圆角网格修饰变 | 🔍 |
 | `SpacePackageEtagCache.cs` | 23 | 1 | 空间包 etag 缓存键与存储变 | 🔍 |
 | `TourVersionCache.cs` | 26 | 1 | tour 版本缓存键与存储变 | 🔍 |
-| `ZipContentDownloader.cs` | 204 | 2 候选 | 下载流程变（`DownloadAndExtractAsync:34`）/ 解压实现变（`ExtractAsync:81`/`ExtractSync:92`） | 🔍 |
+| `ZipContentDownloader.cs` | 204 | 1 坐实 / 2 | 仅下载 ← `IteContentPipeline` 坐实；解压无外部消费者 → `[推测轴]` | ✅ |
 | `ZipEntryPath.cs` | 63 | 1 | zip 条目路径安全解析变 | 🔍 |
 | `ZipTopLevel.cs` | 26 | 1 | zip 顶层枚举变 | 🔍 |
 | `ZipTopLevelResolver.cs` | 82 | 1 | zip 顶层目录判定变 | 🔍 |
@@ -244,11 +247,41 @@
 
 ## 疑似但未坐实
 
-（第二遍产出：全部轴均为 `[推测轴]` 的类列在这里，不得悄悄丢弃）
+坐实轴数 <2，**不得悄悄丢弃**——它们的候选轴很可能真实，只是当前拿不出三类凭据之一。
+代码被改第二次、或长出独立消费者时应回来复核。
+
+| 类 | 坐实轴数 | 候选轴数 | 消费者数 |
+|---|---|---|---|
+| `IteHmdPanel.cs` | 1 | 3 | 2 |
+| `ZipContentDownloader.cs` | 1 | 2 | 2 |
+| `IteDeviceMarkerRig.cs` | 0 | 3 | 2 |
+| `IteEditorFakeScan.cs` | 0 | 2 | 2 |
+| `HierarchyBoundsCalculator.cs` | 1 | 2 | 1 |
+| `PalmsTogetherGesture.cs` | 1 | 2 | 1 |
+| `PicoFiducialObservationSource.cs` | 0 | 3 | 1 |
+| `MarkerHookTestRig.cs` | 0 | 2 | 1 |
+| `IteEditorHud.cs` | 0 | 2 | 1 |
+| `IteSceneSetup.cs` | 0 | 3 | 0 |
+| `DiagnosticsHud.cs` | 0 | 2 | 0 |
 
 ## 重构优先级
 
-（第二遍产出：按「坐实轴数 × 消费者数」排序）
+按「坐实轴数 × 消费者数」排序。只列坐实轴数 ≥2 者；坐实 <2 的见下一节。
+
+| # | 类 | 坐实轴数 | 消费者数 | 得分 | 行数 |
+|---|---|---|---|---|---|
+| 1 | `IteTourObject.cs` | 4 | 15 | **60** | 524 |
+| 2 | `IteRuntime.cs` | 3 | 9 | **27** | 323 |
+| 3 | `IteHostBootstrap.cs` | 3 | 6 | **18** | 350 |
+| 4 | `TourDirector.cs` | 4 | 3 | **12** | 333 |
+| 5 | `IteContentPipeline.cs` | 2 | 6 | **12** | 325 |
+| 6 | `RichTextElement.cs` | 3 | 2 | **6** | 161 |
+| 7 | `ContentAssetLoader.cs` | 2 | 3 | **6** | 166 |
+| 8 | `EMWModelRenderElement.cs` | 2 | 3 | **6** | 106 |
+| 9 | `PlanarPoseSolver.cs` | 2 | 2 | **4** | 377 |
+| 10 | `IceSpritePresence.cs` | 2 | 2 | **4** | 304 |
+| 11 | `AprilTagDetectorCore.cs` | 2 | 1 | **2** | 251 |
+| 12 | `VideoPlaneElement.cs` | 2 | 1 | **2** | 214 |
 
 ## 测试台子重复（产品类证据）
 
