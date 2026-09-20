@@ -82,34 +82,12 @@ PICO 佩戴通道、网络判定策略、会话注入时序、失败呈现。这
   **structure criterion**（机械可检查：design.md 是否含该段、每个类是否一行），见 design D2。
   同时 `waivers[]`（`principle`/`reason`）正是「存量不倒查」的承载机制，见 design D4。
 
-### 仍未确认的
+### 实施中验证掉的
 
-以下为 AI 未经确认的假设，显式带进后续实施：
 
-- **`[已验证]`** 第二遍候选数量：第一遍浅扫 **114/114** 完成（零遗漏核对通过），判出 **24 个候选**
-  （≥2 候选轴，含已命中豁免 5 的 `PlatformRuntime`）。落在原估 **15–25** 区间内，第 3 组任务拆分无需重估。
-- **`[已验证]`** 反向测试样本 `StaticInstance.cs`：已深读，判出**一条**轴
-  （`BindInstanceForTesting` 与 `Awake` 共享 `_instance`，按合并规则并入）。D9 反向测试通过。
-      （若它也 ≥2 轴，需再换样本；35 行的 helper 出错概率低，故未在 propose 阶段深读）
-- **`[已验证]`** `IteHostBootstrap` 的六条轴已逐条取证：**3 条坐实**（场景装配契约 ← `IteSceneSetup`、
-  会话注入 ← `IteEditorFakeScan`+`IteDeviceMarkerRig`、失败呈现 ← `IteHmdPanel`），
-  **3 条 `[推测轴]`**（包事件转发 / PICO 佩戴通道 / 网络判定——三者全 private 无消费者，
-  且 `df057ec`、`0b71471` 均非单独触发）。得分 3 × 6 = 18，**排第 3**，不是第一名
-  （第一是 `IteTourObject` 4 × 15 = 60）。「不预设第一名」兑现。
-- [ ] `[ASSUMED]` ITE 包内违反项的**修改**受 `ite-tour-space-device/design.md` D1–D35 约束，提 change 前需
-      先读那条决策链。审计本身不受限 — 影响：后续包内 change 的前置条件
-- **`[已确认]`** `SacredRelic/` 记为「**暂缓，启用则补审**」，不当作待删代码。`srp-audit.md` 须写明：
-  未审原因是当前不活跃（1615 行、独占 `SacredRelicDemo.unity`、无其他场景引用、最后实质改动
-  `2026-08-03`）；若日后接回导览或任何活场景，**必须补审**。与 GsplatBench（待删，永不进审计）区别对待。
-- **`[已确认]`** 测试代码不审，但重复 fixture **算对应产品类的证据**，记在该产品类名下并参与判定。
-  依据：两处为同一个类各搭等价台子，说明其构造路径不可直接调用
-  （`HostFixture` 要 `SerializedObject` 反射写五个私有字段才立得起来）——这是产品侧结构问题。
-- **`[已确认]`** 单文件豁免（豁免 3）的措辞定为**单文件 + 不新增类 + 不动 `public` 面**，三条全满足才免。
-  用户在 propose 阶段逐字确认。保留 `public` 面这条的理由：动 public 面 = 动消费者契约，而轴的定义就是
-  「外部变化透进来的口」——`IteHostBootstrap` 的六条轴正是一次次加 public 成员攒出来的。
-  接受的代价：给现有类加一个 public 方法这类常见改动也要交清单（只需一行）。
-- [ ] `[ASSUMED]` 本 change 的 capability 命名为 `srp-axis-governance`，且判据属于「能力」而非纯文档 —
-      propose 阶段 AI 自定 — 影响：`specs/srp-axis-governance/spec.md` 的路径与命名
-- **`[已确认]`** constitution 只写这一条 SRP 条款（含五条豁免），不把 `.claude/CLAUDE.md` 的
-  「以架构最优为判据」搬进去。见 design D10。分工：CLAUDE.md 管怎么想（判断类，且每 session 自动加载），
-  constitution 管什么必须写下来（structure 类，只在 analyze 时读）。
+
+### 仍未确认的（2 条）
+
+以下两条本阶段无法验掉，显式留待后续：
+
+
