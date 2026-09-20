@@ -269,6 +269,32 @@ M3 实测单帧检测（1280×960，n=63）：p50 **71.7 ms**、p95 79.6、max 1
 
 **已知边界**：Quest 侧位姿直接来自 MRUK trackable 的 transform，不经这条求解链，语义未受本条影响；两端是否真正一致仍待 9.5 的 Quest 半边目视确认。
 
+### D31 Tour 的触发体积是 trigger，不是实心碰撞体
+
+**真机发现（2026-09-18，Quest 产品包）**：tour 里的图片 / 视频点不中。射线指向图片时停在图片前的半空中。
+
+**原因**：`Tour.prefab` 的 `Volume` 挂的 `BoxCollider` 是实心的（`isTrigger = false`，Default 层），把整个 tour 内容包在里面。源实现点击走 Meta Interaction SDK（`PointableCanvas` + `RayInteractable` / `PokeInteractable`），射线只与交互面做几何求交、不查物理，实心盒子无害。迁移后改走 XRI（`TrackedDeviceGraphicRaycaster`），`NearFarInteractor` 的远距射线是物理射线，Default 层在它的 mask 里，站在体积外时射线先打到盒壁。
+
+**选择**：`IteTourObject.CreateTourObject` 里显式 `boxCollider.isTrigger = true`，预制体同步打勾。写在代码里而不只改预制体，是因为这条约束来自宿主输入层，预制体上的一个勾承载不了「为什么」。区域触发不受影响：宿主相机侧挂的是 trigger 碰撞体 + kinematic `Rigidbody`（`IteDeviceMarkerRig.AttachCameraTrigger`，编辑器 rig 相机自带刚体），trigger 对 trigger 在有刚体时照常回调；XRI 远距射线的 `CurveInteractionCaster` 配的是 `QueryTriggerInteraction.Ignore`，穿过 trigger。
+
+**否决的替代**：
+- **体积放专用 layer，从交互器射线 mask 里剔掉**——包的预制体要依赖宿主工程的 layer 名，交互器 mask 又在 `MRCore`，一条约束拆到三处，换个宿主就静默失效。
+- **恢复 Meta ISDK 的交互组件**——两端（PICO 没有 ISDK）要维护两套 UI 输入，违背 UI 输入统一走 XRI 的方向。
+
+**已知边界**：EMW 模型元素自带的实心 `BoxCollider` 同样会挡住它身后的图片，本条未处理。
+
+### D32 标记系到内容锚点的换算归包，两端平台偏移回到零
+
+**真机发现（2026-09-18，两端）**：用 `MarkerHookTest` 的坐标轴 gizmo 实测，Quest（MRUK）与 PICO（D30 之后的求解链）吐出的标记坐标系**完全一致**：X = 印刷左、Y = 印刷上、Z = 垂直印刷面朝外。而 ITE 编辑器摆内容用的是 X = 印刷右、Y = 垂直印刷面、Z = 印刷下（右手系，用户确认的内容约定）；进 Unity 经 `ConvertToLeftHanded` 翻 Z 后，锚点应为 X = 右、Y = 垂直朝外、Z = 上。两者差一个固定旋转 `Euler(270, 180, 0)`。单位偏移下两端内容都是歪的（码平放时内容躺倒）。D30「PICO 目视确认方向正确」的结论不成立——当时标是立着正对相机的，印刷上与世界上重合，碰巧看不出来。
+
+**选择**：换算写成包内常量 `MarkerFrame.ToContentAnchor`，在唯一入口 `IteRuntime.SubmitMarkerScan` 应用；`PlatformOffsetConfig` 两端都保持零。宿主的契约（`MarkerObservation.Pose`）不变，`MarkerHookTest` 显示的也是契约本身。测试 `MarkerFrameTests` 只用世界基向量写期望（平放、贴墙、编辑器 +Z 内容落点三种），不经被测函数推导。
+
+**否决的替代**：
+- **两端 `PlatformOffsetConfig` 各填 `(270,180,0)`**——同一条内容格式约定配两份，加一个平台就要再配一次；且违背 D30 对偏移语义的约定（只补贴纸与锚点的物理差异）。当天 Quest 曾先这样落地，确认 PICO 同样需要后改掉。
+- **放在宿主 `IteMarkerBridge`**——它不该知道 ITE 编辑器怎么摆内容；这条与 `ConvertToLeftHanded` 同属内容格式，归包。
+
+**已知边界**：编辑器假扫码（`EditorFakeScan.PoseInFront`）造的是「立着正对相机」的标，按同一契约给位姿，自动走同一换算。
+
 ## Risks / Trade-offs
 
 - **现场码的印制格式与假设不符** → 前置真机测量任务排在实现之前；解析器按可替换写，改动收敛到一处实现。
@@ -298,6 +324,50 @@ M3 实测单帧检测（1280×960，n=63）：p50 **71.7 ms**、p95 79.6、max 1
 - `OpenXRSettings.AllowRecentering` 的原生默认值（D18）。工程内无序列化该设置。
 - `margin >= 20` 的下限取自单次实测的双峰间隔（D21），长期需更多样本；阈值做成可调字段。
 - 二维码变成地址之后的解析规则由谁定（内容方），本 change 只保证换实现的成本是一处。
+
+### D33 锚定几何提成纯函数 `TourAnchoring`
+
+**为什么**：锚定链（`TourRoot.local = 被扫中 Tour 局部矩阵的逆`）原本长在 `IteTourObject.ChangeTourObjectTransform`
+里，而 `IteTourObject` 是 513 行的 MonoBehaviour、零测试覆盖。这条链正是 D30 与 D32 两次出错的地方，
+却只能靠真机目视验证——而目视分不清「转了 180°」与「转了 180° 再转回来」。
+
+**选了什么**：`Core/TourAnchoring`（纯静态）持有 `TourRootLocal` / `ResolveWorld` / `HasUnitScale`，
+`ChangeTourObjectTransform` 退化成取矩阵 + 调用。行为等价，唯一新增行为是：场景描述带非单位缩放时
+打一条 `LogWarning`——`SetLocalPositionAndRotation` 会把缩放静默丢掉，内容大小不对且无日志。
+
+**替代方案**：整体重构 `IteTourObject`（六项职责拆开）。否决：改动面与风险都大得多，而锚定这一块
+单独提出来就能拿到全部收益。其余五项职责留待需要时再动。
+
+**验证**：`TourAnchoringTests` 六条，期望值一律用世界基向量写死（沿用 D30 的教训），其中
+`RowOfTours_RunsAlongTheAnchorsForwardAxis` 是轴向守卫——锚定链中任何一处多转 90° 都会变红。
+
+### D34 桌面脚手架用 `#if UNITY_EDITOR`，不用 Editor-only 程序集
+
+**为什么**：`IteEditorFakeScan` / `IteEditorFly` / `IteEditorHud` / `IteEditorHudText` /
+`EditorFakeScan` / `EditorFlyMotion` 共约 570 行只为桌面验收存在，却在运行时程序集 `MRBase.Ite.Host`
+里，会编进 Quest/PICO 包。假扫码是能直接驱动导览的入口，留在设备包里是一条不该存在的路径。
+
+**先试了什么、为什么不行**：把六个文件移进 `includePlatforms: ["Editor"]` 的
+`MRBase.Ite.Host.EditorHarness` 程序集。**Unity 不支持**：Editor 程序集里的 MonoBehaviour 挂不上
+GameObject，`AddComponent` 直接返回 null，`IteTourSpace.unity` 里三个组件当场变成 Missing
+（Camera 上两个、Debug HUD 上一个，实测 2026-09-20）。已回滚。
+
+**选了什么**：六个文件整体包在 `#if UNITY_EDITOR` 里，文件仍留在 `MRBase.Ite.Host`。
+播放器构建里类型根本不存在，而场景与预制体按 GUID 的引用不受影响。
+
+### D35 系统重定位的平台分叉归 `PlatformRuntime`
+
+**为什么**：`IteDeviceMarkerRig` 里有两处 `#if MRBASE_PICO && MRBASE_HAS_PICO_SDK`
+（PICO 走 `PXR_Plugin.System.RecenterSuccess`，其余走 `XRInputSubsystem.trackingOriginUpdated`
+并关掉 `SetAllowRecentering`）。这违反本仓库「所有平台分叉走 `PlatformRuntime`」的既定约束——
+整个 `IteHost` 里 `PlatformRuntime` 出现 0 次，加第三个平台要改的是这个文件而不是 `Platform` 模块。
+
+**选了什么**：`PlatformRuntime.Recentered` 事件 + `HookRecenter` / `UnhookRecenter`（幂等），
+两端的事件源差异只留在 `PlatformRuntime` 一个文件里。`IteDeviceMarkerRig` 从此无任何 `#if MRBASE_*`，
+连 `using Unity.XR.PXR` 与 `UnityEngine.XR` 都不再需要。`MRBase.Platform` 增加 `Unity.XR.OpenXR` 引用。
+
+**行为等价**：订阅/退订的时机与语义不变（重定位 → `RequireScan()` + HMD 面板提示）。
+未在真机验证——两端的重定位路径都只在头显上才走得到，攒到下次出包时一并验。
 
 已消解：PICO 是否上报 `userPresence` —— 有原生通道，见 D19。
 
