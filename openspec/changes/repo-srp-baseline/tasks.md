@@ -14,7 +14,7 @@
       （注：原样本 `PlatformRuntime.cs` 已在 propose 阶段实测判出三轴，故换样本并增设豁免 5）
 - [x] 1.6 用一个已知违反项正向验证判据可用：对 `Assets/Scripts/Editor/BuildScript.cs`（640 行）
       套判据，期望判出一条轴（验证行数不干扰判定）
-- [ ] 1.7 验证豁免 5 可用且不滥用：对 `Assets/Scripts/Platform/PlatformRuntime.cs` 套判据，
+- [x] 1.7 验证豁免 5 可用且不滥用：对 `Assets/Scripts/Platform/PlatformRuntime.cs` 套判据，
       期望判出三轴（passthrough 开法 / 重定位事件源 / MRUK 包行为）、命中豁免 5 不判违反、
       但三条轴仍须逐条登记进审计清单
 - [ ] 1.8 运行 `openspec instructions analyze --change repo-srp-baseline --json`，确认

@@ -8,10 +8,12 @@
 
 行数、方法数、圈复杂度 MUST NOT 用作违反判定的依据。
 
-#### Scenario: 行数大但只有一条轴，判为不违反
+#### Scenario: 行数大但只有一条坐实轴，判为不违反
 - **WHEN** 审计 `Assets/Scripts/Editor/BuildScript.cs`（640 行）
-- **THEN** 只有「打包流程变」一条轴
-- **AND** 判定为**不违反**，不进重构清单
+- **THEN** 出包入口与平台配置 SHALL 合并为一条轴「出包配置变」
+      （历史上三次加入口都同时改了 profile/loader/define，从未分开改过）
+- **AND** adb 装机 SHALL 标记 `[推测轴]`（只在 `3079a7a` 随大改动变过，未单独触发）
+- **AND** 判定为**不违反**（1 条坐实轴），不进重构清单
 
 #### Scenario: 行数中等但多轴，判为违反
 - **WHEN** 审计 `Assets/Scripts/IteHost/IteHostBootstrap.cs`（350 行）
@@ -65,8 +67,10 @@
 
 豁免 5 MUST NOT 凭「这个类是汇聚点」的自称成立。援引它的类 SHALL 满足全部三条：
 
-- **收敛理由成文**：必须写出「拆开会让 `轴数 × 承载文件数` 变多」这一类具体论证，
-  MUST NOT 只写「集中管理更清晰」；
+- **收敛理由成文**：MUST 给出一个**具名的可计算量**，并写出它在「合」与「拆」两种形态下的数值。
+  MUST NOT 只写「集中管理更清晰」这类无法计算的说法。所选的量 MUST 能真正区分两种形态
+  ——`轴数 × 承载文件数` 对等分拆分不敏感（1 文件 3 轴 = 3 文件各 1 轴 = 3），
+  选它前须确认它在本案例上有区分力；
 - **理由有落点**：论证 MUST 记在 `.claude/CLAUDE.md`、该能力的 `spec.md` 或某个 change 的 `design.md` 里，
   能被引用到具体位置；
 - **轴仍需逐条登记**：豁免免除的是「判为违反」，MUST NOT 免除轴清单——每条轴照样列出并附证据。
@@ -74,8 +78,9 @@
 #### Scenario: 平台分叉汇聚点援引豁免成立
 - **WHEN** 审计 `Assets/Scripts/Platform/PlatformRuntime.cs`，判出三条轴
       （passthrough 开法变 / 系统重定位事件源变 / MRUK 包行为变）
-- **AND** `.claude/CLAUDE.md` 已成文「全部平台分叉的唯一落点」「do not add new `#if MRBASE_*` elsewhere」，
-      拆开即把 `#if MRBASE_*` 散回各处、轴数 × 文件数变多
+- **AND** 给出可计算量「新增一个平台要改的分叉文件数」：合 = 1，拆 = 3（三条轴各自都带 `#if MRBASE_*`）
+- **AND** 落点为 `.claude/CLAUDE.md` Architecture 节「全部平台分叉的唯一落点」
+      「do not add new `#if MRBASE_*` elsewhere」
 - **THEN** 命中豁免 5，SHALL NOT 判为违反
 - **AND** 三条轴 MUST 仍逐条登记在 `srp-audit.md`
 
