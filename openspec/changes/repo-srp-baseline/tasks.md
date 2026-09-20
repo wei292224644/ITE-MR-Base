@@ -30,8 +30,8 @@
       SacredRelic **暂缓**（接回活场景必须补审）、`wu.yize.gsplat` **跨仓**、`Assets/Tests/` **判据不适用**
 - [x] 2.2 浅扫 `Assets/Scripts/Localization/`（20 文件 / 2498 行）
 - [x] 2.3 浅扫 `Assets/Scripts/IteHost/`（11 文件 / 1719 行）——含 handoff #7 的 `IteHostBootstrap`
-- [ ] 2.4 浅扫 `Assets/Scripts/Core/`（9 文件 / 893 行）
-- [ ] 2.5 浅扫 `Assets/Scripts/Editor/`（3 文件 / 970 行）+ `IceSpriteFx/`（3）+ `Transitions/`（2）
+- [x] 2.4 浅扫 `Assets/Scripts/Core/`（9 文件 / 893 行）
+- [x] 2.5 浅扫 `Assets/Scripts/Editor/`（3 文件 / 970 行）+ `IceSpriteFx/`（3）+ `Transitions/`（2）
       + `Diagnostics/`（1）+ `Platform/`（1）+ `Common/`（1）
 - [ ] 2.6 浅扫 `Packages/com.uality.ite-tour/Runtime/Core/`（22 文件 / 2686 行）
 - [ ] 2.7 浅扫 `Packages/com.uality.ite-tour/Runtime/Components/`（18 文件 / 1755 行）

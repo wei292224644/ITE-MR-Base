@@ -1,7 +1,7 @@
 # SRP 变更轴审计清单
 
 > 建立：2026-09-20 · 判据：`openspec/constitution.md` 条款 I / II
-> 状态：**第一遍浅扫进行中**（Localization / IteHost 已完成）（⬜ 未扫 / 🔍 已浅扫 / ✅ 已考古坐实）
+> 状态：**第一遍浅扫进行中**（Assets/Scripts 九模块已完成，ITE 包待扫）（⬜ 未扫 / 🔍 已浅扫 / ✅ 已考古坐实）
 
 这是一份**活文档**。后续每个重构 change 完成后回来更新对应行，不要让它随 change 归档。
 判据、五条豁免与 waiver 机制见 `openspec/constitution.md`；
@@ -74,9 +74,9 @@
 
 | 文件 | 行数 | 轴数 | 轴（一句话） | 状态 |
 |---|---|---|---|---|
-| `BuildScript.cs` | 640 | — | — | ⬜ |
-| `IteSceneSetup.cs` | 248 | — | — | ⬜ |
-| `ManifestGuard.cs` | 82 | — | — | ⬜ |
+| `BuildScript.cs` | 640 | 1 坐实 + 1 推测 | 出包配置变（入口与平台配置合并，证据 `1959911`/`f8f935a`/`9d7b902`）/ adb 装机行为变 `[推测轴]`（仅 `3079a7a` 附带） | ✅ |
+| `IteSceneSetup.cs` | 248 | 3 候选 | rig 预制体结构变（`CreateRigPrefab:28`）/ 设备场景组装变（`CreateDeviceScene:74`）/ 编辑器场景迁移路径变（`MigrateEditorScene:123`） | 🔍 |
+| `ManifestGuard.cs` | 82 | 1 | Android manifest 后处理规则变 | 🔍 |
 
 ### Core（9 文件）
 
@@ -84,15 +84,15 @@
 
 | 文件 | 行数 | 轴数 | 轴（一句话） | 状态 |
 |---|---|---|---|---|
-| `EffectShowcase.cs` | 71 | — | — | ⬜ |
-| `MRBootstrap.cs` | 89 | — | — | ⬜ |
-| `MRContext.cs` | 53 | — | — | ⬜ |
-| `MRSceneDirector.cs` | 174 | — | — | ⬜ |
-| `MRSceneMenu.cs` | 110 | — | — | ⬜ |
-| `PalmsTogetherGesture.cs` | 208 | — | — | ⬜ |
-| `PalmsTogetherHoldTracker.cs` | 49 | — | — | ⬜ |
-| `PalmsTogetherJointMath.cs` | 83 | — | — | ⬜ |
-| `XrCameraAnchor.cs` | 56 | — | — | ⬜ |
+| `EffectShowcase.cs` | 71 | 1 | 展示切换方式变 | 🔍 |
+| `MRBootstrap.cs` | 89 | 1 | 就绪门槛检查项变（XR loader / XR Origin / 手部子系统） | 🔍 |
+| `MRContext.cs` | 53 | 1 | XR 查找面变（`Camera`/`Origin`） | 🔍 |
+| `MRSceneDirector.cs` | 174 | 1 | 加性场景切换语义变（`Load:120`/`UnloadCurrent:164` 与内容场景清单共享 `CurrentScene`，合并记一条） | 🔍 |
+| `MRSceneMenu.cs` | 110 | 1 | 场景菜单交互变 | 🔍 |
+| `PalmsTogetherGesture.cs` | 208 | 2 候选 | 双判定源并行对照变（`Source` 枚举 + `trackerA`/`trackerB`）/ 手势事件语义变（`Performed:40`/`Released:43`） | 🔍 |
+| `PalmsTogetherHoldTracker.cs` | 49 | 1 | 保持时长判定变 | 🔍 |
+| `PalmsTogetherJointMath.cs` | 83 | 1 | 关节几何判定变（纯 static + Tuning） | 🔍 |
+| `XrCameraAnchor.cs` | 56 | 1 | 相机锚定跟随变 | 🔍 |
 
 ### IceSpriteFx（3 文件）
 
@@ -100,9 +100,9 @@
 
 | 文件 | 行数 | 轴数 | 轴（一句话） | 状态 |
 |---|---|---|---|---|
-| `IceSpriteFxDisableXrSimulator.cs` | 31 | — | — | ⬜ |
-| `IceSpriteFxTestInput.cs` | 61 | — | — | ⬜ |
-| `IceSpritePresence.cs` | 304 | — | — | ⬜ |
+| `IceSpriteFxDisableXrSimulator.cs` | 31 | 1 | XR 模拟器拆除方式变 | 🔍 |
+| `IceSpriteFxTestInput.cs` | 61 | 1 | 测试输入映射变 | 🔍 |
+| `IceSpritePresence.cs` | 304 | 2 候选 | 出现/消失动画变（`Appear:88`/`Vanish:93`）/ 传送行为变（`TeleportTo:101`） | 🔍 |
 
 ### Transitions（2 文件）
 
@@ -110,8 +110,8 @@
 
 | 文件 | 行数 | 轴数 | 轴（一句话） | 状态 |
 |---|---|---|---|---|
-| `GroundUpRevealController.cs` | 212 | — | — | ⬜ |
-| `IceSpriteTeleport.cs` | 98 | — | — | ⬜ |
+| `GroundUpRevealController.cs` | 212 | 1 | 地面揭示时序变（`Play`/`SetProgress`/`ResetToHidden`/`CompleteImmediately` 共享进度状态，合并记一条） | 🔍 |
+| `IceSpriteTeleport.cs` | 98 | 1 | 传送相位时序变（纯 static） | 🔍 |
 
 ### Diagnostics（1 文件）
 
@@ -119,7 +119,7 @@
 
 | 文件 | 行数 | 轴数 | 轴（一句话） | 状态 |
 |---|---|---|---|---|
-| `DiagnosticsHud.cs` | 246 | — | — | ⬜ |
+| `DiagnosticsHud.cs` | 246 | 2 候选 | 采集指标项变 / HUD 渲染与布局变（`Update:49`） | 🔍 |
 
 ### Platform（1 文件）
 
@@ -127,7 +127,7 @@
 
 | 文件 | 行数 | 轴数 | 轴（一句话） | 状态 |
 |---|---|---|---|---|
-| `PlatformRuntime.cs` | 198 | — | — | ⬜ |
+| `PlatformRuntime.cs` | 198 | 2 坐实 + 1 推测 → **豁免 5** | passthrough 开法变（`2f8ba63`）/ 重定位事件源变（`d790dcd`）/ MRUK 包行为变 `[推测轴]`。命中豁免 5：加一个平台合改 1 文件、拆改 3 | ✅ |
 
 ### Common（1 文件）
 
@@ -135,7 +135,7 @@
 
 | 文件 | 行数 | 轴数 | 轴（一句话） | 状态 |
 |---|---|---|---|---|
-| `StaticInstance.cs` | 35 | — | — | ⬜ |
+| `StaticInstance.cs` | 35 | 1 | 单例重复实例语义变（`BindInstanceForTesting` 与 `Awake` 共享 `_instance`，合并记一条） | ✅ |
 
 ### ite-tour/Core（22 文件）
 
