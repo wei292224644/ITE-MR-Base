@@ -25,7 +25,7 @@
 每个文件产出：轴数估计 + 一句话轴清单。只看 public 面、生命周期方法体内部驱动几件事、
 字段里几组互不相干的状态。不读实现细节。
 
-- [ ] 2.1 建立 `docs/architecture/srp-audit.md` 骨架：`find` 出的 114 个路径逐行列出（未扫的留空待填），
+- [x] 2.1 建立 `docs/architecture/srp-audit.md` 骨架：`find` 出的 114 个路径逐行列出（未扫的留空待填），
       并写入「已知未覆盖区」段落，四处分别标注性质——GsplatBench **待删**（永不补审）、
       SacredRelic **暂缓**（接回活场景必须补审）、`wu.yize.gsplat` **跨仓**、`Assets/Tests/` **判据不适用**
 - [ ] 2.2 浅扫 `Assets/Scripts/Localization/`（20 文件 / 2498 行）
