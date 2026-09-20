@@ -107,6 +107,11 @@ namespace Uality.IteTour.Core
             _volumeObject.AddComponent<BoxColliderWireframeDrawer>();
             SetVolumeObjectActive(false);
 
+            // 必须是 trigger（design D31）：实心盒子会挡住宿主的物理射线（XRI 远距射线），
+            // 站在体积外指向里面的图片/视频时射线停在盒壁上。源实现用的 Meta ISDK 射线不走物理，
+            // 所以当时实心也没事。区域触发不受影响——宿主相机侧带 trigger 碰撞体 + kinematic 刚体。
+            boxCollider.isTrigger = true;
+
             // 源实现在此处取半值。触发体积因此只有描述尺寸的一半，是既有行为，原样保留。
             boxCollider.size = new Vector3(
                 tour.triggerVolume.width / 2, tour.triggerVolume.height / 2, tour.triggerVolume.depth / 2);
@@ -134,9 +139,20 @@ namespace Uality.IteTour.Core
                 return;
             }
 
-            var localMatrix = (transform.parent.localToWorldMatrix.inverse * transform.localToWorldMatrix).inverse;
+            var tourLocal = transform.parent.localToWorldMatrix.inverse * transform.localToWorldMatrix;
 
-            _tourOffsetObject.SetLocalPositionAndRotation(localMatrix.GetPosition(), localMatrix.rotation);
+            // 缩放会被 SetLocalPositionAndRotation 丢掉（既有行为）。丢掉本身不改，
+            // 但不能一声不吭：内容整体大小不对时，没有日志就只能靠目测猜。
+            if (!TourAnchoring.HasUnitScale(tourLocal))
+            {
+                Debug.LogWarning(
+                    "[ITE] Tour " + _tourId + " 的场景描述带了非单位缩放 " + tourLocal.lossyScale +
+                    "，锚定只写位置与旋转，缩放会被丢掉。", this);
+            }
+
+            var rootLocal = TourAnchoring.TourRootLocal(tourLocal);
+
+            _tourOffsetObject.SetLocalPositionAndRotation(rootLocal.position, rootLocal.rotation);
             _anchorObject.SetLocalPositionAndRotation(t, r);
         }
 
