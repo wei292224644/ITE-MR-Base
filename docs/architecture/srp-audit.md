@@ -1,7 +1,7 @@
 # SRP 变更轴审计清单
 
 > 建立：2026-09-20 · 判据：`openspec/constitution.md` 条款 I / II
-> 状态：**第一遍浅扫进行中**（⬜ 未扫 / 🔍 已浅扫 / ✅ 已考古坐实）
+> 状态：**第一遍浅扫进行中**（Localization 已完成）（⬜ 未扫 / 🔍 已浅扫 / ✅ 已考古坐实）
 
 这是一份**活文档**。后续每个重构 change 完成后回来更新对应行，不要让它随 change 归档。
 判据、五条豁免与 waiver 机制见 `openspec/constitution.md`；
@@ -29,26 +29,26 @@
 
 | 文件 | 行数 | 轴数 | 轴（一句话） | 状态 |
 |---|---|---|---|---|
-| `AprilTagDetectorCore.cs` | 251 | — | — | ⬜ |
-| `FiducialConfidencePolicy.cs` | 14 | — | — | ⬜ |
-| `IMarkerObservationSource.cs` | 25 | — | — | ⬜ |
-| `MarkerObservation.cs` | 28 | — | — | ⬜ |
-| `MarkerStabilizer.cs` | 109 | — | — | ⬜ |
-| `MarkerStabilizerProfile.cs` | 57 | — | — | ⬜ |
-| `MarkerTrackingSession.cs` | 102 | — | — | ⬜ |
-| `MockObservationSource.cs` | 60 | — | — | ⬜ |
-| `AxisGizmo.cs` | 129 | — | — | ⬜ |
-| `MarkerHookTestHud.cs` | 152 | — | — | ⬜ |
-| `MarkerHookTestRig.cs` | 213 | — | — | ⬜ |
-| `MarkerSourceFactory.cs` | 71 | — | — | ⬜ |
-| `PicoFiducialObservationSource.cs` | 472 | — | — | ⬜ |
-| `PicoHeadsetPresence.cs` | 60 | — | — | ⬜ |
-| `QuestMrukRuntimeInstaller.cs` | 187 | — | — | ⬜ |
-| `QuestObservationSource.cs` | 137 | — | — | ⬜ |
-| `PicoEnterpriseCameraPose.cs` | 32 | — | — | ⬜ |
-| `PlanarPoseSolver.cs` | 377 | — | — | ⬜ |
-| `PlatformOffsetConfig.cs` | 11 | — | — | ⬜ |
-| `PoseMath.cs` | 11 | — | — | ⬜ |
+| `AprilTagDetectorCore.cs` | 251 | 2 候选 | native AprilTag 绑定变（`Detect:129`/`Dispose:240`）/ 位姿解算方式变（`TrySolvePose:197`，static，不共享检测句柄） | 🔍 |
+| `FiducialConfidencePolicy.cs` | 14 | 1 | 置信度阈值策略变 | 🔍 |
+| `IMarkerObservationSource.cs` | 25 | 1 | 观测源契约变 | 🔍 |
+| `MarkerObservation.cs` | 28 | 1 | 观测数据契约变 | 🔍 |
+| `MarkerStabilizer.cs` | 109 | 1 | 防抖与稳定判定变 | 🔍 |
+| `MarkerStabilizerProfile.cs` | 57 | 1 | 防抖参数配置变 | 🔍 |
+| `MarkerTrackingSession.cs` | 102 | 1 | 会话语义变（轮询转发与丢失滞回共享 `tracked`，按合并规则记一条） | 🔍 |
+| `MockObservationSource.cs` | 60 | 1 | `IMarkerObservationSource` 契约变（测试替身） | 🔍 |
+| `AxisGizmo.cs` | 129 | 1 | 轴向可视化约定变 | 🔍 |
+| `MarkerHookTestHud.cs` | 152 | 1 | 探针 HUD 展示内容变 | 🔍 |
+| `MarkerHookTestRig.cs` | 213 | 2 候选 | 探针可视化（box/label）变 / 会话生命周期与暂停恢复变（`Awake:45`/`Update:69`/`Pause:87`） | 🔍 |
+| `MarkerSourceFactory.cs` | 71 | 1 | 平台源选择与失败分类变 | 🔍 |
+| `PicoFiducialObservationSource.cs` | 472 | 3 候选 | PICO 企业相机 API 变（`Open:121`/`Close:148`）/ AprilTag 检测参数与流程变 / 帧抓取时序变（`Update:300`） | 🔍 |
+| `PicoHeadsetPresence.cs` | 60 | 1 | PICO 佩戴通道 API 变 | 🔍 |
+| `QuestMrukRuntimeInstaller.cs` | 187 | 1 | MRUK 初始化方式变 | 🔍 |
+| `QuestObservationSource.cs` | 137 | 1 | MRUK QRCode API 变 | 🔍 |
+| `PicoEnterpriseCameraPose.cs` | 32 | 1 | PICO 相机位姿约定变 | 🔍 |
+| `PlanarPoseSolver.cs` | 377 | 2 候选 | 平面位姿解算算法变（`TrySolve:20`）/ Unity 相机空间转换约定变（`ToUnityCameraSpace:123`，design D30） | 🔍 |
+| `PlatformOffsetConfig.cs` | 11 | 1 | 贴纸与锚点物理偏移配置变 | 🔍 |
+| `PoseMath.cs` | 11 | 1 | 位姿复合数学变 | 🔍 |
 
 ### IteHost（11 文件）
 
