@@ -14,11 +14,13 @@
 每个 change 的 `design.md` MUST 含一个标题为 `## 变更轴清单` 的段落。
 该 change 新增或修改的**每个**类 MUST 在清单里各占一行，标出轴数与每条轴的一句话描述。
 不新增也不修改任何类的 change（如纯文档 change）MUST 保留该段落，内容写明无类改动。
-满足**豁免 3**（单文件 + 不新增类 + 不改动任何 `public` 成员）的 change MUST NOT 被要求该段落。
+满足**豁免 3**（单文件 + 不新增类 + 不改动任何 `public` 成员）的 change 可免该段落，
+但 MUST 在 `proposal.md` 或 `design.md` 里**显式声明**一行 `适用豁免 3：单文件、不新增类、不动 public 面`。
+声明是必需的——检查是机械的，读不出改动范围，只读得出有没有这句话；**默认不豁免**。
 
-- CRITERION[structure]: `design.md` 中存在标题恰为 `## 变更轴清单` 的段落；该段落为每个新增/修改类各列一行，行内含类型名、`新增` 或 `修改`、轴数。
-  PASS: `## 变更轴清单` 段落下有 `| IteMarkerBridge | 修改 | 1 | 会话注入时序变 |`；或纯文档 change 写「无（本 change 不新增、不修改任何类）」。
-  FAIL: 无 `## 变更轴清单` 段落；或标题写成 `## 本 change 自身的变更轴清单`；或新增了两个类但清单只列一行。
+- CRITERION[structure]: `design.md` 中存在标题恰为 `## 变更轴清单` 的段落，且该段落为每个新增/修改类各列一行（行内含类型名、`新增` 或 `修改`、轴数）；或 `proposal.md` / `design.md` 中存在 `适用豁免 3` 字样。
+  PASS: `## 变更轴清单` 段落下有 `| IteMarkerBridge | 修改 | 1 | 会话注入时序变 |`；或纯文档 change 写「无（本 change 不新增、不修改任何类）」；或改一行的 change 写「适用豁免 3：单文件、不新增类、不动 public 面」。
+  FAIL: 既无 `## 变更轴清单` 段落也无 `适用豁免 3` 声明；或标题写成 `## 本 change 自身的变更轴清单`；或新增了两个类但清单只列一行。
 
 ## II. 新增的多轴类必须有编号决策 (MUST)
 
@@ -127,11 +129,26 @@
 
 ## Waiver（存量不倒查的实现机制）
 
-存量违反**不**通过放宽或删除条款文字来放过。改用 `.openspec.yaml` 的 waiver：
+存量违反**不**通过放宽或删除条款文字来放过。改用 waiver：
 
-- waiver 的 `principle` 必须等于对应条款 id（`I` 或 `II`）；
-- waiver 的 `reason` 必须指向 `docs/architecture/srp-audit.md` 中对应的登记项；
+**落点（2026-09-20 实测）**：waiver 写在**该 change 自己的** `openspec/changes/<name>/.openspec.yaml` 里。
+根目录 `.openspec.yaml` 与 `openspec/config.yaml` 都**不被读取**（实测均返回 `waivers: []`）。
+形如：
+
+```yaml
+schema: spec-driven
+created: YYYY-MM-DD
+waivers:
+  - principle: I
+    reason: "存量违反已登记：docs/architecture/srp-audit.md · IteTourObject（4 坐实轴）"
+```
+
+- `principle` 必须等于对应条款 id（`I` 或 `II`）；
+- `reason` 必须指向 `docs/architecture/srp-audit.md` 中对应的登记项；
 - **未登记的违反不自动获得豁免**——先补登记，否则按新增违反处理。
+
+**waiver 是按 change 配的，不是全局开关。** 每个碰到存量违反项的 change 各自写一条，
+写的时候必须点名是清单里的哪一项——这正是想要的摩擦：豁免可见、可追溯，不会一次性放过所有人。
 
 依据：`.claude/skills/openspec-analyze-change/SKILL.md:17`「Constitution is non-negotiable during
 analyze. On MUST violations, adjust the plan — do NOT reinterpret or delete clauses.」

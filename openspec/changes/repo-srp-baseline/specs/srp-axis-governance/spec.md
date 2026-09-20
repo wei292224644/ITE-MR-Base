@@ -58,10 +58,16 @@
 - **THEN** 「装配」算一条轴
 - **AND** 运行期状态推进 SHALL 另计为独立的轴
 
-#### Scenario: 改一行不需要轴清单
+#### Scenario: 改一行声明豁免后放行
 - **WHEN** 某 change 只改一个文件、不新增类、不动 public 面
+- **AND** 其 `proposal.md` 或 `design.md` 含 `适用豁免 3` 的显式声明
 - **THEN** 其 `design.md` MUST NOT 被要求含变更轴清单
 - **AND** `/opsx:analyze` 不得因缺该清单而报 CRITICAL
+
+#### Scenario: 符合豁免 3 但未声明，仍被拦
+- **WHEN** 某 change 事实上满足豁免 3，但未写出声明
+- **THEN** 检查 SHALL 按缺清单处理并报 CRITICAL
+- **AND** 理由是 structure criterion 读不出改动范围，只读得出声明；**默认不豁免**
 
 ### Requirement: 汇聚点豁免必须由成文的收敛理由支撑
 

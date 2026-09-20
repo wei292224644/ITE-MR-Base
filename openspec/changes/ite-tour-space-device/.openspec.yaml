@@ -1,2 +1,5 @@
 schema: spec-driven
 created: 2026-09-10
+waivers:
+  - principle: I
+    reason: "存量不倒查（constitution 豁免 4）：本 change 早于 SRP 条款生效（2026-09-20）即已在途，其涉及的存量违反项已登记于 docs/architecture/srp-audit.md（IteTourObject 4 坐实轴、IteRuntime 3、TourDirector 4、IteContentPipeline 2）。后续新增类仍受条款 II 约束。"

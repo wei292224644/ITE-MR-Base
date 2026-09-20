@@ -320,3 +320,29 @@ SRP 条款要求的是**特定一段清单**，是前者的机械化子集，重
 
 **没有松动的部分**：三类凭据**都要求可引用的具体物**（commit hash / 消费者文件与取用点 / 带日期的实测记录）。
 拿不出任一类的仍标 `[推测轴]`。判据仍然可证伪，只是不再把唯一证据源押在一个三个月大的 git 历史上。
+
+### D13 — waiver 是 change 级的，且豁免 3 必须显式声明（实施中实测）
+
+**两处实测，都改了机制的形状。**
+
+**① waiver 的落点是 change 自己的 `.openspec.yaml`。** 逐个试过：根目录 `.openspec.yaml`
+与 `openspec/config.yaml` 都返回 `waivers: []`，只有 `openspec/changes/<name>/.openspec.yaml`
+里的 `waivers:` 被 `instructions analyze` 读到。
+
+结果是 waiver **按 change 配，没有全局开关**。这反而比原设想好：每个碰到存量违反的 change
+各写一条、各自点名是 `srp-audit.md` 里的哪一项，豁免因此可见、可追溯，不会一次性放过所有人。
+已据此给唯一会被拦的在途 change（`ite-tour-space-device`，有 design.md 但无清单段落）
+配了 `principle: I` 的 waiver，reason 指向清单登记项。
+
+**② 豁免 3 不能靠机械检查自己认出来，必须由 change 声明。** structure criterion 读的是
+artifact 的文本结构，**读不出**「这个 change 只改了一个文件、没动 public 面」。
+若条款写成「满足豁免 3 者免清单」，检查器无从判断，等于给任何缺清单的 change 留了口子。
+
+改为：免清单者 MUST 写一行 `适用豁免 3：单文件、不新增类、不动 public 面`。
+声明本身是可机械检查的，而**默认不豁免**。代价是改一行也要写一句话——接受：
+这句话同时是作者的自我声明，写错了有据可查。
+
+**③ 负向验证结果**：故意造一个缺清单、且新增 3 轴类无编号决策的探针 change，
+确认两条条款均为 `MUST` + `structure` 型、无匹配 waiver ⇒ 按 `SKILL.md:35/68` 判 CRITICAL
+并 advisory-block；`SKILL.md:37` 的「judgment 降级为 WARNING」对 structure 型不适用。
+门槛确实拦得住。探针验完即删。

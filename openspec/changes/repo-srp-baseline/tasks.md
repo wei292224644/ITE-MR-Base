@@ -59,14 +59,14 @@
 
 ## 4. 存量 waiver 与门槛生效
 
-- [ ] 4.1 为 `srp-audit.md` 的每个登记项配置 waiver：`principle` = SRP 条款 id，
+- [x] 4.1 为 `srp-audit.md` 的每个登记项配置 waiver：`principle` = SRP 条款 id，
       `reason` 指向该登记项。确认未登记的违反不会命中任何 waiver
-- [ ] 4.2 对四个 in-flight change（`ite-tour-space-device` / `ite-scene-layout-convention` /
+- [x] 4.2 对四个 in-flight change（`ite-tour-space-device` / `ite-scene-layout-convention` /
       `marker-anchor-axis-correction` / `xr-ui-interaction-unification`）各跑一次
       `/opsx:analyze`，确认它们不被新门槛报 CRITICAL
-- [ ] 4.3 负向验证门槛真的能拦：临时造一个缺变更轴清单的 design（或在暂存副本上试），
+- [x] 4.3 负向验证门槛真的能拦：临时造一个缺变更轴清单的 design（或在暂存副本上试），
       确认 analyze 报 **CRITICAL** 而非 WARNING。验完撤掉
-- [ ] 4.4 正向验证豁免真的生效：确认一个单文件、不新增类、不动 public 面的 change 不因缺清单被拦
+- [x] 4.4 正向验证豁免真的生效：确认一个单文件、不新增类、不动 public 面的 change 不因缺清单被拦
 
 ## 5. 收尾验证
 
