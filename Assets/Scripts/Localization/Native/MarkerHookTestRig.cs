@@ -117,7 +117,7 @@ public sealed class MarkerHookTestRig : MonoBehaviour
             $"{LogPrefix} Observed platform={observation.Platform} rawPayload={observation.RawPayload} " +
             $"pos={observation.Pose.position:F3}", this);
 
-        ShowOrUpdateVisual(key, observation.Pose);
+        ShowOrUpdateVisual(key, observation);
     }
 
     private void HandleLost(MarkerPlatform platform, string rawPayload)
@@ -130,8 +130,9 @@ public sealed class MarkerHookTestRig : MonoBehaviour
         RemoveVisual(key);
     }
 
-    private void ShowOrUpdateVisual(string key, Pose pose)
+    private void ShowOrUpdateVisual(string key, MarkerObservation observation)
     {
+        Pose pose = observation.Pose;
         if (!activeVisuals.TryGetValue(key, out MarkerVisual visual))
         {
             visual = CreateVisual(key);
@@ -140,33 +141,39 @@ public sealed class MarkerHookTestRig : MonoBehaviour
 
         visual.Box.transform.SetPositionAndRotation(pose.position, pose.rotation);
 
-        if (lastObservationByKey.TryGetValue(key, out MarkerObservation observation))
-        {
-            visual.Label.text = $"{observation.Platform}\n{observation.RawPayload}";
-        }
+        // 这是平台原始四元数的 Euler,不是镜像后坐标轴的——镜像系没有对应的四元数。
+        Vector3 euler = pose.rotation.eulerAngles;
+        visual.Label.text =
+            $"{observation.Platform}\n{observation.RawPayload}\n" +
+            $"raw X{euler.x:F0} Y{euler.y:F0} Z{euler.z:F0}";
 
         Vector3 labelPosition = pose.position + Vector3.up * (boxSize * 1.5f);
         visual.Label.transform.position = labelPosition;
     }
 
+    // 画的是契约本身:MarkerObservation.Pose 的 Unity 坐标轴,两端应一致为
+    // X=印刷左、Y=印刷上、Z=出纸面。换算到 ITE 内容锚点是 ITE 包的事(MarkerFrame),这里不掺。
     private MarkerVisual CreateVisual(string key)
     {
-        GameObject box = GameObject.CreatePrimitive(PrimitiveType.Cube);
-        box.name = $"MarkerHookVisual_{key}";
-        Destroy(box.GetComponent<Collider>());
-        box.transform.localScale = Vector3.one * boxSize;
-        ApplyBoxMaterial(box, new Color(0.1f, 0.9f, 0.3f));
-        box.transform.SetParent(transform, worldPositionStays: true);
+        GameObject root = new GameObject($"MarkerHookVisual_{key}");
+        root.transform.SetParent(transform, worldPositionStays: true);
+
+        AxisGizmo.Create(root.transform, boxSize * 3f, Quaternion.identity, authoringHanded: false);
 
         var labelObject = new GameObject($"MarkerHookLabel_{key}");
-        labelObject.transform.SetParent(box.transform, worldPositionStays: true);
+        labelObject.transform.SetParent(root.transform, worldPositionStays: true);
+        // TMP 的 fontSize 是世界单位,4 在 8cm 的盒子边上等于字符几米高,糊满整个视野——
+        // 之前几轮截图读不出数字就是被这个盖住了,不是截图分辨率问题。用 localScale 兜底缩小,
+        // 不靠猜 fontSize 的换算系数。
+        labelObject.transform.localScale = Vector3.one * 0.02f;
         TextMeshPro label = labelObject.AddComponent<TextMeshPro>();
         label.alignment = TextAlignmentOptions.Center;
         label.fontSize = 4f;
         label.rectTransform.sizeDelta = new Vector2(1f, 0.3f);
 
-        return new MarkerVisual { Box = box, Label = label };
+        return new MarkerVisual { Box = root, Label = label };
     }
+
 
     private void RemoveVisual(string key)
     {
@@ -190,18 +197,6 @@ public sealed class MarkerHookTestRig : MonoBehaviour
         }
 
         label.rotation = Quaternion.LookRotation(direction);
-    }
-
-    private static void ApplyBoxMaterial(GameObject box, Color color)
-    {
-        Shader shader = Shader.Find("Universal Render Pipeline/Unlit") ?? Shader.Find("Universal Render Pipeline/Lit");
-        var renderer = box.GetComponent<Renderer>();
-        if (shader != null)
-        {
-            renderer.material = new Material(shader);
-        }
-
-        renderer.material.color = color;
     }
 
     private static string Key(MarkerPlatform platform, string rawPayload) => $"{platform}:{rawPayload}";

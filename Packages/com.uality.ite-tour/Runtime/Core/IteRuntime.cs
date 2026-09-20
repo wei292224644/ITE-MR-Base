@@ -257,6 +257,9 @@ namespace Uality.IteTour.Core
         ///
         /// payload 到 tourId 的解析在这里完成，宿主侧不做任何解析：payload 的形状由内容方
         /// 定义且会变，焊在宿主意味着内容每改一次码，宿主就要出一次包。
+        ///
+        /// <paramref name="pose"/> 是标记的世界位姿，按 <see cref="MarkerFrame"/> 的宿主约定给
+        /// （X 印刷左、Y 印刷上、Z 出纸面）；换算到内容锚点在这里做，宿主不要自己转。
         /// </summary>
         public void SubmitMarkerScan(MarkerKind kind, string rawPayload, Pose pose)
         {
@@ -267,7 +270,7 @@ namespace Uality.IteTour.Core
                 return;
             }
 
-            _director.SubmitMarkerScan(tourId, pose);
+            _director.SubmitMarkerScan(tourId, MarkerFrame.ToContentAnchorPose(pose));
         }
 
         /// <summary>

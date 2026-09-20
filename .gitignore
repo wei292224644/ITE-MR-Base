@@ -108,6 +108,11 @@ InitTestScene*.unity*
 # macOS
 .DS_Store
 
+# Editor swap / backup files
+*.swp
+*.swo
+*~
+
 # Local Claude / Cursor overrides (machine-specific; do not commit)
 .claude/settings.local.json
 .cursor/mcp.json

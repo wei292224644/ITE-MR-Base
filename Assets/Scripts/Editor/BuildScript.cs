@@ -26,21 +26,9 @@ public static class BuildScript
     const string k_PicoProfilePath = "Assets/Settings/Build Profiles/PICO.asset";
     const string k_MRCoreScene = "Assets/Scenes/MRCore.unity";
     const string k_MarkerHookTestScene = "Assets/Scenes/MarkerHookTest.unity";
-    const string k_GsplatBenchScene = "Assets/Scenes/GsplatBench.unity";
 
-    const string k_PicoOfficialCameraRenderingScene =
-        "Packages/com.unity.xr.picoxr/Enterprise/Sample/CameraRendering/PXR/CameraRendering.unity";
-
-    // 数组首项是启动场景。探针包与主包共用同一条启动路径：MRCore 先起来装配 XR，探针场景
-    // 由 MRSceneDirector 以 Additive 加载 —— 与 D3 的「一个常驻核心场景」保持一致。
-    //
-    // 早前是反过来的：探针场景排首位，靠场景里的 MRCoreLoader 在运行时把 MRCore 拉进来。
-    // 那等于第二条启动路径，而两条路径的差异只在真机上显形 —— 装配重复带入时 StaticInstance
-    // 销毁后来者，漏判时静态 Instance 指向已销毁对象。删掉一条比给它加防护便宜。
-    //
-    // 只有探针用 sceneOverride：它们要保持极简来做测量，不该带上整套内容场景。demo 与测试
-    // 场景都在 MRBase/Build/Quest 的统一包里，运行时用 MRSceneDirector 的菜单切换。
-    // 探针包里 MRSceneDirector.firstScene 为空，起来后在菜单点一次进探针场景。
+    // 探针场景由 MRSceneDirector 以 Additive 加载在 MRCore 之上（D3：一个常驻核心场景），
+    // 不能只打探针场景单独进包。
     static string[] ProbeScenes(string probeScene) => new[] { k_MRCoreScene, probeScene };
 
     /// <summary>
@@ -72,7 +60,8 @@ public static class BuildScript
     public static void BuildQuest()
     {
         Build(k_QuestProfilePath, "MRBASE_QUEST", k_OpenXRLoader, "Builds/Quest/MR_Base.apk",
-            excludePluginRoot: k_PicoPackageRoot);
+            excludePluginRoot: k_PicoPackageRoot,
+            installAfterBuild: true);
     }
 
     [MenuItem("MRBase/Build/Queue Quest")]
@@ -85,7 +74,8 @@ public static class BuildScript
     public static void BuildPico()
     {
         Build(k_PicoProfilePath, "MRBASE_PICO", k_PicoLoader, "Builds/Pico/MR_Base.apk",
-            excludePluginRoot: k_MetaPackageRoot);
+            excludePluginRoot: k_MetaPackageRoot,
+            installAfterBuild: true);
     }
 
     [MenuItem("MRBase/Build/Queue Pico")]
@@ -94,8 +84,10 @@ public static class BuildScript
         QueueBuild(BuildPico, "Pico");
     }
 
-
-    [MenuItem("MRBase/Build/Marker Hook Test/Quest Development")]
+    // Release，不是 Development——Horizon OS v207 上 Development 构建卡死在 XR 启动内部
+    // （主线程停在 StartXRSDK，场景永不加载），去掉 AllowDebugging 也一样卡；同内容 Release
+    // 正常（2026-09-11 实测）。探针只靠 logcat，Debug.Log 在 Release 包里照常输出。
+    [MenuItem("MRBase/Build/Marker Hook Test/Quest")]
     public static void BuildMarkerHookTestQuest()
     {
         Build(
@@ -105,86 +97,14 @@ public static class BuildScript
             "Builds/MarkerHookTest/Quest/MarkerHookTest-Quest.apk",
             excludePluginRoot: k_PicoPackageRoot,
             sceneOverride: ProbeScenes(k_MarkerHookTestScene),
-            // Release，不是 Development。Horizon OS v207（runtime 207.218.0）上 Development 构建的包
-            // 在 XR 启动内部卡死：主线程停在 StartXRSDK 里、场景从未加载，头显永远停在加载界面。
-            // 去掉 AllowDebugging 仍卡，同内容的 Release 包正常（2026-09-11 实测）。探针只靠 logcat，
-            // Debug.Log 在 Release 包里照样输出（同 GsplatBench）。PICO 入口无此现象，未改。
-            buildOptions: BuildOptions.None);
-    }
-
-    [MenuItem("MRBase/Build/Marker Hook Test/Queue Quest Development")]
-    public static void QueueMarkerHookTestQuest()
-    {
-        QueueBuild(BuildMarkerHookTestQuest, "Quest Marker Hook Test");
-    }
-
-    [MenuItem("MRBase/Build/Marker Hook Test/PICO Development")]
-    public static void BuildMarkerHookTestPico()
-    {
-        Build(
-            k_PicoProfilePath,
-            "MRBASE_PICO",
-            k_PicoLoader,
-            "Builds/MarkerHookTest/PICO/MarkerHookTest-PICO.apk",
-            excludePluginRoot: k_MetaPackageRoot,
-            sceneOverride: ProbeScenes(k_MarkerHookTestScene),
-            buildOptions: BuildOptions.Development | BuildOptions.AllowDebugging);
-    }
-
-    [MenuItem("MRBase/Build/Marker Hook Test/Queue PICO Development")]
-    public static void QueueMarkerHookTestPico()
-    {
-        QueueBuild(BuildMarkerHookTestPico, "PICO Marker Hook Test");
-    }
-
-
-    /// <summary>
-    /// 3DGS 性能实测装置（openspec: gsplat-quest-bench）。
-    ///
-    /// 与其它探针不同，场景列表里**没有 MRCore** —— 这套装置刻意不走产品启动路径，
-    /// 否则 MRCore 的常驻装配会把开销混进被测数字。它是可整体删除的一次性探针，
-    /// 删除时连同本菜单项一起移除。
-    ///
-    /// 也与其它探针不同：**不加 Development / AllowDebugging**。
-    /// 其它探针要的是能连 Profiler、能断点；这套要的是「测出来的数等于将来产品跑出来的数」。
-    /// AllowDebugging 会让 IL2CPP 插入调试钩子——既拖慢构建，也污染被测运行时。
-    /// 装置自己有 HUD 和 .log，不依赖 Profiler 连接；Debug.Log 在 release 包里照样进 logcat。
-    ///
-    /// 构建成功后自动 adb 安装并拉起（<c>installAfterBuild</c>）—— 这套装置的用法是
-    /// 「改一个旋钮、出一次包、戴上看数」，每轮都手动装机会把十几分钟的循环再拉长。
-    /// 没插设备时只警告，不影响构建结果。
-    /// </summary>
-    [MenuItem("MRBase/Build/Gsplat Bench/Quest")]
-    public static void BuildGsplatBenchQuest()
-    {
-        Build(
-            k_QuestProfilePath,
-            "MRBASE_QUEST",
-            k_OpenXRLoader,
-            "Builds/GsplatBench/GsplatBench-Quest.apk",
-            excludePluginRoot: k_PicoPackageRoot,
-            sceneOverride: new[] { k_GsplatBenchScene },
             buildOptions: BuildOptions.None,
             installAfterBuild: true);
     }
 
-    [MenuItem("MRBase/Build/Gsplat Bench/Queue Quest")]
-    public static void QueueGsplatBenchQuest()
+    [MenuItem("MRBase/Build/Marker Hook Test/Queue Quest")]
+    public static void QueueMarkerHookTestQuest()
     {
-        QueueBuild(BuildGsplatBenchQuest, "Quest Gsplat Bench");
-    }
-
-    [MenuItem("MRBase/Build/PICO Official CameraRendering Sample")]
-    public static void BuildPicoOfficialCameraRenderingSample()
-    {
-        Build(
-            k_PicoProfilePath,
-            "MRBASE_PICO",
-            k_PicoLoader,
-            "Builds/Localization/PICO/PicoOfficialCameraRendering.apk",
-            excludePluginRoot: k_MetaPackageRoot,
-            sceneOverride: new[] { k_PicoOfficialCameraRenderingScene },
-            buildOptions: BuildOptions.Development | BuildOptions.AllowDebugging);
+        QueueBuild(BuildMarkerHookTestQuest, "Quest Marker Hook Test");
     }
 
 
