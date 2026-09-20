@@ -9,10 +9,10 @@
       不接受「集中管理更清晰」）、论证有可引用落点、轴仍须逐条登记。缺任一条即不得援引
 - [x] 1.4 把条款写成 **structure criterion**（D2）：明确 `design.md` 必须含的清单段落标题、
       每个新增/修改类一行的格式、多轴新增类必须有编号决策。不得使用判断类表述
-- [ ] 1.5 跑 D9 反向测试：深读 `Assets/Scripts/Common/StaticInstance.cs`（35 行）套判据数轴。
+- [x] 1.5 跑 D9 反向测试：深读 `Assets/Scripts/Common/StaticInstance.cs`（35 行）套判据数轴。
       期望一条轴、不违反。**若 ≥2 轴则停下**，另选样本或补写判据边界说明后再继续
       （注：原样本 `PlatformRuntime.cs` 已在 propose 阶段实测判出三轴，故换样本并增设豁免 5）
-- [ ] 1.6 用一个已知违反项正向验证判据可用：对 `Assets/Scripts/Editor/BuildScript.cs`（640 行）
+- [x] 1.6 用一个已知违反项正向验证判据可用：对 `Assets/Scripts/Editor/BuildScript.cs`（640 行）
       套判据，期望判出一条轴（验证行数不干扰判定）
 - [ ] 1.7 验证豁免 5 可用且不滥用：对 `Assets/Scripts/Platform/PlatformRuntime.cs` 套判据，
       期望判出三轴（passthrough 开法 / 重定位事件源 / MRUK 包行为）、命中豁免 5 不判违反、
