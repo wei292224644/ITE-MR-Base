@@ -70,8 +70,10 @@
 
 ## 5. 收尾验证
 
-- [ ] 5.1 `unity command run_tests --project-path . --mode EditMode` —— 必须 **389/389**，
+- [x] 5.1 `unity command run_tests --project-path . --mode EditMode` —— 必须 **389/389**，
       且**测试总数不变**（总数变了说明动了代码，违反 D8）
+      · 2026-09-21 实跑（用户 Editor，PID 21454）：`Total 389 / Passed 389 / Failed 0 /
+      Skipped 0 / Inconclusive 0`，总数与基线一致 → D8 成立
 - [x] 5.2 `git status` 核对改动面：只应有 `openspec/constitution.md`、
       `docs/architecture/srp-audit.md`、本 change 目录。`Assets/` 与 `Packages/` 下零改动
 - [x] 5.3 把 proposal 里仍未确认的 `[ASSUMED]` 逐条复核：能在实施中验掉的直接验掉并改写为结论，
