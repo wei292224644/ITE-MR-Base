@@ -47,7 +47,7 @@ Unity 6 (6000.4.4f1) MR/VR project targeting two headsets from one codebase: Met
 - One-off headless build: `Unity -batchmode -quit -nographics -projectPath . -executeMethod BuildScript.BuildQuest` (swap the method name for any `[MenuItem]` in `BuildScript.cs`).
 - `UNITY=/path/to/Unity` overrides the Unity executable used by `build-both.sh`.
 
-**Tests** — standard Unity Test Framework, EditMode only (see `Assets/Tests/EditMode/*`, one asmdef per module under test):
+**Tests** — standard Unity Test Framework, EditMode only (see 各模块 `<Module>/Tests/EditMode/*`, one asmdef per module under test):
 
 - Editor: Window > General > Test Runner.
 - Headless: `Unity -batchmode -projectPath . -runTests -testPlatform EditMode -testResults results.xml -logFile -`.
