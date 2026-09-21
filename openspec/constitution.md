@@ -4,7 +4,8 @@
 
 本文件是本仓的**计划层不变量**，`/opsx:analyze` 每次逐条检查。
 只收录**能机械检查**的要求；判断类的架构指引写在 `.claude/CLAUDE.md`，不进本文件
-（理由见 `openspec/changes/repo-srp-baseline/design.md` D2 / D10）。
+（理由见 `openspec/changes/archive/2026-09-21-repo-srp-baseline/design.md` D2 / D10）。
+能力 spec 见 `openspec/specs/srp-axis-governance/spec.md`。
 
 判据全文（轴的定义、五条豁免、汇聚点援引条件、waiver 机制）见本文件末尾的**判据全文**一节。
 条款只是它的机械检查面。

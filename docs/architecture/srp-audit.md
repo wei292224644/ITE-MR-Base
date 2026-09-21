@@ -6,7 +6,7 @@
 
 这是一份**活文档**。后续每个重构 change 完成后回来更新对应行，不要让它随 change 归档。
 判据、五条豁免与 waiver 机制见 `openspec/constitution.md`；
-本清单的产出规则见 `openspec/changes/repo-srp-baseline/design.md` D6 / D7。
+本清单的产出规则见 `openspec/changes/archive/2026-09-21-repo-srp-baseline/design.md` D6 / D7。
 
 ## 覆盖范围
 
