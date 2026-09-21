@@ -4,6 +4,14 @@
 > 状态：**两遍均已完成**（114/114 浅扫；24 个候选逐条取证）
 > 图例：🔍 已浅扫（单轴，未取证）· ✅ 已逐条取证
 
+**修订**
+
+- **2026-09-21 — 修正 `IteTourObject` 的轴分解。** 原记为「内容树构建 / 场景绑定与锚定 /
+  触发体积进出 / 场景就绪世代」，两处错：①「场景就绪世代」与「内容树构建」共享 `_scene`
+  与 `_canAnchor`，按合并规则应记作一条；② **漏了最大的一块「资源加载/释放」**
+  （229–406，约 180 行，状态 `_tour.Assets`，完全独立）。轴数仍为 4、排序不变，
+  但**拆分方案依据的是分解而非数字**，故修正。
+
 这是一份**活文档**。后续每个重构 change 完成后回来更新对应行，不要让它随 change 归档。
 判据、五条豁免与 waiver 机制见 `openspec/constitution.md`；
 本清单的产出规则见 `openspec/changes/archive/2026-09-21-repo-srp-baseline/design.md` D6 / D7。
@@ -152,7 +160,7 @@
 | `IteRuntime.cs` | 323 | 3 坐实 / 3 | 加载链 ← `IteHostBootstrap` / 事件面 ← `IteEditorHud`+`IteHmdPanel`+`IteHostBootstrap` / 扫码提交 ← `IteHostBootstrap` | ✅ |
 | `IteRuntimeDriver.cs` | 18 | 1 | MonoBehaviour 驱动宿主变 | 🔍 |
 | `IteTourAssembler.cs` | 123 | 1 | tour 实例装配与生命周期变（`CreateAsync`/`Find`/`DestroyAll` 共享 `_liveTours`） | 🔍 |
-| `IteTourObject.cs` | 524 | 4 坐实 / 4 | 内容树构建 ← `IteTourAssembler` / 场景绑定与锚定 ← `IteTourAssembler`+`TourDirector` / 触发体积进出 ← `TourVolumeTrigger`+`TourDirector` / 场景就绪世代 ← `IteRuntime`（四条均由消费面坐实） | ✅ |
+| `IteTourObject.cs` | 524 | 4 坐实 / 4 | **资源加载/释放**（`LoadAssets`…`ReleaseAssets`、229–406 约 180 行，状态 `_tour.Assets`）← `RichTextElement`+`EMWModelRenderElement`+`VideoPlaneElement`+`ElementComponents`+`BaseComponent` 取 `GetAsset`/`ElementPrefabs` / **内容树构建 + 世代 + 二次锚定许可**（`Enable`/`BuildSceneAsync`/`CreateEntity`/`TearDownScene`，状态 `_scene`+`_building`+`_canAnchor`）← `IteTourAssembler`+`IteRuntime` / **锚定几何**（`BindScene`/`ChangeTourObjectTransform`，状态 `_anchorObject`+`_tourOffsetObject`）← `IteTourAssembler`+`TourDirector` / **触发体积**（`NotifyVolumeTransition`/`SetVolumeObjectActive`+`CreateTourObject:102-117`，状态 `_volumeObject`+`_camera`）← `TourVolumeTrigger`+`TourDirector`。四组私有字段互不相交（合并规则不触发），四条均由消费面坐实；**零测试覆盖** | ✅ |
 | `LoadProgress.cs` | 24 | 1 | 加载进度算法变（纯 static） | 🔍 |
 | `MarkerFrame.cs` | 25 | 1 | 标记→内容锚点固定旋转变（design D32） | 🔍 |
 | `MarkerIdentity.cs` | 161 | 1 | 标记身份解析语义变（`Resolve:82` 建在 `TryParseTourId:48` 之上，同一条链，合并记一条） | 🔍 |
