@@ -30,7 +30,7 @@
 | `Assets/Scripts/GsplatBench/` | 1827 | **待删**。CLAUDE.md 记明 removable as a unit；`BuildScript` 入口已于 2026-09-18 移除 | 永不补审 |
 | `Assets/Scripts/SacredRelic/` | 1615 | **暂缓**。当前不活跃：独占 `SacredRelicDemo.unity`、无其他场景引用、最后实质改动 2026-08-03 | **接回导览或任何活场景时必须补审** |
 | `Packages/wu.yize.gsplat/` | — | **跨仓**。git submodule（独立仓 `gsplat-unity`），改它要跨仓 PR | 在该仓自行处理 |
-| `Assets/Tests/` | — | **判据不适用**。一个 fixture 服务多个用例本就正当 | 不补审，但重复 fixture 记作对应产品类的证据 |
+| 各模块 `Tests/EditMode/`（测试现分散到各自模块旁，`Assets/Tests/` 已不存在） | — | **判据不适用**。一个 fixture 服务多个用例本就正当 | 不补审，但重复 fixture 记作对应产品类的证据 |
 
 ## 清单
 

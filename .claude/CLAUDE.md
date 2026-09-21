@@ -52,6 +52,9 @@ Unity 6 (6000.4.4f1) MR/VR project targeting two headsets from one codebase: Met
 - Editor: Window > General > Test Runner.
 - Headless: `Unity -batchmode -projectPath . -runTests -testPlatform EditMode -testResults results.xml -logFile -`.
 - Add `-assemblyNames MRBase.Core.Tests` (etc.) to run a single module's tests.
+- 动了目录结构 / asmdef / Editor 脚本位置后，提交前手动跑一次
+  `-assemblyNames MRBase.Build.Editor.Tests`（`LayoutConventionTests`）——它不接 CI、
+  不接 git hook，没人跑就不会自动拦。
 
 **openspec** — feature work in this repo is spec-driven (`openspec/` — `changes/` for in-flight initiatives, `changes/archive/` for landed ones, `specs/` for capability specs). Check that change's `design.md` for the numbered-decision log before touching code it covers.
 
@@ -79,7 +82,8 @@ Unity 6 (6000.4.4f1) MR/VR project targeting two headsets from one codebase: Met
 - `IteHost` — adapter layer for embedding this project inside the separate "Ite Tour" host app; keep host-specific event-bus shapes out of the other modules and confined here.
 - `GsplatBench` — standalone Gaussian-splat perf-measurement rig. Deliberately does **not** boot through `MRCore`/the normal scene flow — it must measure renderer cost, not core-assembly overhead — and is scene-scoped and removable as a unit. `BuildScript.cs` menu entry removed 2026-09-18.
 - `Editor` (`MRBase.Build.Editor`) — `BuildScript` + `ManifestGuard`。旁边的
-  `MRBase.Build.Editor.Tests` 装 `LayoutConventionTests`（目录约定的提交期守卫）。
+  `MRBase.Build.Editor.Tests` 装 `LayoutConventionTests`（目录约定的机械校验，
+  不自动触发，见下方 Tests 一节该怎么手动跑）。
   `IteSceneSetup.cs` 目前也在这里，但它是 ITE 的功能工具、不是构建 —— 属已知的
   文档级债务，机械校验判不出来，见目录与 asmdef 约定一节。
 
@@ -116,7 +120,10 @@ Assets/_Project/Features/<Feature>/
 **范围外 ≠ 豁免**：豁免表登记的是"自己的、违规的、将来要还的"，第三方不是债。
 
 条文 1、2 由 `Assets/Scripts/Editor/Tests/EditMode/LayoutConventionTests.cs` 机械执行
-（`MRBase.Build.Editor.Tests`，与 `ManifestGuard` 同轴：一个守构建期，一个守提交期）。
+（`MRBase.Build.Editor.Tests`，性质上与 `ManifestGuard` 相近——都是工程级机械守卫——
+但强度不同：`ManifestGuard` 挂在 `BuildScript` 里，每次构建必经；这个工程**没有 CI、
+没有激活的 git hook**，`LayoutConventionTests` 不会自动跑，只有手动开 Test Runner 或
+跑 `-assemblyNames MRBase.Build.Editor.Tests` 才会亮红，提交前不跑就不会被拦）。
 判不出的部分不检：一个 `.mat` 该归哪个 feature、`IteSceneSetup.cs` 该归 ITE 还是归构建，
 都需要人读代码 —— 硬编规则只会制造假阳性。这类是文档级债务，不进豁免表。
 存量违规登记在 `Assets/Scripts/Editor/Tests/EditMode/layout-waivers.txt`，还完债就删行。

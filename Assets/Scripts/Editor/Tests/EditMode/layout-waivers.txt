@@ -7,7 +7,11 @@
 # 还完债请把对应行删掉，EveryWaiverIsStillNeeded 会盯着失效的豁免。
 
 # IceSpriteFx 的 3 个 MonoBehaviour 必须留在 Assembly-CSharp：
-# 它们引用第三方 INab Dissolver，而 INab Studio/ 没有 asmdef，
-# 任何 asmdef 程序集都引用不到它。见
+# 只有 IceSpritePresence.cs 真的引用第三方 INab Dissolver（INab Studio/ 没有
+# asmdef，任何 asmdef 程序集都引用不到它）；另外两个
+# （IceSpriteFxTestInput.cs、IceSpriteFxDisableXrSimulator.cs）本身没有这个
+# 依赖，是被 asmdef 的目录粒度连坐——在 Scripts/IceSpriteFx/ 建 asmdef 会把
+# IceSpritePresence.cs 一起吞进去导致编译失败。要单独救它们俩就得拆子目录，
+# 那属于搬存量代码，被设计文档的 D2（先定规矩、存量不动）明文排除。见
 # docs/superpowers/plans/2026-08-07-ice-sprite-fx.md 的 Global Constraints。
 Scripts/IceSpriteFx

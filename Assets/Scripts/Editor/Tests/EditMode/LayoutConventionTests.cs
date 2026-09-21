@@ -159,6 +159,7 @@ namespace MRBase.Build.Editor.Tests
             return File.ReadAllLines(path)
                 .Select(l => l.Trim())
                 .Where(l => l.Length > 0 && !l.StartsWith("#", StringComparison.Ordinal))
+                .Select(l => l.TrimEnd('/'))
                 .ToList();
         }
 

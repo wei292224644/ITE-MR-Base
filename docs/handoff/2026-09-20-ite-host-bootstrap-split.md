@@ -65,7 +65,7 @@ eb13913 refactor(ite): 锚定几何提成纯函数 TourAnchoring
 **场景组织约定**（已落地，新 session 改场景时要遵守）：根层只有
 `-- Management --`（共享 `IteTourRig` 预制体）与 `-- Harness --`（设备/编辑器 harness 预制体），
 且分组头与预制体根必须 `localToWorldMatrix == identity`。这两条由
-`Assets/Tests/EditMode/Ite/IteSceneLayoutTests.cs` 守住。
+`Assets/Scripts/IteHost/Tests/EditMode/IteSceneLayoutTests.cs` 守住。
 
 ## Open questions / blockers
 
@@ -84,7 +84,7 @@ eb13913 refactor(ite): 锚定几何提成纯函数 TourAnchoring
   改锚定、平台分叉、脚手架之前必读
 - `Packages/com.uality.ite-tour/Runtime/Core/TourAnchoring.cs` + `Tests/Editor/TourAnchoringTests.cs` —
   锚定链现在的唯一几何实现与它的轴向守卫
-- `Assets/Tests/EditMode/Ite/IteSceneLayoutTests.cs` — 两个 ITE 场景的结构约定
+- `Assets/Scripts/IteHost/Tests/EditMode/IteSceneLayoutTests.cs` — 两个 ITE 场景的结构约定
 - `Assets/Scripts/Platform/PlatformRuntime.cs` — 全部平台分叉的唯一落点（现含重定位）
 - `openspec/changes/marker-anchor-axis-correction/probe-report.md` — #3 的全部证据
   （含真实场景 JSON 的实测数值、两个工程做法的逐行对比）。**未跟踪**，被暂停
