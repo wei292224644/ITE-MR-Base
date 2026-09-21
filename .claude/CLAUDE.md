@@ -63,7 +63,7 @@ Unity 6 (6000.4.4f1) MR/VR project targeting two headsets from one codebase: Met
 
 **Singletons**: `StaticInstance<T>` (`Assets/Scripts/Common/`) — a duplicate instance self-destructs rather than replacing the existing one (replacing it leaves a Unity "fake null" behind, which is worse to debug). `MRContext` (lookup only, e.g. `Camera`, `Origin`, `Hands`) and `MRSceneDirector` are the two long-lived singletons; `MRBootstrap` is a readiness gate that runs once and surfaces failures visibly (XR loader missing, no XR Origin, hand subsystem not up) — this project's failure modes are otherwise silent (black screen, no hands, no log), so don't add another silent-failure path here.
 
-**Module layout** (each is its own asmdef under `Assets/Scripts/`, several with a matching `*.Tests` asmdef under `Assets/Tests/EditMode/`):
+**Module layout** (each is its own asmdef under `Assets/Scripts/`, several with a matching `*.Tests` asmdef under 各自模块的 `Tests/EditMode/`):
 
 - `Common` — dependency-free helpers (`StaticInstance<T>`).
 - `Core` — bootstrap, scene director, XR context/anchor, gesture input (`PalmsTogetherGesture*`).
@@ -78,7 +78,50 @@ Unity 6 (6000.4.4f1) MR/VR project targeting two headsets from one codebase: Met
 - `Diagnostics` — in-headset HUD.
 - `IteHost` — adapter layer for embedding this project inside the separate "Ite Tour" host app; keep host-specific event-bus shapes out of the other modules and confined here.
 - `GsplatBench` — standalone Gaussian-splat perf-measurement rig. Deliberately does **not** boot through `MRCore`/the normal scene flow — it must measure renderer cost, not core-assembly overhead — and is scene-scoped and removable as a unit. `BuildScript.cs` menu entry removed 2026-09-18.
-- `Editor` (`MRBase.Build.Editor`) — `BuildScript` only.
+- `Editor` (`MRBase.Build.Editor`) — `BuildScript` + `ManifestGuard`。旁边的
+  `MRBase.Build.Editor.Tests` 装 `LayoutConventionTests`（目录约定的提交期守卫）。
+  `IteSceneSetup.cs` 目前也在这里，但它是 ITE 的功能工具、不是构建 —— 属已知的
+  文档级债务，机械校验判不出来，见目录与 asmdef 约定一节。
+
+**目录与 asmdef 约定（feature-first）。** 新代码进 `Assets/_Project/Features/<Feature>/`，
+一个功能一个文件夹，代码与资源同居：
+
+```
+Assets/_Project/Features/<Feature>/
+  Runtime/       代码 + MRBase.<Feature>.asmdef
+  Editor/        该功能的编辑器工具 + MRBase.<Feature>.Editor.asmdef
+  Tests/EditMode/  该功能的测试 + MRBase.<Feature>.Tests.asmdef
+  Art/ Prefabs/ Scenes/ Settings/   按需建，没有就不建
+```
+
+`Assets/_Project/Core/` 放跨功能骨架（`MRCore.unity`、`Common`、`Platform`、`Bootstrap`）。
+`Assets/Scripts/` 是存量，原地不动、逐步迁出 —— **不要**为了"统一"去批量搬它。
+
+五条条文：
+
+1. **每个 feature 一个 asmdef，不许有裸 `.cs` 掉进 `Assembly-CSharp`。**
+   `Assembly-CSharp` 自动引用所有 asmdef 程序集，反向不行，所以裸 `.cs` 是单向死路：
+   任何 asmdef 里的代码都够不着它（`Assets/Scripts/Transitions/IceSpriteTeleport.cs:30`
+   的注释就是这笔账）。
+2. **Editor 代码只能在自己 feature 的 `Editor/` 下**，归属名字以 `.Editor` 结尾的 asmdef。
+   `MRBase.Build.Editor` 只装 `BuildScript` + `ManifestGuard`。
+3. **测试紧贴被测代码**，与它同一棵树。`Assets/Tests/` 已不存在，不要重建。
+4. **`_Project/` 下不新建 `Resources/`。** 它无条件全量进包、不可剥离。
+   工程级 `Assets/Resources/`（SDK 生成的 `PXR_*`/`OVR*`）在范围外，不管。
+5. **场景归属 feature**，只有 `MRCore.unity` 这类跨功能骨架在 `_Project/Core/Scenes/`。
+
+**适用范围是白名单**：只有 `Assets/_Project/**` 与 `Assets/Scripts/**` 受管辖，
+其余 `Assets/*` 一律在外 —— `Oculus/`、`INab Studio/`、`Samples/`、`XR/`、`XRI/`、
+`Plugins/`、`TextMesh Pro/`、`Resources/` 都不检，装新插件也不用回来改清单。
+**范围外 ≠ 豁免**：豁免表登记的是"自己的、违规的、将来要还的"，第三方不是债。
+
+条文 1、2 由 `Assets/Scripts/Editor/Tests/EditMode/LayoutConventionTests.cs` 机械执行
+（`MRBase.Build.Editor.Tests`，与 `ManifestGuard` 同轴：一个守构建期，一个守提交期）。
+判不出的部分不检：一个 `.mat` 该归哪个 feature、`IteSceneSetup.cs` 该归 ITE 还是归构建，
+都需要人读代码 —— 硬编规则只会制造假阳性。这类是文档级债务，不进豁免表。
+存量违规登记在 `Assets/Scripts/Editor/Tests/EditMode/layout-waivers.txt`，还完债就删行。
+
+设计与七条编号决策见 `docs/superpowers/specs/2026-09-21-asset-layout-governance-design.md`。
 
 **Build gotchas the script guards against** (see comments in `BuildScript.cs` for the "why"): a project-wide audio Spatializer plugin setting silently makes one platform's build wrong; PICO requires `PXR_Settings` registered in `EditorBuildSettings` config objects or ~20 manifest entries silently fail to write with a "successful" build; both platforms' Android native plugins must be build-scoped or Gradle fails on duplicate `.so` names.
 
