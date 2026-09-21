@@ -1,0 +1,13 @@
+# 目录与 asmdef 约定的豁免表。
+#
+# 一行一个路径，相对 Assets/，可以是文件或目录。# 起头是注释。
+# 登记的是「自己的、确实违规、暂时不修」的项 —— 这就是债务清单。
+# 第三方插件目录不进此表：它们在白名单外，压根不检。
+#
+# 还完债请把对应行删掉，EveryWaiverIsStillNeeded 会盯着失效的豁免。
+
+# IceSpriteFx 的 3 个 MonoBehaviour 必须留在 Assembly-CSharp：
+# 它们引用第三方 INab Dissolver，而 INab Studio/ 没有 asmdef，
+# 任何 asmdef 程序集都引用不到它。见
+# docs/superpowers/plans/2026-08-07-ice-sprite-fx.md 的 Global Constraints。
+Scripts/IceSpriteFx
