@@ -155,6 +155,31 @@ asmdef 名字一个不改，`-assemblyNames MRBase.Core.Tests` 照跑。纯 `git
 **替代**：新建 `MRBase.Governance` 模块。
 **否决理由**：`MRBase.Build.Editor` 已装着 `ManifestGuard`（构建期守卫），`LayoutConventionTests` 是提交期守卫，同属"工程级机械守卫"一条轴。为一个测试文件新建模块，成本高于收益。测试 asmdef 独立，不违反条文 2。
 
+### D8 — 门禁加严：`includePlatforms` 与 asmdef 名字双向一致（2026-09-21 追加）
+
+**背景**：§5 原本只要求检 asmdef 的**名字**。最终 review 指出这留了个缺口——规则 3 的报错信息声称要防"Runtime 代码被吞进仅编辑器程序集、出包静默消失"，但只看名字抓不到真正造成它的那个形状：一个 `includePlatforms: ["Editor"]` 却不叫 `.Editor` 的 asmdef。
+
+**选了**：把约束升级成**双向等价** —— `includePlatforms` 恰好是 `["Editor"]` ⟺ 名字以 `.Editor` 或 `.Tests` 结尾。落成两条新规则：
+
+- `EditorOnlyAssemblyIsNamedEditor`：仅编辑器程序集，名字没有 `.Editor` / `.Tests` 后缀 → 违规
+- `EditorNamedAssemblyIsEditorOnly`：名字 `.Editor`，`includePlatforms` 不是恰好 `["Editor"]` → 违规
+
+**替代方案一**：只加前一条（review 点名的那条）。
+**否决理由**：后一条抓的场景**更常见**。Unity 新建 asmdef 时 `includePlatforms` 默认为空（= 所有平台），要限定 Editor 得手动去勾——"建了 `Foo.Editor.asmdef` 但忘了勾"是默认行为下的自然失误，而前一条要求先做对一半（勾了平台但名字没跟上）。两条共用同一次 JSON 解析，边际成本接近零。
+
+**替代方案二**：维持 §5 原状，把缺口记为已知残留。
+**否决理由**：测试**声称**的保障与**实际**保障不符，正是本仓决策原则里"用碰巧能跑替代明确规定"的形态。报错信息写着防灾难 A，实际只防了灾难 A 的一半。
+
+**三个实现决定**：
+
+1. **违规单位是 asmdef，不是它覆盖的 `.cs`。** 一个坏 asmdef 报一条、豁免也只需写一条；挂到每个 `.cs` 上会让一个错误刷出 N 条。`EveryWaiverIsStillNeeded` 无需改动——它比对的是 `RawViolations()` 的路径集合，asmdef 路径进去后自动兼容。
+2. **`.Tests` 两边都不强制。** PlayMode 测试跑在真机上，`includePlatforms` 本就该是空；强制它们 Editor-only 会在引入第一个 PlayMode 测试时误报。
+3. **"仅编辑器"定义为 `includePlatforms` 恰好只有 `["Editor"]`。** 空数组是"所有平台"不是"仅编辑器"；`["Editor","Android"]` 也不是——那样 Editor 代码会跟着进 Android 包。
+
+**不做**：`.asmref` 识别（全仓无）、`excludePlatforms` 的对称检查（无真实失效场景）。
+
+**落地验证**：加严后现存 18 个白名单内 asmdef **零误报**（8 个 `["Editor"]` 的全部以 `.Editor` / `.Tests` 结尾，10 个空 `includePlatforms` 的全部不以 `.Editor` 结尾）。两个方向各造一个反例，均精确点亮对应规则且不误伤其余四条。测试数 393 → 395。
+
 ## 8. 与在飞 change 的边界
 
 `openspec/changes/ite-scene-layout-convention` 管 ITE 两个场景**内部**根层对象如何分组；本设计管场景**文件放在哪个目录**。仅在条文 5 处接触，不冲突，互不阻塞。

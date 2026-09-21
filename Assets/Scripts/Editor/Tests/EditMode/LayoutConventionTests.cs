@@ -11,7 +11,11 @@ namespace MRBase.Build.Editor.Tests
     /// 目录与 asmdef 约定的机械校验。设计见
     /// docs/superpowers/specs/2026-09-21-asset-layout-governance-design.md
     ///
-    /// 与 ManifestGuard 同轴：都是工程级机械守卫，一个守构建期，一个守提交期。
+    /// 性质与 ManifestGuard 相近（都是工程级机械守卫），但**执行强度不同**：
+    /// ManifestGuard 每次构建必经，本测试不会自动触发 —— 本仓无 CI、无激活的 git hook，
+    /// 构建也不跑 EditMode 测试。动了目录结构 / asmdef / Editor 脚本位置后，
+    /// 提交前手动跑 -assemblyNames MRBase.Build.Editor.Tests。
+    ///
     /// 只检代码侧 —— 资源摆放判不出对错（一个 .mat 该归哪个 feature，机器不知道），
     /// 硬编规则只会制造假阳性并训练出"随手加豁免"的习惯。
     /// </summary>
@@ -36,6 +40,12 @@ namespace MRBase.Build.Editor.Tests
 
             /// <summary>属于 .Editor 程序集，却不在 Editor/ 目录里。</summary>
             EditorAssemblyNonEditorCode,
+
+            /// <summary>asmdef 是仅编辑器程序集，名字却没有 .Editor / .Tests 后缀。</summary>
+            EditorOnlyAssemblyNotNamedEditor,
+
+            /// <summary>asmdef 名字是 .Editor，却不是仅编辑器程序集。</summary>
+            EditorNamedAssemblyNotEditorOnly,
         }
 
         static string AssetsRoot => Application.dataPath.Replace('\\', '/');
@@ -52,6 +62,21 @@ namespace MRBase.Build.Editor.Tests
                 // _Project/ 可能尚未创建 —— 那是合法状态，不是失败。
                 if (!Directory.Exists(abs)) continue;
                 foreach (var f in Directory.GetFiles(abs, "*.cs", SearchOption.AllDirectories))
+                    result.Add(ToRelative(f));
+            }
+            result.Sort(StringComparer.Ordinal);
+            return result;
+        }
+
+        /// <summary>白名单内的全部 .asmdef，路径相对 Assets/，以 / 分隔。</summary>
+        static List<string> ScopedAsmdefs()
+        {
+            var result = new List<string>();
+            foreach (var root in ScopeRoots)
+            {
+                var abs = $"{AssetsRoot}/{root}";
+                if (!Directory.Exists(abs)) continue;
+                foreach (var f in Directory.GetFiles(abs, "*.asmdef", SearchOption.AllDirectories))
                     result.Add(ToRelative(f));
             }
             result.Sort(StringComparer.Ordinal);
@@ -84,15 +109,33 @@ namespace MRBase.Build.Editor.Tests
         class AsmdefStub
         {
             public string name;
+            public string[] includePlatforms;
         }
 
-        static string AssemblyNameOf(string asmdefPath)
+        /// <summary>
+        /// 解析 asmdef 并补齐缺省：name 缺省时回退到文件名，includePlatforms 缺省时
+        /// JsonUtility 给 null，归一成空数组 —— 空数组在 Unity 里表示"所有平台"。
+        /// </summary>
+        static AsmdefStub ParseAsmdef(string asmdefPath)
         {
-            var stub = JsonUtility.FromJson<AsmdefStub>(File.ReadAllText(asmdefPath));
-            return string.IsNullOrEmpty(stub?.name)
-                ? Path.GetFileNameWithoutExtension(asmdefPath)
-                : stub.name;
+            var stub = JsonUtility.FromJson<AsmdefStub>(File.ReadAllText(asmdefPath))
+                       ?? new AsmdefStub();
+            if (string.IsNullOrEmpty(stub.name))
+                stub.name = Path.GetFileNameWithoutExtension(asmdefPath);
+            stub.includePlatforms ??= Array.Empty<string>();
+            return stub;
         }
+
+        static string AssemblyNameOf(string asmdefPath) => ParseAsmdef(asmdefPath).name;
+
+        /// <summary>
+        /// 仅编辑器程序集 = includePlatforms 恰好只有 Editor。
+        /// 空数组表示"所有平台"，不是仅编辑器；["Editor","Android"] 也不是 ——
+        /// 那样 Editor 代码会跟着进 Android 包。
+        /// </summary>
+        static bool IsEditorOnlyPlatform(AsmdefStub stub) =>
+            stub.includePlatforms.Length == 1
+            && string.Equals(stub.includePlatforms[0], "Editor", StringComparison.Ordinal);
 
         // 单参数 Contains 就是 Ordinal 语义；不用带 StringComparison 的重载，
         // 那个要 .NET Standard 2.1，随工程的 API Compatibility Level 设置而定。
@@ -133,6 +176,24 @@ namespace MRBase.Build.Editor.Tests
                 else if (!IsEditorPath(cs) && IsEditorAssembly(asm))
                     list.Add((cs, Rule.EditorAssemblyNonEditorCode));
             }
+
+            // asmdef 自身的自洽性：includePlatforms 与名字必须双向一致。
+            // 违规单位是 asmdef 而非它覆盖的每个 .cs —— 一个坏 asmdef 报一条，
+            // 豁免也只需写一条。
+            foreach (var asmdef in ScopedAsmdefs())
+            {
+                var stub = ParseAsmdef($"{AssetsRoot}/{asmdef}");
+                var editorOnly = IsEditorOnlyPlatform(stub);
+
+                // .Tests 两边都不强制：PlayMode 测试跑在真机上，includePlatforms 本就该是空。
+                if (IsTestAssembly(stub.name)) continue;
+
+                if (editorOnly && !IsEditorAssembly(stub.name))
+                    list.Add((asmdef, Rule.EditorOnlyAssemblyNotNamedEditor));
+                else if (!editorOnly && IsEditorAssembly(stub.name))
+                    list.Add((asmdef, Rule.EditorNamedAssemblyNotEditorOnly));
+            }
+
             return list;
         }
 
@@ -172,7 +233,7 @@ namespace MRBase.Build.Editor.Tests
                  + "\n\n约定见 .claude/CLAUDE.md「目录与 asmdef 约定」。"
                  + $"确实要放行就登记到 Assets/{WaiverFile}，一行一条并写明理由。";
 
-        // ---------- 四条规则 ----------
+        // ---------- 六条规则 ----------
 
         [Test]
         public void NoScriptFallsIntoAssemblyCSharp()
@@ -203,6 +264,30 @@ namespace MRBase.Build.Editor.Tests
                 "以下 .cs 归属 .Editor 程序集却不在 Editor/ 目录里。"
                 + "多半是 asmdef 取名 Foo.Editor 却放在了 feature 根目录 —— "
                 + "那样它会把 Runtime 代码一起吞进仅编辑器程序集，出包时整个 feature 静默消失：",
+                offenders));
+        }
+
+        [Test]
+        public void EditorOnlyAssemblyIsNamedEditor()
+        {
+            var offenders = Offenders(Rule.EditorOnlyAssemblyNotNamedEditor);
+            Assert.That(offenders, Is.Empty, () => Report(
+                "以下 asmdef 的 includePlatforms 是 [\"Editor\"]（仅编辑器程序集），"
+                + "名字却没有 .Editor / .Tests 后缀。它会把自己覆盖的**全部** Runtime 代码"
+                + "一起吞进仅编辑器程序集 —— 编辑器里一切正常，出包时整个 feature 静默消失。"
+                + "改名加 .Editor 后缀，或把 Runtime 代码挪出它的覆盖范围：",
+                offenders));
+        }
+
+        [Test]
+        public void EditorNamedAssemblyIsEditorOnly()
+        {
+            var offenders = Offenders(Rule.EditorNamedAssemblyNotEditorOnly);
+            Assert.That(offenders, Is.Empty, () => Report(
+                "以下 asmdef 名字以 .Editor 结尾，includePlatforms 却不是恰好 [\"Editor\"]。"
+                + "Unity 新建 asmdef 时 includePlatforms 默认为空（= 所有平台），"
+                + "忘了勾 Editor 就是这个形状 —— Editor 代码会被打进 Runtime 包，"
+                + "真机上引用不到 UnityEditor。在 Inspector 里把平台限定为 Editor：",
                 offenders));
         }
 

@@ -109,6 +109,12 @@ Assets/_Project/Features/<Feature>/
    的注释就是这笔账）。
 2. **Editor 代码只能在自己 feature 的 `Editor/` 下**，归属名字以 `.Editor` 结尾的 asmdef。
    `MRBase.Build.Editor` 只装 `BuildScript` + `ManifestGuard`。
+   - asmdef 的 **`includePlatforms` 必须与名字双向一致**：恰好 `["Editor"]` ⟺ 名字以
+     `.Editor` 或 `.Tests` 结尾。名字对了但没勾 Editor 平台 → Editor 代码被打进 Runtime 包，
+     真机上引用不到 `UnityEditor`（Unity 新建 asmdef 默认就是空 = 所有平台，最常踩）；
+     勾了 Editor 但名字没跟上 → 它覆盖的**全部** Runtime 代码被吞进仅编辑器程序集，
+     **编辑器里一切正常，出包时整个 feature 静默消失**。`.Tests` 两边都不强制
+     （PlayMode 测试跑在真机上，`includePlatforms` 本就该是空）。
 3. **测试紧贴被测代码**，与它同一棵树。`Assets/Tests/` 已不存在，不要重建。
 4. **`_Project/` 下不新建 `Resources/`。** 它无条件全量进包、不可剥离。
    工程级 `Assets/Resources/`（SDK 生成的 `PXR_*`/`OVR*`）在范围外，不管。
@@ -120,6 +126,8 @@ Assets/_Project/Features/<Feature>/
 **范围外 ≠ 豁免**：豁免表登记的是"自己的、违规的、将来要还的"，第三方不是债。
 
 条文 1、2 由 `Assets/Scripts/Editor/Tests/EditMode/LayoutConventionTests.cs` 机械执行
+（五条规则：裸 `.cs`、`Editor/` 目录下归错程序集、`.Editor` 程序集吞 Runtime 代码，
+加上条文 2 那条 sub-bullet 的两个方向；第六个测试守豁免表自身，失效的豁免要删）
 （`MRBase.Build.Editor.Tests`，性质上与 `ManifestGuard` 相近——都是工程级机械守卫——
 但强度不同：`ManifestGuard` 挂在 `BuildScript` 里，每次构建必经；这个工程**没有 CI、
 没有激活的 git hook**，`LayoutConventionTests` 不会自动跑，只有手动开 Test Runner 或
