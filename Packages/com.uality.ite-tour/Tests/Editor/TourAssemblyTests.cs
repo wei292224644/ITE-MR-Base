@@ -92,5 +92,23 @@ namespace Uality.IteTour.Tests
                 TourAssembly.RetainsSceneWhenDeactivated(IteSpaceScene.Tour.DisplayType.regionalTrigger),
                 Is.False);
         }
+
+        [TestCase(IteSpaceScene.Tour.DisplayType.regionalTrigger, true)]
+        [TestCase(IteSpaceScene.Tour.DisplayType.normal, false)]
+        [TestCase(IteSpaceScene.Tour.DisplayType.alwaysDisplayed, false)]
+        public void PlaysOnSelect_OnlyRegionalTrigger(IteSpaceScene.Tour.DisplayType displayType, bool expected)
+        {
+            Assert.That(TourAssembly.PlaysOnSelect(displayType), Is.EqualTo(expected),
+                "碰撞永远不激活 normal（ite-current-tour D5）");
+        }
+
+        [TestCase(IteSpaceScene.Tour.DisplayType.regionalTrigger, true)]
+        [TestCase(IteSpaceScene.Tour.DisplayType.normal, true)]
+        [TestCase(IteSpaceScene.Tour.DisplayType.alwaysDisplayed, false)]
+        public void CanBeCurrent_OnlyToursWithAVolume(IteSpaceScene.Tour.DisplayType displayType, bool expected)
+        {
+            Assert.That(TourAssembly.CanBeCurrent(displayType), Is.EqualTo(expected),
+                "没有体积就永远离不开，不能当当前 Tour（ite-current-tour D10、I5）");
+        }
     }
 }
