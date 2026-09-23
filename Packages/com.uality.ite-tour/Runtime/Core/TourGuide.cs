@@ -1,6 +1,7 @@
 using System;
 using System.Collections.Generic;
 using UnityEngine;
+using Uality.IteTour.Data;
 
 namespace Uality.IteTour.Core
 {
@@ -15,10 +16,10 @@ namespace Uality.IteTour.Core
         /// <summary>要激活的 Tour；null 表示不激活。</summary>
         public string ActivateTourId;
 
-        /// <summary>激活时的锚定位姿；null 表示沿用现有锚定（区域唤醒、直接激活）。</summary>
+        /// <summary>激活时的锚定位姿；null 表示沿用现有锚定（区域补位、直接激活）。</summary>
         public Pose? AnchorPose;
 
-        /// <summary>只重新锚定、不重建内容的 Tour（regionalTrigger 二次锚定）；null 表示无。</summary>
+        /// <summary>只重新锚定、不换 Tour（regionalTrigger 二次锚定；等待扫码时扫到 alwaysDisplayed）；null 表示无。</summary>
         public string ReanchorTourId;
 
         public Pose ReanchorPose;
@@ -26,34 +27,45 @@ namespace Uality.IteTour.Core
         /// <summary>重锚是否消耗该 Tour 的二次锚定许可。</summary>
         public bool ConsumesSecondAnchor;
 
+        /// <summary>alwaysDisplayed 的显隐要变成什么；null 表示不变。只在进出 Anchored 时给出（ite-current-tour D8）。</summary>
+        public bool? AlwaysDisplayedVisible;
+
         public static GuideEffect None => default;
     }
 
     /// <summary>
-    /// 导览状态核心（ite-guide-state-machine D7）：状态、进入原因、在播 tourId、所在区域集合都在这里，
-    /// 每个输入返回一个 <see cref="GuideEffect"/>，由 <see cref="TourDirector"/> 落到 IteTourObject 上。
-    /// 不碰 GameObject，所以 spec §3.2 的每条转换都能在 EditMode 里测。
+    /// 导览状态核心（ite-guide-state-machine D7；ite-current-tour D12）。持有导览状态、当前 Tour 与在播 Tour，
+    /// 按顺序调用各规则模块，把结论合成一个 <see cref="GuideEffect"/> 交给 <see cref="TourDirector"/>。
+    /// 规则本身不在这里：
+    /// - 人在哪些区域：<see cref="RegionQueue"/>
+    /// - 什么算人动了：<see cref="RegionBaseline"/>
+    /// - 当前 Tour 换成谁：<see cref="CurrentTourRule"/>
+    /// - 选中后播不播：<see cref="TourAssembly.PlaysOnSelect"/>
+    /// - 扫码认不认：<see cref="TourScanPolicy"/>
     ///
-    /// 不变式：只有 <see cref="GuideState.Anchored"/> 下才可能有 Tour 在播（I1），也只有它允许区域
-    /// 唤醒 Tour（I2）；所在区域集合在所有状态下都照常更新（I3）。
+    /// 不变式：I1 只有 Anchored 下才可能有 Tour 在播；I2 只有 Anchored 下区域才会换当前 Tour；I3 区域队列在
+    /// 所有状态下都照常更新；I4 ActiveTourId 要么为空、要么等于 CurrentTourId；I5 当前 Tour 永远不是 alwaysDisplayed。
+    /// 不碰 GameObject，所以每条规则的组合都能在 EditMode 里测。
     /// </summary>
     public sealed class TourGuide
     {
-        private readonly Func<IReadOnlyList<string>, string> _pick;
+        private readonly Func<bool> _inPhysicsStep;
+        private readonly RegionQueue _regions = new RegionQueue();
+        private readonly RegionBaseline _baseline = new RegionBaseline();
 
-        // 集合只整体替换、从不原地修改，所以帧末快照可以直接持有同一个引用。
-        private IReadOnlyList<string> _pendingTourIds = Array.Empty<string>();
-
-        // 上一帧末的快照：区域重选（ite-guide-state-machine D5）与提示重算（ite-guide-state-machine D6）都以它为基准。
+        // 上一帧末的提示快照（ite-guide-state-machine D6）。提示不看区域队列（ite-current-tour D7），快照里也不放。
         private bool _hasFrame;
         private GuideState _frameState;
+        private string _frameCurrentTourId;
         private string _frameActiveTourId;
-        private IReadOnlyList<string> _frameTourIds = Array.Empty<string>();
 
-        /// <param name="pick">区域重选有多个候选时挑哪个。</param>
-        public TourGuide(Func<IReadOnlyList<string>, string> pick)
+        /// <param name="inPhysicsStep">
+        /// 此刻是否在物理阶段内（效果层传 <c>() =&gt; Time.inFixedTimeStep</c>）。在物理阶段内锚定时，这一步的
+        /// 模拟可能已经跑完，结算窗口要多等一步（ite-current-tour D9）。null 视为总是 false。
+        /// </param>
+        public TourGuide(Func<bool> inPhysicsStep = null)
         {
-            _pick = pick ?? throw new ArgumentNullException(nameof(pick));
+            _inPhysicsStep = inPhysicsStep ?? (() => false);
             State = GuideState.AwaitingScan;
             Reason = GuideStateReason.ColdStart;
         }
@@ -62,41 +74,50 @@ namespace Uality.IteTour.Core
 
         public GuideStateReason Reason { get; private set; }
 
-        /// <summary>当前在播的 Tour；无则为 null。只有 Anchored 下可能非空（I1）。</summary>
+        /// <summary>持有优先级的 Tour（ite-current-tour D3）；无则为 null。</summary>
+        public string CurrentTourId { get; private set; }
+
+        /// <summary>正在播的 Tour；无则为 null。只会是 null 或 <see cref="CurrentTourId"/>（I4）。</summary>
         public string ActiveTourId { get; private set; }
 
-        /// <summary>相机当前所在触发体积对应的 tourId 集合。</summary>
-        public IReadOnlyList<string> PendingTourIds => _pendingTourIds;
+        /// <summary>相机所在区域，按进入先后排列（ite-current-tour D2）。</summary>
+        public IReadOnlyList<string> PendingTourIds => _regions.TourIds;
+
+        /// <summary>锚定结算窗口是否开着（ite-current-tour D9）。</summary>
+        public bool IsSettling => _baseline.IsSettling;
+
+        /// <summary>alwaysDisplayed 此刻该不该显示（ite-current-tour D8）。</summary>
+        public bool AlwaysDisplayedVisible => ShowsAlwaysDisplayed(State);
 
         /// <summary>状态或进入原因变化时触发；两者都没变时不触发。</summary>
         public event Action<GuideState, GuideStateReason> StateChanged;
 
+        public int RegionCountOf(string tourId) => _regions.CountOf(tourId);
+
         public ScanState Snapshot() => new ScanState
         {
             State = State,
-
-            // 过渡：旧模型里当前 Tour 就是在播的 Tour。ite-current-tour 实施中，TourGuide 重写时替换。
-            CurrentTourId = ActiveTourId,
+            CurrentTourId = CurrentTourId,
             ActiveTourId = ActiveTourId,
-            PendingTourIds = _pendingTourIds,
         };
 
-        /// <summary>摘下：停掉在播 Tour，进入 Suspended。戴上：只从 Suspended 进入 AwaitingScan，其他状态不变。</summary>
+        /// <summary>摘下：停掉在播 Tour、清空当前 Tour，进入 Suspended。戴上：只从 Suspended 进入 AwaitingScan。</summary>
         public GuideEffect SetHeadsetMounted(bool mounted)
         {
+            var before = State;
+            var effect = GuideEffect.None;
+
             if (!mounted)
             {
-                var effect = StopActive();
+                effect = ClearCurrent();
                 Enter(GuideState.Suspended, GuideStateReason.HeadsetRemoved);
-                return effect;
             }
-
-            if (State == GuideState.Suspended)
+            else if (State == GuideState.Suspended)
             {
                 Enter(GuideState.AwaitingScan, GuideStateReason.HeadsetMounted);
             }
 
-            return GuideEffect.None;
+            return WithVisibility(effect, before);
         }
 
         /// <summary>
@@ -110,9 +131,10 @@ namespace Uality.IteTour.Core
                 return GuideEffect.None;
             }
 
-            var effect = StopActive();
+            var before = State;
+            var effect = ClearCurrent();
             Enter(GuideState.AwaitingScan, reason);
-            return effect;
+            return WithVisibility(effect, before);
         }
 
         public GuideEffect SubmitScan(
@@ -120,58 +142,82 @@ namespace Uality.IteTour.Core
         {
             decision = TourScanPolicy.Decide(Snapshot(), tours, markerId);
 
+            GuideEffect effect;
             switch (decision.Action)
             {
                 case ScanAction.Activate:
-                    var effect = ActivateEffect(decision.TourId, pose);
-                    if (State == GuideState.AwaitingScan)
-                    {
-                        Enter(GuideState.Anchored, GuideStateReason.Scanned);
-
-                        // 刚锚定：把区域重选基准立刻跟上当前所在区域集合。不这么做的话，下一次
-                        // 帧末结算会拿锚定前（本帧内、还没过帧末）的旧基准跟当前集合比，误判成
-                        // 净变化，把刚扫到的 Tour 挤走（ite-guide-state-machine D5）。
-                        _frameTourIds = _pendingTourIds;
-                    }
-
-                    return effect;
+                    effect = Play(decision.TourId);
+                    effect.AnchorPose = pose;
+                    break;
 
                 case ScanAction.Reanchor:
-                    return new GuideEffect
+                    effect = new GuideEffect
                     {
                         ReanchorTourId = decision.TourId,
                         ReanchorPose = pose,
                         ConsumesSecondAnchor = decision.ConsumesSecondAnchor,
                     };
+                    break;
 
                 default:
                     return GuideEffect.None;
             }
+
+            var before = State;
+            if (State == GuideState.AwaitingScan)
+            {
+                Enter(GuideState.Anchored, GuideStateReason.Scanned);
+            }
+
+            // 两种动作都挪动了所有体积：接下来那一步物理里的进出是锚定造成的，不算人移动（ite-current-tour D9）。
+            _baseline.BeginSettle(_inPhysicsStep() ? 2 : 1);
+
+            return WithVisibility(effect, before);
         }
 
-        /// <summary>相机进出某个 Tour 的触发体积：只更新集合（I3），要不要换 Tour 在帧末判（ite-guide-state-machine D5）。</summary>
-        public void SubmitVolumeTransition(string tourId, VolumeTransition transition)
-            => _pendingTourIds = TourRegionPolicy.Apply(_pendingTourIds, tourId, transition);
-
-        /// <summary>不经扫码直接激活，沿用现有锚定。只在 Anchored 下可用（ite-guide-state-machine D4）。</summary>
-        public bool TryActivateById(string tourId, out GuideEffect effect)
+        /// <summary>
+        /// 相机侧某个碰撞体进出某个 Tour 的体积：只更新区域队列（I3），当前 Tour 换不换在帧末判。
+        /// </summary>
+        /// <returns>false：没有对应进入的离开，被拒收（ite-current-tour D11）。</returns>
+        public bool SubmitVolumeTransition(string tourId, VolumeTransition transition)
         {
-            if (State != GuideState.Anchored)
+            if (transition == VolumeTransition.Enter)
+            {
+                _regions.Enter(tourId);
+                return true;
+            }
+
+            return _regions.Exit(tourId);
+        }
+
+        /// <summary>体积被停用：Unity 不发离开，计数直接清零（ite-current-tour D11）。</summary>
+        public void ClearVolume(string tourId) => _regions.Clear(tourId);
+
+        /// <summary>
+        /// 不经扫码直接激活，沿用现有锚定。只在 Anchored 下可用（ite-guide-state-machine D4），
+        /// alwaysDisplayed 不能激活（ite-current-tour D10）。
+        /// </summary>
+        public bool TryActivateById(string tourId, IteSpaceScene.Tour.DisplayType displayType, out GuideEffect effect)
+        {
+            if (State != GuideState.Anchored || !TourAssembly.CanBeCurrent(displayType))
             {
                 effect = GuideEffect.None;
                 return false;
             }
 
-            effect = ActivateEffect(tourId, null);
+            effect = Play(tourId);
             return true;
         }
 
+        /// <summary>一个物理步的触发回调全部到达之后调用。这一步关上结算窗口时返回 true（ite-current-tour D9）。</summary>
+        public bool AfterPhysicsStep() => _baseline.AfterPhysicsStep(_regions.TourIds);
+
         /// <summary>
-        /// 帧末结算：集合有净变化且处于 Anchored 时做一次区域重选（ite-guide-state-machine D5）；
-        /// <paramref name="changed"/> 报告（状态、在播、所在区域）相对上一帧末是否变化，供调用方决定
-        /// 要不要重算提示（ite-guide-state-machine D6）。
+        /// 帧末结算：Anchored 且结算窗口已关时，按「基准 → 当前队列」判一次当前 Tour 换不换（ite-current-tour §5.2）；
+        /// <paramref name="changed"/> 报告（状态、当前、在播）相对上一帧末是否变化，供调用方决定要不要重算提示
+        /// （ite-guide-state-machine D6）。
         /// </summary>
-        /// <param name="tours">只在真要判区域时才取，避免每帧都分配 Tour 描述列表。</param>
+        /// <param name="tours">只在当前 Tour 真的换了时才取，避免每帧都分配 Tour 描述列表。</param>
         public GuideEffect EndOfFrame(Func<IReadOnlyList<TourDescriptor>> tours, out bool changed)
         {
             if (tours == null)
@@ -180,38 +226,76 @@ namespace Uality.IteTour.Core
             }
 
             var effect = GuideEffect.None;
-            var previous = _hasFrame ? _frameTourIds : _pendingTourIds;
+            var queue = _regions.TourIds;
 
-            if (State == GuideState.Anchored && !TourIdLists.SameSet(previous, _pendingTourIds))
+            if (State == GuideState.Anchored && !_baseline.IsSettling)
             {
-                var region = TourRegionPolicy.Decide(Snapshot(), tours(), previous);
-                if (region.ShouldReselect)
+                var next = CurrentTourRule.Next(CurrentTourId, _baseline.Baseline, queue);
+                if (next != CurrentTourId)
                 {
-                    effect = StopActive();
-                    if (region.ReselectCandidates.Count > 0)
+                    effect = ClearCurrent();
+                    CurrentTourId = next;
+
+                    if (next != null && PlaysOnSelect(tours(), next))
                     {
-                        var pick = _pick(region.ReselectCandidates);
-                        effect.ActivateTourId = pick;
-                        ActiveTourId = pick;
+                        ActiveTourId = next;
+                        effect.ActivateTourId = next;
                     }
                 }
             }
 
+            _baseline.Advance(queue);
+
             changed = !_hasFrame
                       || State != _frameState
-                      || ActiveTourId != _frameActiveTourId
-                      || !TourIdLists.SameSet(_frameTourIds, _pendingTourIds);
+                      || CurrentTourId != _frameCurrentTourId
+                      || ActiveTourId != _frameActiveTourId;
 
             _hasFrame = true;
             _frameState = State;
+            _frameCurrentTourId = CurrentTourId;
             _frameActiveTourId = ActiveTourId;
-            _frameTourIds = _pendingTourIds;
 
             return effect;
         }
 
-        private GuideEffect StopActive()
+        private static bool ShowsAlwaysDisplayed(GuideState state) => state == GuideState.Anchored;
+
+        private static bool PlaysOnSelect(IReadOnlyList<TourDescriptor> tours, string tourId)
         {
+            if (tours != null)
+            {
+                for (int i = 0; i < tours.Count; i++)
+                {
+                    if (tours[i].TourId == tourId)
+                    {
+                        return TourAssembly.PlaysOnSelect(tours[i].DisplayType);
+                    }
+                }
+            }
+
+            return false;
+        }
+
+        /// <summary>设为当前 Tour 并在播。换 Tour 时先停旧的；同一个 Tour 由效果层只重新锚定并确保已启用。</summary>
+        private GuideEffect Play(string tourId)
+        {
+            var effect = new GuideEffect
+            {
+                Deactivate = ActiveTourId != null && ActiveTourId != tourId,
+                ActivateTourId = tourId,
+            };
+
+            CurrentTourId = tourId;
+            ActiveTourId = tourId;
+            return effect;
+        }
+
+        /// <summary>清空当前 Tour；有在播的就停掉。</summary>
+        private GuideEffect ClearCurrent()
+        {
+            CurrentTourId = null;
+
             if (ActiveTourId == null)
             {
                 return GuideEffect.None;
@@ -221,17 +305,14 @@ namespace Uality.IteTour.Core
             return new GuideEffect { Deactivate = true };
         }
 
-        /// <summary>换 Tour 时先停旧的；同一个 Tour 由效果层只重新锚定并确保已启用（与原 Activate 一致）。</summary>
-        private GuideEffect ActivateEffect(string tourId, Pose? pose)
+        /// <summary>进出 Anchored 时带上 alwaysDisplayed 的新显隐；没跨过这条线就不动（ite-current-tour D8）。</summary>
+        private GuideEffect WithVisibility(GuideEffect effect, GuideState before)
         {
-            var effect = new GuideEffect
+            if (ShowsAlwaysDisplayed(before) != AlwaysDisplayedVisible)
             {
-                Deactivate = ActiveTourId != null && ActiveTourId != tourId,
-                ActivateTourId = tourId,
-                AnchorPose = pose,
-            };
+                effect.AlwaysDisplayedVisible = AlwaysDisplayedVisible;
+            }
 
-            ActiveTourId = tourId;
             return effect;
         }
 

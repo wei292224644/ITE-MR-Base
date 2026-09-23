@@ -41,9 +41,6 @@ namespace Uality.IteTour.Core
         public string CurrentTourId;
 
         public string ActiveTourId;
-
-        /// <summary>过渡字段，两个策略都已不再读它；ite-current-tour 实施时随 TourGuide 重写一并删除。</summary>
-        public IReadOnlyList<string> PendingTourIds;
     }
 
     public struct ScanDecision

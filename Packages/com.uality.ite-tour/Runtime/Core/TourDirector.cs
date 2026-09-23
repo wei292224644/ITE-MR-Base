@@ -35,13 +35,12 @@ namespace Uality.IteTour.Core
         /// <summary>导览状态或进入原因变化时触发（ite-guide-state-machine D8）。</summary>
         public Action<GuideState, GuideStateReason> GuideStateChanged;
 
-        /// <param name="pick">
-        /// 区域重选有多个候选时挑哪个。缺省随机——与源实现的 OrderBy(Guid.NewGuid()) 一致。
-        /// </param>
-        public TourDirector(IteTourAssembler assembler, Func<IReadOnlyList<string>, string> pick = null)
+        public TourDirector(IteTourAssembler assembler)
         {
             _assembler = assembler ?? throw new ArgumentNullException(nameof(assembler));
-            _guide = new TourGuide(pick ?? (ids => ids[UnityEngine.Random.Range(0, ids.Count)]));
+
+            // 在物理回调里锚定时，这一步的模拟可能已经跑完，结算窗口要多等一步（ite-current-tour D9）
+            _guide = new TourGuide(() => Time.inFixedTimeStep);
             _descriptors = Descriptors;
             _guide.StateChanged += (state, reason) =>
             {
@@ -58,6 +57,9 @@ namespace Uality.IteTour.Core
                 tour.OnCameraVolumeTransition += SubmitVolumeTransition;
             }
         }
+
+        /// <summary>持有优先级的 Tour（ite-current-tour D3）；无则为 null。</summary>
+        public string CurrentTourId => _guide.CurrentTourId;
 
         public string ActiveTourId => _guide.ActiveTourId;
 
@@ -81,19 +83,22 @@ namespace Uality.IteTour.Core
 
         /// <summary>
         /// 不经传感器直接激活指定 Tour（design D30），沿用现有锚定。只在 Anchored 下可用
-        /// （ite-guide-state-machine D4）。找不到或状态不允许时返回 false。
+        /// （ite-guide-state-machine D4），alwaysDisplayed 不能直接激活（ite-current-tour D10）。找不到或不允许时返回 false。
         /// </summary>
         public bool ActivateById(string tourId)
         {
-            if (_assembler.Find(tourId) == null)
+            var tour = _assembler.Find(tourId);
+            if (tour == null)
             {
                 Debug.LogError("[ITE] 找不到 Tour：" + tourId);
                 return false;
             }
 
-            if (!_guide.TryActivateById(tourId, out var effect))
+            if (!_guide.TryActivateById(tourId, tour.DisplayType, out var effect))
             {
-                Debug.LogWarning($"[ITE] 当前状态 {_guide.State} 下不能直接激活 Tour：{tourId}（需先扫码定位）");
+                Debug.LogWarning(
+                    $"[ITE] 不能直接激活 Tour：{tourId}（状态={_guide.State} 类型={tour.DisplayType}；" +
+                    "需先扫码定位，alwaysDisplayed 不能直接激活）");
                 return false;
             }
 
@@ -109,20 +114,24 @@ namespace Uality.IteTour.Core
             // 真机上判断「为什么没反应」只能靠这一行：决策依据的状态与扫到的位姿都带上。
             Debug.Log(
                 $"[ITE] 扫码 {markerId} → {decision.Action}" +
-                $"（状态={before.State} 在播={before.ActiveTourId ?? "无"} 所在区域=[{JoinIds(before.PendingTourIds)}]）" +
+                $"（状态={before.State} 当前={before.CurrentTourId ?? "无"} 在播={before.ActiveTourId ?? "无"} 所在区域=[{JoinIds(_guide.PendingTourIds)}]）" +
                 $" 位姿 pos={pose.position.ToString("F3")} rot={pose.rotation.eulerAngles.ToString("F1")}");
 
             Apply(effect);
         }
 
         /// <summary>
-        /// 相机进出某个 Tour 的触发体积：只更新所在区域集合（I3），要不要换 Tour 在帧末按净变化
-        /// 判一次（ite-guide-state-machine D5）。
+        /// 相机侧某个碰撞体进出某个 Tour 的体积：只更新区域队列（I3），当前 Tour 换不换在帧末判（ite-current-tour §5.2）。
         /// </summary>
         public void SubmitVolumeTransition(string tourId, VolumeTransition transition)
         {
-            _guide.SubmitVolumeTransition(tourId, transition);
-            Debug.Log($"[ITE] 区域 {transition} {tourId} → 所在区域=[{JoinIds(_guide.PendingTourIds)}]");
+            if (!_guide.SubmitVolumeTransition(tourId, transition))
+            {
+                Debug.LogWarning($"[ITE] 区域 Exit {tourId} 没有对应的 Enter，已忽略（ite-current-tour D11）");
+                return;
+            }
+
+            Debug.Log($"[ITE] 区域 {transition} {tourId} → 队列=[{JoinIds(_guide.PendingTourIds)}]");
         }
 
         /// <summary>

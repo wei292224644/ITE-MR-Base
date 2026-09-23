@@ -3,6 +3,13 @@ using System.Collections.Generic;
 
 namespace Uality.IteTour.Core
 {
+    /// <summary>相机与 Tour 触发体积的进出。</summary>
+    public enum VolumeTransition
+    {
+        Enter,
+        Exit,
+    }
+
     /// <summary>
     /// 人在哪些区域里、按什么先后（ite-current-tour D1、D2）。
     ///
