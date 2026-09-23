@@ -33,8 +33,15 @@ namespace Uality.IteTour.Core
         private Transform _tourOffsetObject;
         private Transform _camera;
 
-        /// <summary>相机进出本 Tour 的触发体积。由编排层转给 <see cref="TourDirector"/>。</summary>
-        public Action<string, VolumeTransition> OnCameraVolumeTransition;
+        /// <summary>
+        /// 相机进出本 Tour 的触发体积：(tourId, 进/出, 碰撞体名字)。由编排层转给 <see cref="TourDirector"/>。
+        /// 碰撞体名字只用于日志：相机侧不止一个碰撞体（Main Camera 的球、XR Origin 的 CharacterController），
+        /// 真机上靠它分辨是谁在进出（ite-current-tour §8）。
+        /// </summary>
+        public Action<string, VolumeTransition, string> OnCameraVolumeTransition;
+
+        /// <summary>触发体积被停用。Unity 停用碰撞体时不发 OnTriggerExit，计数要另行清零（ite-current-tour D11）。</summary>
+        public Action<string> OnVolumeCleared;
 
         private TourSceneLifecycle _scene;
         private Task _building;
@@ -80,7 +87,7 @@ namespace Uality.IteTour.Core
                 return;
             }
 
-            OnCameraVolumeTransition?.Invoke(_tourId, transition);
+            OnCameraVolumeTransition?.Invoke(_tourId, transition, other.name);
         }
 
         public async Task CreateTourObject(IteSpaceScene.Tour tour, Data.IteTour tourData)
@@ -162,13 +169,27 @@ namespace Uality.IteTour.Core
 
             // alwaysDisplayed 不参与区域触发。决策收在 Tour 自己，避免
             // SetAllVolumesActive 把 ChangeDisplayType 刚关掉的体积重新打开。
-            if (isActive && !TourAssembly.AllowsTriggerVolume(_displayType))
-            {
-                _volumeObject.SetActive(false);
-                return;
-            }
+            bool active = isActive && TourAssembly.AllowsTriggerVolume(_displayType);
+            bool wasActive = _volumeObject.activeSelf;
 
-            _volumeObject.SetActive(isActive);
+            _volumeObject.SetActive(active);
+
+            // Unity 停用碰撞体时不发 OnTriggerExit：人站在里面时，这个 Tour 会永远留在区域队列里
+            // （ite-current-tour D11）。重新启用时，Unity 会对仍在重叠的碰撞体补发 Enter。
+            if (wasActive && !active)
+            {
+                OnVolumeCleared?.Invoke(_tourId);
+            }
+        }
+
+        /// <summary>
+        /// 只切内容根的显隐，不拆内容树。alwaysDisplayed 按导览状态显隐用（ite-current-tour D8）。
+        /// </summary>
+        public void SetContentVisible(bool visible)
+        {
+            if (_scene.IsDestroyed) return;
+
+            _mainGroupObject.SetActive(visible);
         }
 
         public async Task Enable()

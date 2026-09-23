@@ -104,6 +104,20 @@ namespace Uality.IteTour.Core
             }
         }
 
+        /// <summary>
+        /// alwaysDisplayed 只在已定位时显示（ite-current-tour D8）。只切内容根的显隐，不拆内容树。
+        /// </summary>
+        public void SetAlwaysDisplayedVisible(bool visible)
+        {
+            foreach (var tour in _liveTours)
+            {
+                if (tour != null && tour.DisplayType == IteSpaceScene.Tour.DisplayType.alwaysDisplayed)
+                {
+                    tour.SetContentVisible(visible);
+                }
+            }
+        }
+
         public void DestroyAll()
         {
             foreach (var tour in _liveTours)

@@ -95,6 +95,15 @@ namespace Uality.IteTour.Core
             var driverObject = new GameObject("[ITE] Runtime Driver");
             _driver = driverObject.AddComponent<IteRuntimeDriver>();
             _driver.Director = _director;
+
+            // 锚定结算窗口靠 WaitForFixedUpdate 判定「锚定后那一步物理已经跑完」，只在 FixedUpdate 模拟下成立。
+            // 模式被改掉时窗口时序失效，真机上只表现为扫码后内容被切走——必须出声（ite-current-tour D9）。
+            if (Physics.simulationMode != SimulationMode.FixedUpdate)
+            {
+                Debug.LogError(
+                    $"[ITE] Physics.simulationMode = {Physics.simulationMode}，区域结算要求 FixedUpdate。" +
+                    "检查 Project Settings > Physics。");
+            }
         }
 
         /// <summary>加载进度，0 到 1，单调不减。</summary>
@@ -189,6 +198,9 @@ namespace Uality.IteTour.Core
                 var data = await _pipeline.FetchTourAsync(tour.tourID);
                 await _assembler.CreateAsync(tour, data);
 
+                // alwaysDisplayed 在装配里就建好树并显示了；按当前导览状态收一次——锚定前不该看见它（ite-current-tour D8）
+                _director.SyncAlwaysDisplayed();
+
                 // 绑定在装配时收下：这里 IteSpaceScene.Tour 就在手上，
                 // 不必为了一个字段去改 IteTourObject 的形状。
                 _bindings.Add(new MarkerBinding(tour.tourID, tour.aprilTagID));
@@ -237,8 +249,9 @@ namespace Uality.IteTour.Core
         }
 
         /// <summary>
-        /// 不经传感器直接激活指定 Tour（design D30），沿用现有锚定。只在已定位（Anchored）状态下可用，
-        /// 其他状态返回 false（ite-guide-state-machine D4）。找不到也返回 false。
+        /// 不经传感器直接激活指定 Tour（design D30），沿用现有锚定，它随即成为当前 Tour。只在已定位（Anchored）
+        /// 状态下可用，其他状态返回 false（ite-guide-state-machine D4）；alwaysDisplayed 返回 false（ite-current-tour D10）；
+        /// 找不到也返回 false。
         /// </summary>
         public bool ActivateTour(string tourId) => _director.ActivateById(tourId);
 
@@ -258,7 +271,7 @@ namespace Uality.IteTour.Core
         /// <summary>当前激活的 tour。无激活时为 null。</summary>
         public string ActiveTourId => _director.ActiveTourId;
 
-        /// <summary>相机当前所在触发体积对应的 tourId 集合。</summary>
+        /// <summary>相机当前所在触发体积对应的 tourId，按进入先后排列（ite-current-tour D2）。</summary>
         public IReadOnlyList<string> PendingTourIds => _director.PendingTourIds;
 
         /// <summary>已装配（未必已 Enable）的 tourId。</summary>

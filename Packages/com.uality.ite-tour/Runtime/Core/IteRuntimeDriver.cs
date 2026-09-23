@@ -1,3 +1,4 @@
+using System.Collections;
 using UnityEngine;
 
 namespace Uality.IteTour.Core
@@ -14,5 +15,20 @@ namespace Uality.IteTour.Core
         internal TourDirector Director;
 
         private void LateUpdate() => Director?.EndOfFrame();
+
+        /// <summary>
+        /// 每个物理步之后通知一次，给锚定结算窗口用（ite-current-tour D9）。Unity 每个物理步的顺序是
+        /// FixedUpdate → 物理模拟 → OnTrigger* → WaitForFixedUpdate，所以这里返回时，这一步的区域进出
+        /// 已经全部到达。编辑器非播放态不跑（Start 不会被调用），EditMode 测试直接调 AfterPhysicsStep。
+        /// </summary>
+        private IEnumerator Start()
+        {
+            var wait = new WaitForFixedUpdate();
+            while (true)
+            {
+                yield return wait;
+                Director?.AfterPhysicsStep();
+            }
+        }
     }
 }

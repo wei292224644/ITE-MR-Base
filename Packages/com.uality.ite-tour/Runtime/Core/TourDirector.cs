@@ -5,7 +5,7 @@ using UnityEngine;
 namespace Uality.IteTour.Core
 {
     /// <summary>
-    /// 扫描、区域进出与佩戴状态的**效果层**：输入交给 <see cref="TourGuide"/>（纯状态核心），
+    /// 扫描、区域进出、物理步与佩戴状态的**效果层**：输入交给 <see cref="TourGuide"/>（纯状态核心），
     /// 它返回的 <see cref="GuideEffect"/> 在这里落到 <see cref="IteTourObject"/> 上。
     ///
     /// 这一层刻意做得很薄——状态与所有判断都在 TourGuide 与三个策略函数里，这里只剩「照做」
@@ -55,6 +55,7 @@ namespace Uality.IteTour.Core
             if (tour != null)
             {
                 tour.OnCameraVolumeTransition += SubmitVolumeTransition;
+                tour.OnVolumeCleared += ClearVolume;
             }
         }
 
@@ -109,6 +110,7 @@ namespace Uality.IteTour.Core
         public void SubmitMarkerScan(string markerId, Pose pose)
         {
             var before = _guide.Snapshot();
+            bool wasSettling = _guide.IsSettling;
             var effect = _guide.SubmitScan(markerId, pose, Descriptors(), out var decision);
 
             // 真机上判断「为什么没反应」只能靠这一行：决策依据的状态与扫到的位姿都带上。
@@ -117,40 +119,81 @@ namespace Uality.IteTour.Core
                 $"（状态={before.State} 当前={before.CurrentTourId ?? "无"} 在播={before.ActiveTourId ?? "无"} 所在区域=[{JoinIds(_guide.PendingTourIds)}]）" +
                 $" 位姿 pos={pose.position.ToString("F3")} rot={pose.rotation.eulerAngles.ToString("F1")}");
 
+            if (!wasSettling && _guide.IsSettling)
+            {
+                Debug.Log("[ITE] 锚定结算窗口打开：下一个物理步里的区域进出算锚定造成的（ite-current-tour D9）");
+            }
+
             Apply(effect);
         }
 
         /// <summary>
         /// 相机侧某个碰撞体进出某个 Tour 的体积：只更新区域队列（I3），当前 Tour 换不换在帧末判（ite-current-tour §5.2）。
         /// </summary>
-        public void SubmitVolumeTransition(string tourId, VolumeTransition transition)
+        /// <param name="colliderName">只用于日志：同一体积的计数到 2，说明两个碰撞体都在里面。</param>
+        public void SubmitVolumeTransition(string tourId, VolumeTransition transition, string colliderName)
         {
+            int before = _guide.RegionCountOf(tourId);
+
             if (!_guide.SubmitVolumeTransition(tourId, transition))
             {
-                Debug.LogWarning($"[ITE] 区域 Exit {tourId} 没有对应的 Enter，已忽略（ite-current-tour D11）");
+                Debug.LogWarning($"[ITE] 区域 Exit {tourId}（{colliderName}）没有对应的 Enter，已忽略（ite-current-tour D11）");
                 return;
             }
 
-            Debug.Log($"[ITE] 区域 {transition} {tourId} → 队列=[{JoinIds(_guide.PendingTourIds)}]");
+            Debug.Log(
+                $"[ITE] 区域 {transition} {tourId}（{colliderName}，{before}→{_guide.RegionCountOf(tourId)}）" +
+                $"队列=[{JoinIds(_guide.PendingTourIds)}]");
+        }
+
+        /// <summary>体积被停用：Unity 不发离开，计数直接清零（ite-current-tour D11）。</summary>
+        public void ClearVolume(string tourId)
+        {
+            int before = _guide.RegionCountOf(tourId);
+            _guide.ClearVolume(tourId);
+
+            if (before > 0)
+            {
+                Debug.Log($"[ITE] 体积停用，清掉 {tourId} 的计数（{before}→0）队列=[{JoinIds(_guide.PendingTourIds)}]");
+            }
         }
 
         /// <summary>
-        /// 帧末结算，由 <see cref="IteRuntimeDriver"/> 在 <c>LateUpdate</c> 调用：区域重选（ite-guide-state-machine D5），
-        /// （状态、在播、所在区域）变了才重算扫码提示（ite-guide-state-machine D6）。
+        /// 每个物理步的触发回调全部到达之后调用（<see cref="IteRuntimeDriver"/> 的 WaitForFixedUpdate 循环）。
+        /// 锚定结算窗口在这里关上（ite-current-tour D9）。
+        /// </summary>
+        public void AfterPhysicsStep()
+        {
+            if (_guide.AfterPhysicsStep())
+            {
+                Debug.Log(
+                    $"[ITE] 锚定结算完成：队列=[{JoinIds(_guide.PendingTourIds)}] 当前={_guide.CurrentTourId ?? "无"}");
+            }
+        }
+
+        /// <summary>按当前状态设一次 alwaysDisplayed 的显隐。Tour 装配完成后由 IteRuntime 调用（ite-current-tour D8）。</summary>
+        public void SyncAlwaysDisplayed() => _assembler.SetAlwaysDisplayedVisible(_guide.AlwaysDisplayedVisible);
+
+        /// <summary>
+        /// 帧末结算，由 <see cref="IteRuntimeDriver"/> 在 <c>LateUpdate</c> 调用：当前 Tour 换不换
+        /// （ite-current-tour §5.2），（状态、当前、在播）变了才重算扫码提示（ite-guide-state-machine D6）。
         ///
-        /// 在帧末而不是在事件上结算：相邻体积之间移动时，退出 A 与进入 B 在同一物理步内发生，
+        /// 在帧末而不是在事件上结算：相邻体积之间移动时，离开 A 与进入 B 在同一物理步内发生，
         /// 按净变化判一次就直接从 A 换到 B，不会先停 A 再启 B。
         /// </summary>
         public void EndOfFrame()
         {
-            var previousActive = _guide.ActiveTourId;
+            var previous = _guide.CurrentTourId;
             var effect = _guide.EndOfFrame(_descriptors, out bool changed);
+            var current = _guide.CurrentTourId;
 
-            if (effect.Deactivate || effect.ActivateTourId != null)
+            if (current != previous)
             {
-                Debug.Log(effect.ActivateTourId != null
-                    ? $"[ITE] 区域重选：{previousActive ?? "无"} → {effect.ActivateTourId}（沿用现有锚定）"
-                    : $"[ITE] 区域重选：停用 {previousActive}，范围内无 regionalTrigger");
+                var why = previous == null ? "取队尾" : $"离开 {previous}，取队尾";
+                var waiting = current != null && _guide.ActiveTourId != current ? "，等扫码" : "";
+                Debug.Log(
+                    $"[ITE] 当前 Tour：{previous ?? "无"} → {current ?? "无"}（{why}{waiting}）" +
+                    $"队列=[{JoinIds(_guide.PendingTourIds)}]");
             }
 
             Apply(effect);
@@ -202,6 +245,11 @@ namespace Uality.IteTour.Core
             if (effect.ReanchorTourId != null)
             {
                 Reanchor(_assembler.Find(effect.ReanchorTourId), effect.ReanchorPose, effect.ConsumesSecondAnchor);
+            }
+
+            if (effect.AlwaysDisplayedVisible.HasValue)
+            {
+                _assembler.SetAlwaysDisplayedVisible(effect.AlwaysDisplayedVisible.Value);
             }
         }
 
