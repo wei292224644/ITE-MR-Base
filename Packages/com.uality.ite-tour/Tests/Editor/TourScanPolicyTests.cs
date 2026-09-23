@@ -117,11 +117,11 @@ namespace Uality.IteTour.Tests
         }
 
         /// <summary>
-        /// D36：冷启动、重新戴上、追踪原点重置三者都落到强制扫码，此刻体积位置还没（重新）
+        /// ite-scan-region-gate D2：冷启动、重新戴上、追踪原点重置三者都落到强制扫码，此刻体积位置还没（重新）
         /// 锚定过，站在哪都不算数——相机在所有体积外也必须能扫。
         /// </summary>
         [Test]
-        public void Decide_ForcedScan_ActivatesOutsideAllVolumes_D36()
+        public void Decide_ForcedScan_ActivatesOutsideAllVolumes()
         {
             var state = new ScanState { ForcedScanPending = true, PendingTourIds = InVolumes() };
 
@@ -130,7 +130,7 @@ namespace Uality.IteTour.Tests
             Assert.That(decision.Action, Is.EqualTo(ScanAction.Activate));
         }
 
-        // ---- 区域门禁（D36）：定位过之后，只认相机所在体积的码 ----
+        // ---- 区域门禁（ite-scan-region-gate D1）：定位过之后，只认相机所在体积的码 ----
 
         [Test]
         public void Decide_WhenMarkerOutsidePendingTours_Ignores()
@@ -143,24 +143,62 @@ namespace Uality.IteTour.Tests
         }
 
         [Test]
-        public void Decide_AfterAnchoring_OutsideAllVolumes_Ignores_D36()
+        public void Decide_AfterAnchoring_OutsideAllVolumes_Ignores()
         {
             var state = new ScanState { PendingTourIds = InVolumes() };
 
             var decision = TourScanPolicy.Decide(state, Tours(Tour("t1")), "t1");
 
             Assert.That(decision.Action, Is.EqualTo(ScanAction.Ignore),
-                "源实现在体积外不设限；D36 起定位过之后必须走进该 tour 的体积");
+                "源实现在体积外不设限；ite-scan-region-gate D1 起定位过之后必须走进该 tour 的体积");
         }
 
         [Test]
-        public void Decide_AfterAnchoring_WithoutVolumeSet_Ignores_D36()
+        public void Decide_AfterAnchoring_WithoutVolumeSet_Ignores()
         {
             var state = new ScanState { PendingTourIds = null };
 
             var decision = TourScanPolicy.Decide(state, Tours(Tour("t1")), "t1");
 
             Assert.That(decision.Action, Is.EqualTo(ScanAction.Ignore));
+        }
+
+        /// <summary>重叠区域：相机同时在 t1、t2 的体积里，两个码都认。</summary>
+        [Test]
+        public void Decide_InsideOverlappingVolumes_AcceptsEitherTour()
+        {
+            var state = new ScanState { ActiveTourId = "other", PendingTourIds = InVolumes("t1", "t2") };
+            var tours = Tours(Tour("t1"), Tour("t2"));
+
+            var first = TourScanPolicy.Decide(state, tours, "t1");
+            var second = TourScanPolicy.Decide(state, tours, "t2");
+
+            Assert.That(first.Action, Is.EqualTo(ScanAction.Activate));
+            Assert.That(first.TourId, Is.EqualTo("t1"));
+            Assert.That(second.Action, Is.EqualTo(ScanAction.Activate));
+            Assert.That(second.TourId, Is.EqualTo("t2"));
+        }
+
+        /// <summary>
+        /// 追踪原点重置（ite-scan-region-gate D2）不停用当前 Tour，只要求重扫。
+        /// 此刻相机相对错位的体积在哪都不可信——在所有体积外扫在播 Tour 的码，
+        /// 必须走激活路径把它重新锚定，而不是按「normal 已激活」忽略掉。
+        /// </summary>
+        [Test]
+        public void Decide_ForcedScanWhileTourActive_ReanchorsItOutsideAllVolumes()
+        {
+            var state = new ScanState
+            {
+                ForcedScanPending = true,
+                ActiveTourId = "t1",
+                PendingTourIds = InVolumes(),
+            };
+
+            var decision = TourScanPolicy.Decide(state, Tours(Tour("t1", Normal)), "t1");
+
+            Assert.That(decision.Action, Is.EqualTo(ScanAction.Activate));
+            Assert.That(decision.TourId, Is.EqualTo("t1"));
+            Assert.That(decision.ClearsForcedScan, Is.True);
         }
 
         // ---- normal ----

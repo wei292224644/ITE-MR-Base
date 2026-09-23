@@ -55,7 +55,7 @@ namespace Uality.IteTour.Core
                 return ScanPrompt.Visible(Array.Empty<string>());
             }
 
-            // 定位过之后体积外扫码不生效（design D36），不提示
+            // 定位过之后体积外扫码不生效，不提示（ite-scan-region-gate D3）
             if (state.PendingTourIds == null || state.PendingTourIds.Count == 0)
             {
                 return ScanPrompt.Hidden;

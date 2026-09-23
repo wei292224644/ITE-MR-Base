@@ -12,6 +12,7 @@ namespace Uality.IteTour.Tests
     /// **决策**是 ITE 业务，**渲染**不是（design D5）。这里只留决策，渲染交给宿主订阅广播。
     ///
     /// 期望值取自源工程 <c>NeedsToShowAnchorPreviewUI</c> 的分支顺序。
+    /// 唯一有意偏离：定位后在所有触发体积外不再提示（ite-scan-region-gate D3）。
     /// </summary>
     public class ScanPromptPolicyTests
     {
@@ -54,11 +55,11 @@ namespace Uality.IteTour.Tests
         }
 
         /// <summary>
-        /// 定位过之后相机不在任何触发体积内：体积外扫码一律不生效（D36），
+        /// 定位过之后相机不在任何触发体积内：体积外扫码一律不生效（ite-scan-region-gate D3），
         /// 提示「随便扫哪个」就是在叫人做无效操作。
         /// </summary>
         [Test]
-        public void Decide_AfterAnchoring_NotInsideAnyVolume_Hides_D36()
+        public void Decide_AfterAnchoring_NotInsideAnyVolume_Hides()
         {
             var state = new ScanState { PendingTourIds = Pending() };
 
@@ -68,7 +69,7 @@ namespace Uality.IteTour.Tests
         }
 
         [Test]
-        public void Decide_AfterAnchoring_WithoutVolumeSet_Hides_D36()
+        public void Decide_AfterAnchoring_WithoutVolumeSet_Hides()
         {
             var state = new ScanState { PendingTourIds = null };
 
@@ -79,7 +80,7 @@ namespace Uality.IteTour.Tests
 
         /// <summary>强制扫码在所有体积外仍提示「随便扫哪个」——此刻体积位置还没锚定。</summary>
         [Test]
-        public void Decide_WhenAScanIsRequiredOutsideAllVolumes_ShowsWithoutNamingTours_D36()
+        public void Decide_WhenAScanIsRequiredOutsideAllVolumes_ShowsWithoutNamingTours()
         {
             var state = new ScanState { ForcedScanPending = true, PendingTourIds = Pending() };
 

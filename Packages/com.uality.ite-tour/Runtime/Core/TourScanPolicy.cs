@@ -32,14 +32,14 @@ namespace Uality.IteTour.Core
         /// <summary>摘下头显期间为 true，此时忽略一切扫描。</summary>
         public bool Paused;
 
-        /// <summary>「必须先扫码」状态，戴上头显或冷启动后为 true。</summary>
+        /// <summary>「必须先扫码」状态：冷启动、重新戴上头显、追踪原点重置后为 true（ite-scan-region-gate D2）。</summary>
         public bool ForcedScanPending;
 
         public string ActiveTourId;
 
         /// <summary>
         /// 相机当前所在触发体积对应的 Tour 集合。非强制扫码只认这里面的码；
-        /// 为空表示相机在所有体积外，此时扫码不生效（design D36）。
+        /// 为空表示相机在所有体积外，此时扫码不生效（ite-scan-region-gate D1）。
         /// </summary>
         public IReadOnlyList<string> PendingTourIds;
     }
@@ -100,8 +100,8 @@ namespace Uality.IteTour.Core
                 };
             }
 
-            // 定位过之后只认相机所在触发体积的码，体积外一律不认（design D36）。
-            // 源实现在体积外不设限；D36 改为只有上面的强制扫码能无视区域——
+            // 定位过之后只认相机所在触发体积的码，体积外一律不认（ite-scan-region-gate D1）。
+            // 源实现在体积外不设限；现在只有上面的强制扫码能无视区域（D2）——
             // 那时体积还没按真实位姿锚定，站在哪都不算数。
             if (!TourIdLists.Contains(state.PendingTourIds, markerId))
             {
