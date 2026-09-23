@@ -20,7 +20,30 @@ public sealed class QuestObservationSource : IMarkerObservationSource
     public void Open()
     {
         opened = true;
+        OVRManager.InputFocusAcquired += HandleInputFocusAcquired;
         TrySubscribe();
+    }
+
+    /// <summary>
+    /// 失去输入焦点再恢复，可能是 OpenXR 会话被整个停掉又重开了（摘下头显较久时 Quest 会这么做）。
+    /// 会话一重开，原生层的 QR 追踪上下文就跟着旧会话没了，可 MRUK 只在「期望配置 ≠ 当前配置」时
+    /// 才重配追踪器（MRUK.UpdateTrackables），它记着的仍是「QR 已开」，于是永远不再重配，
+    /// 扫码从此没有任何观测（真机 2026-09-23）。
+    ///
+    /// 关一下 MRUK 组件：它的 OnDisable 会 ConfigureTrackers(0) 并清掉记住的配置，下一帧
+    /// Update 就按期望配置重新建 QR 追踪。
+    /// </summary>
+    private void HandleInputFocusAcquired()
+    {
+        if (!opened || MRUK.Instance == null)
+        {
+            return;
+        }
+
+        // ponytail: 分不出焦点恢复是会话重开还是只关了系统菜单，一律重建；后者只让 QR 追踪中断一瞬
+        MRUK.Instance.enabled = false;
+        MRUK.Instance.enabled = true;
+        Debug.Log("[QuestObservationSource] 输入焦点恢复，重建 MRUK QR 追踪器");
     }
 
     /// <summary>
@@ -57,6 +80,8 @@ public sealed class QuestObservationSource : IMarkerObservationSource
 
     public void Close()
     {
+        OVRManager.InputFocusAcquired -= HandleInputFocusAcquired;
+
         if (!subscribed)
         {
             return;
