@@ -37,7 +37,10 @@ namespace Uality.IteTour.Core
 
         public string ActiveTourId;
 
-        /// <summary>相机当前所在触发体积对应的 Tour 集合；为空表示不设限。</summary>
+        /// <summary>
+        /// 相机当前所在触发体积对应的 Tour 集合。非强制扫码只认这里面的码；
+        /// 为空表示相机在所有体积外，此时扫码不生效（design D36）。
+        /// </summary>
         public IReadOnlyList<string> PendingTourIds;
     }
 
@@ -97,10 +100,10 @@ namespace Uality.IteTour.Core
                 };
             }
 
-            // 相机在某些触发体积内时，只认这些 Tour 的码；集合为空表示不设限。
-            if (state.PendingTourIds != null
-                && state.PendingTourIds.Count > 0
-                && !TourIdLists.Contains(state.PendingTourIds, markerId))
+            // 定位过之后只认相机所在触发体积的码，体积外一律不认（design D36）。
+            // 源实现在体积外不设限；D36 改为只有上面的强制扫码能无视区域——
+            // 那时体积还没按真实位姿锚定，站在哪都不算数。
+            if (!TourIdLists.Contains(state.PendingTourIds, markerId))
             {
                 return ScanDecision.Ignore;
             }

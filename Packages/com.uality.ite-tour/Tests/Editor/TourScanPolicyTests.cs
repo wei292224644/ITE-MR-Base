@@ -29,6 +29,9 @@ namespace Uality.IteTour.Tests
 
         private static List<TourDescriptor> Tours(params TourDescriptor[] tours) => new List<TourDescriptor>(tours);
 
+        /// <summary>相机当前所在的触发体积对应的 tourId。</summary>
+        private static List<string> InVolumes(params string[] tourIds) => new List<string>(tourIds);
+
         // ---- 前置门禁 ----
 
         [Test]
@@ -113,12 +116,26 @@ namespace Uality.IteTour.Tests
             Assert.That(decision.ConsumesSecondAnchor, Is.False);
         }
 
-        // ---- 待扫描集合过滤 ----
+        /// <summary>
+        /// D36：冷启动、重新戴上、追踪原点重置三者都落到强制扫码，此刻体积位置还没（重新）
+        /// 锚定过，站在哪都不算数——相机在所有体积外也必须能扫。
+        /// </summary>
+        [Test]
+        public void Decide_ForcedScan_ActivatesOutsideAllVolumes_D36()
+        {
+            var state = new ScanState { ForcedScanPending = true, PendingTourIds = InVolumes() };
+
+            var decision = TourScanPolicy.Decide(state, Tours(Tour("t1")), "t1");
+
+            Assert.That(decision.Action, Is.EqualTo(ScanAction.Activate));
+        }
+
+        // ---- 区域门禁（D36）：定位过之后，只认相机所在体积的码 ----
 
         [Test]
         public void Decide_WhenMarkerOutsidePendingTours_Ignores()
         {
-            var state = new ScanState { PendingTourIds = new List<string> { "t2" } };
+            var state = new ScanState { PendingTourIds = InVolumes("t2") };
 
             var decision = TourScanPolicy.Decide(state, Tours(Tour("t1"), Tour("t2")), "t1");
 
@@ -126,13 +143,24 @@ namespace Uality.IteTour.Tests
         }
 
         [Test]
-        public void Decide_WhenPendingToursEmpty_DoesNotFilter()
+        public void Decide_AfterAnchoring_OutsideAllVolumes_Ignores_D36()
         {
-            var state = new ScanState { PendingTourIds = new List<string>() };
+            var state = new ScanState { PendingTourIds = InVolumes() };
 
             var decision = TourScanPolicy.Decide(state, Tours(Tour("t1")), "t1");
 
-            Assert.That(decision.Action, Is.EqualTo(ScanAction.Activate));
+            Assert.That(decision.Action, Is.EqualTo(ScanAction.Ignore),
+                "源实现在体积外不设限；D36 起定位过之后必须走进该 tour 的体积");
+        }
+
+        [Test]
+        public void Decide_AfterAnchoring_WithoutVolumeSet_Ignores_D36()
+        {
+            var state = new ScanState { PendingTourIds = null };
+
+            var decision = TourScanPolicy.Decide(state, Tours(Tour("t1")), "t1");
+
+            Assert.That(decision.Action, Is.EqualTo(ScanAction.Ignore));
         }
 
         // ---- normal ----
@@ -140,7 +168,7 @@ namespace Uality.IteTour.Tests
         [Test]
         public void Decide_NormalTourNotActive_Activates()
         {
-            var state = new ScanState { ActiveTourId = "other" };
+            var state = new ScanState { ActiveTourId = "other", PendingTourIds = InVolumes("t1") };
 
             var decision = TourScanPolicy.Decide(state, Tours(Tour("t1", Normal)), "t1");
 
@@ -151,7 +179,7 @@ namespace Uality.IteTour.Tests
         [Test]
         public void Decide_NormalTourAlreadyActive_Ignores()
         {
-            var state = new ScanState { ActiveTourId = "t1" };
+            var state = new ScanState { ActiveTourId = "t1", PendingTourIds = InVolumes("t1") };
 
             var decision = TourScanPolicy.Decide(state, Tours(Tour("t1", Normal)), "t1");
 
@@ -163,7 +191,7 @@ namespace Uality.IteTour.Tests
         [Test]
         public void Decide_RegionalTourNotActive_ActivatesWithoutConsumingSecondAnchor()
         {
-            var state = new ScanState { ActiveTourId = "other" };
+            var state = new ScanState { ActiveTourId = "other", PendingTourIds = InVolumes("t1") };
 
             var decision = TourScanPolicy.Decide(
                 state, Tours(Tour("t1", Regional, secondAnchorAvailable: true)), "t1");
@@ -176,7 +204,7 @@ namespace Uality.IteTour.Tests
         [Test]
         public void Decide_RegionalTourActiveWithAllowance_ReanchorsAndConsumesIt()
         {
-            var state = new ScanState { ActiveTourId = "t1" };
+            var state = new ScanState { ActiveTourId = "t1", PendingTourIds = InVolumes("t1") };
 
             var decision = TourScanPolicy.Decide(
                 state, Tours(Tour("t1", Regional, secondAnchorAvailable: true)), "t1");
@@ -190,7 +218,7 @@ namespace Uality.IteTour.Tests
         [Test]
         public void Decide_RegionalTourActiveWithoutAllowance_Ignores()
         {
-            var state = new ScanState { ActiveTourId = "t1" };
+            var state = new ScanState { ActiveTourId = "t1", PendingTourIds = InVolumes("t1") };
 
             var decision = TourScanPolicy.Decide(
                 state, Tours(Tour("t1", Regional, secondAnchorAvailable: false)), "t1");
@@ -203,7 +231,7 @@ namespace Uality.IteTour.Tests
         [Test]
         public void Decide_AlwaysDisplayedTour_IgnoredOutsideForcedScan()
         {
-            var state = new ScanState { ActiveTourId = "other" };
+            var state = new ScanState { ActiveTourId = "other", PendingTourIds = InVolumes("t1") };
 
             var decision = TourScanPolicy.Decide(state, Tours(Tour("t1", Always)), "t1");
 
@@ -221,7 +249,7 @@ namespace Uality.IteTour.Tests
         public void Decide_IsPurelyStateDriven_SameMarkerTwiceIsNotDeduplicated()
         {
             var tours = Tours(Tour("t1", Regional, secondAnchorAvailable: true));
-            var afterActivation = new ScanState { ActiveTourId = "t1" };
+            var afterActivation = new ScanState { ActiveTourId = "t1", PendingTourIds = InVolumes("t1") };
 
             var first = TourScanPolicy.Decide(afterActivation, tours, "t1");
             var second = TourScanPolicy.Decide(afterActivation, tours, "t1");

@@ -44,11 +44,17 @@ Shader "Uality/IteTour/RoundedBoxUI"
             WriteMask [_StencilWriteMask]
         }
 
-        Cull Off
+        // 必须 Cull Back：富文本 / 视频 prefab 用 Front + Back（绕 Y 转 180°）两张
+        // Image 拼双面，靠剔除让每张只在自己那侧可见；Cull Off 会把镜像的 Back
+        // 透过 Front 叠出来，DoubleSided=false 时背面也能看到镜像图。源实现
+        // （Meta RoundedBoxUI.shader）同样是 Cull Back。
+        Cull Back
         Lighting Off
         ZWrite Off
         ZTest [unity_GUIZTestMode]
-        Blend SrcAlpha OneMinusSrcAlpha
+        // alpha 通道单独混合，与源实现一致：Quest 透视按帧缓冲 alpha 合成，
+        // 普通 SrcAlpha OneMinusSrcAlpha 会把半透明像素的 alpha 压成 As²，多透出透视。
+        Blend SrcAlpha OneMinusSrcAlpha, OneMinusDstAlpha One
         ColorMask [_ColorMask]
 
         Pass

@@ -15,8 +15,8 @@ namespace Uality.IteTour.Core
         public ScanPromptState State;
 
         /// <summary>
-        /// 需要用户去扫的 Tour。为空表示「随便扫哪个都行」——还没扫过第一次码，
-        /// 或者相机不在任何触发体积内。
+        /// 需要用户去扫的 Tour。为空表示「随便扫哪个都行」——只出现在强制扫码时
+        /// （冷启动、重新戴上、追踪原点重置）。
         /// </summary>
         public IReadOnlyList<string> TourIds;
 
@@ -49,10 +49,16 @@ namespace Uality.IteTour.Core
                 return ScanPrompt.Hidden;
             }
 
-            // 还没扫过第一次码，或相机不在任何触发体积内：随便扫哪个都行，不报名字
-            if (state.ForcedScanPending || state.PendingTourIds == null || state.PendingTourIds.Count == 0)
+            // 强制扫码（冷启动 / 重新戴上 / 追踪原点重置）：随便扫哪个都行，不报名字
+            if (state.ForcedScanPending)
             {
                 return ScanPrompt.Visible(Array.Empty<string>());
+            }
+
+            // 定位过之后体积外扫码不生效（design D36），不提示
+            if (state.PendingTourIds == null || state.PendingTourIds.Count == 0)
+            {
+                return ScanPrompt.Hidden;
             }
 
             // 范围内有 regionalTrigger：它会自动激活，不必提示

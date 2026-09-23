@@ -53,11 +53,35 @@ namespace Uality.IteTour.Tests
             Assert.That(prompt.TourIds, Is.Empty);
         }
 
-        /// <summary>相机不在任何触发体积内：同样是「随便扫哪个」。</summary>
+        /// <summary>
+        /// 定位过之后相机不在任何触发体积内：体积外扫码一律不生效（D36），
+        /// 提示「随便扫哪个」就是在叫人做无效操作。
+        /// </summary>
         [Test]
-        public void Decide_WhenNotInsideAnyVolume_ShowsWithoutNamingTours()
+        public void Decide_AfterAnchoring_NotInsideAnyVolume_Hides_D36()
         {
             var state = new ScanState { PendingTourIds = Pending() };
+
+            var prompt = ScanPromptPolicy.Decide(state, Tours(Tour("t1", Normal)));
+
+            Assert.That(prompt.State, Is.EqualTo(ScanPromptState.Hidden));
+        }
+
+        [Test]
+        public void Decide_AfterAnchoring_WithoutVolumeSet_Hides_D36()
+        {
+            var state = new ScanState { PendingTourIds = null };
+
+            var prompt = ScanPromptPolicy.Decide(state, Tours(Tour("t1", Normal)));
+
+            Assert.That(prompt.State, Is.EqualTo(ScanPromptState.Hidden));
+        }
+
+        /// <summary>强制扫码在所有体积外仍提示「随便扫哪个」——此刻体积位置还没锚定。</summary>
+        [Test]
+        public void Decide_WhenAScanIsRequiredOutsideAllVolumes_ShowsWithoutNamingTours_D36()
+        {
+            var state = new ScanState { ForcedScanPending = true, PendingTourIds = Pending() };
 
             var prompt = ScanPromptPolicy.Decide(state, Tours(Tour("t1", Normal)));
 
