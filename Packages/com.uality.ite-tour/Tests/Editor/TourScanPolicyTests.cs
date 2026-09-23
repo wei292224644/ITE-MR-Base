@@ -8,7 +8,7 @@ namespace Uality.IteTour.Tests
     /// <summary>
     /// 扫描决策是这个包里最容易在 PICO 上出问题、又最难在真机上复现的一段。
     /// D14 把它从「三个订阅者的相互作用 + `_canAnchor` 的 await 竞态」抽成纯函数，
-    /// 就是为了让这组测试能够存在。
+    /// 就是为了让这组测试能够存在。已定位后只认当前 Tour 的码（ite-current-tour D6）。
     /// </summary>
     public class TourScanPolicyTests
     {
@@ -29,8 +29,8 @@ namespace Uality.IteTour.Tests
 
         private static List<TourDescriptor> Tours(params TourDescriptor[] tours) => new List<TourDescriptor>(tours);
 
-        /// <summary>相机当前所在的触发体积对应的 tourId。</summary>
-        private static List<string> InVolumes(params string[] tourIds) => new List<string>(tourIds);
+        private static ScanState Anchored(string currentTourId, string activeTourId = null)
+            => new ScanState { State = GuideState.Anchored, CurrentTourId = currentTourId, ActiveTourId = activeTourId };
 
         // ---- 前置门禁 ----
 
@@ -65,12 +65,11 @@ namespace Uality.IteTour.Tests
             Assert.That(decision.Action, Is.EqualTo(ScanAction.Ignore));
         }
 
-        // ---- 等待扫码定位 ----
+        // ---- 等待扫码定位：唯一不受规则约束的入口 ----
 
         [TestCase(Normal)]
         [TestCase(Regional)]
-        [TestCase(Always)]
-        public void Decide_AwaitingScan_ActivatesAnyDisplayType(IteSpaceScene.Tour.DisplayType type)
+        public void Decide_AwaitingScan_ActivatesToursWithAVolume(IteSpaceScene.Tour.DisplayType type)
         {
             var state = new ScanState { State = GuideState.AwaitingScan };
 
@@ -80,19 +79,28 @@ namespace Uality.IteTour.Tests
             Assert.That(decision.TourId, Is.EqualTo("t1"));
         }
 
+        /// <summary>ite-current-tour D10：alwaysDisplayed 只拿来锚定，不当当前 Tour、不当在播。</summary>
         [Test]
-        public void Decide_AwaitingScan_IgnoresPendingTourFilter()
+        public void Decide_AwaitingScan_AlwaysDisplayed_AnchorsWithoutActivating()
         {
-            // 等待扫码先于区域过滤：刚戴上头显时相机可能不在任何触发体积内
-            var state = new ScanState
-            {
-                State = GuideState.AwaitingScan,
-                PendingTourIds = new List<string> { "other" },
-            };
+            var state = new ScanState { State = GuideState.AwaitingScan };
 
-            var decision = TourScanPolicy.Decide(state, Tours(Tour("t1")), "t1");
+            var decision = TourScanPolicy.Decide(state, Tours(Tour("a1", Always)), "a1");
+
+            Assert.That(decision.Action, Is.EqualTo(ScanAction.Reanchor));
+            Assert.That(decision.TourId, Is.EqualTo("a1"));
+            Assert.That(decision.ConsumesSecondAnchor, Is.False);
+        }
+
+        [Test]
+        public void Decide_AwaitingScan_IgnoresCurrentTour()
+        {
+            var state = new ScanState { State = GuideState.AwaitingScan, CurrentTourId = "other" };
+
+            var decision = TourScanPolicy.Decide(state, Tours(Tour("t1"), Tour("other")), "t1");
 
             Assert.That(decision.Action, Is.EqualTo(ScanAction.Activate));
+            Assert.That(decision.TourId, Is.EqualTo("t1"));
         }
 
         /// <summary>
@@ -115,101 +123,52 @@ namespace Uality.IteTour.Tests
             Assert.That(decision.ConsumesSecondAnchor, Is.False);
         }
 
-        /// <summary>
-        /// ite-scan-region-gate D2：冷启动、重新戴上、追踪原点重置都进入等待扫码定位，此刻体积位置还没（重新）
-        /// 锚定过，站在哪都不算数——相机在所有体积外也必须能扫。
-        /// </summary>
-        [Test]
-        public void Decide_AwaitingScan_ActivatesOutsideAllVolumes()
-        {
-            var state = new ScanState { State = GuideState.AwaitingScan, PendingTourIds = InVolumes() };
-
-            var decision = TourScanPolicy.Decide(state, Tours(Tour("t1")), "t1");
-
-            Assert.That(decision.Action, Is.EqualTo(ScanAction.Activate));
-        }
-
-        // ---- 区域门禁（ite-scan-region-gate D1）：定位过之后，只认相机所在体积的码 ----
+        // ---- 已定位：只认当前 Tour 的码（ite-current-tour D6）----
 
         [Test]
-        public void Decide_WhenMarkerOutsidePendingTours_Ignores()
+        public void Decide_Anchored_MarkerIsNotCurrent_Ignores()
         {
-            var state = new ScanState { State = GuideState.Anchored, PendingTourIds = InVolumes("t2") };
-
-            var decision = TourScanPolicy.Decide(state, Tours(Tour("t1"), Tour("t2")), "t1");
-
-            Assert.That(decision.Action, Is.EqualTo(ScanAction.Ignore));
-        }
-
-        [Test]
-        public void Decide_AfterAnchoring_OutsideAllVolumes_Ignores()
-        {
-            var state = new ScanState { State = GuideState.Anchored, PendingTourIds = InVolumes() };
-
-            var decision = TourScanPolicy.Decide(state, Tours(Tour("t1")), "t1");
+            var decision = TourScanPolicy.Decide(
+                Anchored("t2", "t2"), Tours(Tour("t1", Regional), Tour("t2", Regional)), "t1");
 
             Assert.That(decision.Action, Is.EqualTo(ScanAction.Ignore),
-                "源实现在体积外不设限；ite-scan-region-gate D1 起定位过之后必须走进该 tour 的体积");
+                "当前 Tour 优先级最高：人站在 t1 的区域里扫 t1 的码也不认");
         }
 
         [Test]
-        public void Decide_AfterAnchoring_WithoutVolumeSet_Ignores()
+        public void Decide_Anchored_NoCurrent_Ignores()
         {
-            var state = new ScanState { State = GuideState.Anchored, PendingTourIds = null };
-
-            var decision = TourScanPolicy.Decide(state, Tours(Tour("t1")), "t1");
+            var decision = TourScanPolicy.Decide(Anchored(null), Tours(Tour("t1")), "t1");
 
             Assert.That(decision.Action, Is.EqualTo(ScanAction.Ignore));
         }
 
-        /// <summary>重叠区域：相机同时在 t1、t2 的体积里，两个码都认。</summary>
-        [Test]
-        public void Decide_InsideOverlappingVolumes_AcceptsEitherTour()
-        {
-            var state = new ScanState { State = GuideState.Anchored, ActiveTourId = "other", PendingTourIds = InVolumes("t1", "t2") };
-            var tours = Tours(Tour("t1"), Tour("t2"));
-
-            var first = TourScanPolicy.Decide(state, tours, "t1");
-            var second = TourScanPolicy.Decide(state, tours, "t2");
-
-            Assert.That(first.Action, Is.EqualTo(ScanAction.Activate));
-            Assert.That(first.TourId, Is.EqualTo("t1"));
-            Assert.That(second.Action, Is.EqualTo(ScanAction.Activate));
-            Assert.That(second.TourId, Is.EqualTo("t2"));
-        }
-
-        // ---- normal ----
+        // ---- 当前 Tour 是 normal ----
 
         [Test]
-        public void Decide_NormalTourNotActive_Activates()
+        public void Decide_CurrentNormalNotPlaying_Activates()
         {
-            var state = new ScanState { State = GuideState.Anchored, ActiveTourId = "other", PendingTourIds = InVolumes("t1") };
-
-            var decision = TourScanPolicy.Decide(state, Tours(Tour("t1", Normal)), "t1");
+            var decision = TourScanPolicy.Decide(Anchored("t1"), Tours(Tour("t1", Normal)), "t1");
 
             Assert.That(decision.Action, Is.EqualTo(ScanAction.Activate));
             Assert.That(decision.TourId, Is.EqualTo("t1"));
         }
 
         [Test]
-        public void Decide_NormalTourAlreadyActive_Ignores()
+        public void Decide_CurrentNormalPlaying_Ignores()
         {
-            var state = new ScanState { State = GuideState.Anchored, ActiveTourId = "t1", PendingTourIds = InVolumes("t1") };
-
-            var decision = TourScanPolicy.Decide(state, Tours(Tour("t1", Normal)), "t1");
+            var decision = TourScanPolicy.Decide(Anchored("t1", "t1"), Tours(Tour("t1", Normal)), "t1");
 
             Assert.That(decision.Action, Is.EqualTo(ScanAction.Ignore));
         }
 
-        // ---- regionalTrigger ----
+        // ---- 当前 Tour 是 regionalTrigger ----
 
         [Test]
-        public void Decide_RegionalTourNotActive_ActivatesWithoutConsumingSecondAnchor()
+        public void Decide_CurrentRegionalNotPlaying_ActivatesWithoutConsumingSecondAnchor()
         {
-            var state = new ScanState { State = GuideState.Anchored, ActiveTourId = "other", PendingTourIds = InVolumes("t1") };
-
             var decision = TourScanPolicy.Decide(
-                state, Tours(Tour("t1", Regional, secondAnchorAvailable: true)), "t1");
+                Anchored("t1"), Tours(Tour("t1", Regional, secondAnchorAvailable: true)), "t1");
 
             Assert.That(decision.Action, Is.EqualTo(ScanAction.Activate));
             Assert.That(decision.ConsumesSecondAnchor, Is.False,
@@ -217,12 +176,10 @@ namespace Uality.IteTour.Tests
         }
 
         [Test]
-        public void Decide_RegionalTourActiveWithAllowance_ReanchorsAndConsumesIt()
+        public void Decide_CurrentRegionalPlayingWithAllowance_ReanchorsAndConsumesIt()
         {
-            var state = new ScanState { State = GuideState.Anchored, ActiveTourId = "t1", PendingTourIds = InVolumes("t1") };
-
             var decision = TourScanPolicy.Decide(
-                state, Tours(Tour("t1", Regional, secondAnchorAvailable: true)), "t1");
+                Anchored("t1", "t1"), Tours(Tour("t1", Regional, secondAnchorAvailable: true)), "t1");
 
             Assert.That(decision.Action, Is.EqualTo(ScanAction.Reanchor));
             Assert.That(decision.TourId, Is.EqualTo("t1"));
@@ -231,12 +188,10 @@ namespace Uality.IteTour.Tests
         }
 
         [Test]
-        public void Decide_RegionalTourActiveWithoutAllowance_Ignores()
+        public void Decide_CurrentRegionalPlayingWithoutAllowance_Ignores()
         {
-            var state = new ScanState { State = GuideState.Anchored, ActiveTourId = "t1", PendingTourIds = InVolumes("t1") };
-
             var decision = TourScanPolicy.Decide(
-                state, Tours(Tour("t1", Regional, secondAnchorAvailable: false)), "t1");
+                Anchored("t1", "t1"), Tours(Tour("t1", Regional, secondAnchorAvailable: false)), "t1");
 
             Assert.That(decision.Action, Is.EqualTo(ScanAction.Ignore));
         }
@@ -244,14 +199,12 @@ namespace Uality.IteTour.Tests
         // ---- alwaysDisplayed ----
 
         [Test]
-        public void Decide_AlwaysDisplayedTour_IgnoredOnceAnchored()
+        public void Decide_AlwaysDisplayed_IgnoredOnceAnchored()
         {
-            var state = new ScanState { State = GuideState.Anchored, ActiveTourId = "other", PendingTourIds = InVolumes("t1") };
-
-            var decision = TourScanPolicy.Decide(state, Tours(Tour("t1", Always)), "t1");
+            var decision = TourScanPolicy.Decide(Anchored("a1"), Tours(Tour("a1", Always)), "a1");
 
             Assert.That(decision.Action, Is.EqualTo(ScanAction.Ignore),
-                "alwaysDisplayed 始终显示，不参与扫码切换");
+                "alwaysDisplayed 不会是当前 Tour（I5）；万一是，也不参与扫码切换");
         }
 
         // ---- 重复推入 ----
@@ -264,7 +217,7 @@ namespace Uality.IteTour.Tests
         public void Decide_IsPurelyStateDriven_SameMarkerTwiceIsNotDeduplicated()
         {
             var tours = Tours(Tour("t1", Regional, secondAnchorAvailable: true));
-            var afterActivation = new ScanState { State = GuideState.Anchored, ActiveTourId = "t1", PendingTourIds = InVolumes("t1") };
+            var afterActivation = Anchored("t1", "t1");
 
             var first = TourScanPolicy.Decide(afterActivation, tours, "t1");
             var second = TourScanPolicy.Decide(afterActivation, tours, "t1");

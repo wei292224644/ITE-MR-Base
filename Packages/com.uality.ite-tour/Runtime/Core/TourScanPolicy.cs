@@ -12,7 +12,10 @@ namespace Uality.IteTour.Core
         /// <summary>停用当前 Tour，激活目标 Tour，并按扫到的位姿锚定。</summary>
         Activate,
 
-        /// <summary>保持当前 Tour，仅按新位姿重新锚定（不销毁重建内容）。</summary>
+        /// <summary>
+        /// 不换 Tour，仅按新位姿重新锚定（不销毁重建内容）。等待扫码时扫到 alwaysDisplayed 也走这里：
+        /// 只锚定，不当当前 Tour（ite-current-tour D10）。
+        /// </summary>
         Reanchor,
     }
 
@@ -32,12 +35,14 @@ namespace Uality.IteTour.Core
         /// <summary>导览所处的状态（ite-guide-state-machine D1）。</summary>
         public GuideState State;
 
+        /// <summary>
+        /// 持有优先级的 Tour（ite-current-tour D3）。已定位后扫码只认它的码（ite-current-tour D6）。
+        /// </summary>
+        public string CurrentTourId;
+
         public string ActiveTourId;
 
-        /// <summary>
-        /// 相机当前所在触发体积对应的 Tour 集合。<see cref="GuideState.Anchored"/> 下扫码只认这里面的码；
-        /// 为空表示相机在所有体积外，此时扫码不生效（ite-scan-region-gate D1）。
-        /// </summary>
+        /// <summary>过渡字段，两个策略都已不再读它；ite-current-tour 实施时随 TourGuide 重写一并删除。</summary>
         public IReadOnlyList<string> PendingTourIds;
     }
 
@@ -81,9 +86,21 @@ namespace Uality.IteTour.Core
 
             if (state.State == GuideState.AwaitingScan)
             {
-                // 等待扫码定位：不看区域、不看展示类型，任何匹配的 Tour 都激活（与源实现的强制扫码
-                // 一致；不看区域见 ite-scan-region-gate D2）。
+                // 等待扫码定位：唯一不受规则约束的入口——不看区域、不看当前 Tour，任何匹配的码都认
+                // （ite-scan-region-gate D2）。
                 //
+                // alwaysDisplayed 只拿来锚定：它没有触发体积，当了当前 Tour 就永远离不开
+                // （ite-current-tour D10）。
+                if (!TourAssembly.CanBeCurrent(tour.DisplayType))
+                {
+                    return new ScanDecision
+                    {
+                        Action = ScanAction.Reanchor,
+                        TourId = tour.TourId,
+                        ConsumesSecondAnchor = false,
+                    };
+                }
+
                 // ConsumesSecondAnchor 为 false 是 D14 的所选语义：源实现中第二个
                 // 处理器此刻会去查 CanSecondAnchor()，而 Enable() 尚未完成、
                 // _canAnchor 仍为 false，因此不消耗。
@@ -95,10 +112,9 @@ namespace Uality.IteTour.Core
                 };
             }
 
-            // 定位过之后只认相机所在触发体积的码，体积外一律不认（ite-scan-region-gate D1）。
-            // 源实现在体积外不设限；现在只有上面的等待扫码能无视区域（ite-scan-region-gate D2）——
-            // 那时体积还没按真实位姿锚定，站在哪都不算数。
-            if (!TourIdLists.Contains(state.PendingTourIds, markerId))
+            // 已定位：只认当前 Tour 的码（ite-current-tour D6，取代 ite-scan-region-gate D1）。
+            // 当前 Tour 优先级最高：人站在别的 Tour 的区域里、扫别的码，一律不认。
+            if (tour.TourId != state.CurrentTourId)
             {
                 return ScanDecision.Ignore;
             }
@@ -106,6 +122,7 @@ namespace Uality.IteTour.Core
             switch (tour.DisplayType)
             {
                 case IteSpaceScene.Tour.DisplayType.normal:
+                    // 当前 Tour 是 normal：还没播就扫它的码开始播；已在播则忽略
                     return tour.TourId == state.ActiveTourId
                         ? ScanDecision.Ignore
                         : new ScanDecision { Action = ScanAction.Activate, TourId = tour.TourId };
@@ -124,9 +141,8 @@ namespace Uality.IteTour.Core
                             : ScanDecision.Ignore;
                     }
 
-                    // 源实现此处是 ChangeTour(tour) 之后紧跟 tour.SecondAnchored()，
-                    // 但那次置位会被 Enable() 续体里的 _canAnchor = true 覆盖掉——
-                    // 是死代码。按 D14 所选语义，激活不消耗二次锚定许可。
+                    // 按 D14 所选语义，激活不消耗二次锚定许可（源实现此处的 SecondAnchored()
+                    // 会被 Enable() 续体里的 _canAnchor = true 覆盖掉，是死代码）。
                     return new ScanDecision
                     {
                         Action = ScanAction.Activate,
@@ -134,7 +150,7 @@ namespace Uality.IteTour.Core
                         ConsumesSecondAnchor = false,
                     };
 
-                // alwaysDisplayed 始终显示，不参与扫码切换（源实现两个分支都不匹配）
+                // alwaysDisplayed 不会是当前 Tour（I5）；万一是，也不参与扫码切换
                 default:
                     return ScanDecision.Ignore;
             }

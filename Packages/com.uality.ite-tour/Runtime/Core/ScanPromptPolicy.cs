@@ -34,7 +34,8 @@ namespace Uality.IteTour.Core
     }
 
     /// <summary>
-    /// 「要不要提示用户去扫码、提示哪几个 Tour」的**纯决策**。
+    /// 「要不要提示用户去扫码、提示哪个 Tour」的**纯决策**。已定位后只看当前 Tour，不读区域队列
+    /// （ite-current-tour D7）。
     ///
     /// 源实现是个每 0.75 秒轮询的协程，直接调 <c>ScanPreviewUI.Instance.Show()/Hide()</c>。
     /// 决策是 ITE 业务，渲染不是——这里只留决策，渲染由宿主订阅广播自行处理（design D5）。
@@ -60,51 +61,29 @@ namespace Uality.IteTour.Core
                     return ScanPrompt.Visible(Array.Empty<string>());
             }
 
-            // 定位过之后体积外扫码不生效，不提示（ite-scan-region-gate D3）
-            if (state.PendingTourIds == null || state.PendingTourIds.Count == 0)
-            {
-                return ScanPrompt.Hidden;
-            }
-
-            // 范围内有 regionalTrigger：它会自动激活，不必提示
-            if (HasPending(tours, state.PendingTourIds, IteSpaceScene.Tour.DisplayType.regionalTrigger))
-            {
-                return ScanPrompt.Hidden;
-            }
-
-            var normalTourIds = PendingIds(tours, state.PendingTourIds, IteSpaceScene.Tour.DisplayType.normal);
-
-            return normalTourIds.Count > 0
-                ? ScanPrompt.Visible(normalTourIds)
+            // 已定位：只有当前 Tour 是 normal、还没播时才提示扫它（ite-current-tour D7，取代
+            // ite-scan-region-gate D3）。别的码扫了也不认（ite-current-tour D6），提示别的就是在叫人做无效操作。
+            return IsNormal(tours, state.CurrentTourId)
+                ? ScanPrompt.Visible(new[] { state.CurrentTourId })
                 : ScanPrompt.Hidden;
         }
 
-        private static bool HasPending(
-            IReadOnlyList<TourDescriptor> tours,
-            IReadOnlyList<string> pending,
-            IteSpaceScene.Tour.DisplayType displayType)
-            => PendingIds(tours, pending, displayType).Count > 0;
-
-        private static List<string> PendingIds(
-            IReadOnlyList<TourDescriptor> tours,
-            IReadOnlyList<string> pending,
-            IteSpaceScene.Tour.DisplayType displayType)
+        private static bool IsNormal(IReadOnlyList<TourDescriptor> tours, string tourId)
         {
-            var ids = new List<string>();
-            if (tours == null)
+            if (tours == null || string.IsNullOrEmpty(tourId))
             {
-                return ids;
+                return false;
             }
 
             for (int i = 0; i < tours.Count; i++)
             {
-                if (tours[i].DisplayType == displayType && TourIdLists.Contains(pending, tours[i].TourId))
+                if (tours[i].TourId == tourId)
                 {
-                    ids.Add(tours[i].TourId);
+                    return tours[i].DisplayType == IteSpaceScene.Tour.DisplayType.normal;
                 }
             }
 
-            return ids;
+            return false;
         }
     }
 }

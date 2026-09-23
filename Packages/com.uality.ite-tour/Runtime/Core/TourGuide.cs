@@ -74,6 +74,9 @@ namespace Uality.IteTour.Core
         public ScanState Snapshot() => new ScanState
         {
             State = State,
+
+            // 过渡：旧模型里当前 Tour 就是在播的 Tour。ite-current-tour 实施中，TourGuide 重写时替换。
+            CurrentTourId = ActiveTourId,
             ActiveTourId = ActiveTourId,
             PendingTourIds = _pendingTourIds,
         };
