@@ -15,8 +15,8 @@ namespace Uality.IteTour.Core
         public ScanPromptState State;
 
         /// <summary>
-        /// 需要用户去扫的 Tour。为空表示「随便扫哪个都行」——只出现在强制扫码时
-        /// （冷启动、重新戴上、追踪原点重置）。
+        /// 需要用户去扫的 Tour。为空表示「随便扫哪个都行」——只出现在等待扫码定位
+        /// （<see cref="GuideState.AwaitingScan"/>）时。
         /// </summary>
         public IReadOnlyList<string> TourIds;
 
@@ -49,10 +49,15 @@ namespace Uality.IteTour.Core
                 return ScanPrompt.Hidden;
             }
 
-            // 强制扫码（冷启动 / 重新戴上 / 追踪原点重置）：随便扫哪个都行，不报名字
-            if (state.ForcedScanPending)
+            switch (state.State)
             {
-                return ScanPrompt.Visible(Array.Empty<string>());
+                case GuideState.Suspended:
+                    // 头显摘下：没人在看
+                    return ScanPrompt.Hidden;
+
+                case GuideState.AwaitingScan:
+                    // 等待扫码定位（冷启动 / 重新戴上 / 追踪原点重置 / 宿主要求）：随便扫哪个都行，不报名字
+                    return ScanPrompt.Visible(Array.Empty<string>());
             }
 
             // 定位过之后体积外扫码不生效，不提示（ite-scan-region-gate D3）
@@ -101,6 +106,5 @@ namespace Uality.IteTour.Core
 
             return ids;
         }
-
     }
 }

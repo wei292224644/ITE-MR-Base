@@ -82,6 +82,7 @@
 - **宿主**：不改。`IteMarkerBridge`、`IteDeviceMarkerRig`、`HeadsetPresenceAdapter` 的行为不变。
 - **`IteHmdPanel`**：黄色横幅「视角已重定位，请重新扫码」由 `_recenterPending` 控制（`Assets/Scripts/IteHost/IteHmdPanel.cs:56/132-140/202/230`），目前只在收到一次 `Visible` 提示时才会清掉（`HandleScanPromptChanged`）。这个耦合本身是既有问题——横幅理应跟着「必须扫码」状态走，而不是跟着提示的变化走——但 D3 去掉了它最常见的清除路径：导览播放中发生追踪原点重置时，`IteDeviceMarkerRig.HandleRecentered`（`Assets/Scripts/IteHost/IteDeviceMarkerRig.cs:218-235`）先调 `RequireScan()` 再调 `NotifyRecentered()`；旧规则下重扫成功、随后走出所有区域，提示会变回 `Visible([])` 顺带清掉横幅，新规则（D3）下提示保持 `Hidden`，横幅不会自动清除。只用 `regionalTrigger` 展示类型的导览，定位后提示永远不会再变 `Visible`，横幅会一直挂到下次重新戴上头显。
   这次不修：宿主侧的修法是把 `ForcedScanPending` 转发出来（`TourDirector` 已经暴露）经 `IteRuntime` 传给 `IteHmdPanel`，在 `Refresh` 里改成「`ForcedScanPending` 变为 false 时清 `_recenterPending`」（安全，因为 `RequireScan` 总是先于 `NotifyRecentered` 执行）。这是宿主改动，超出本次范围，留作后续 patch。
+  （已由 `docs/superpowers/specs/2026-09-23-ite-guide-state-machine-design.md` D8 解决：黄条改为跟随导览状态显示。）
 - **其余扫码提示的消费方**（`IteEditorHud`、`IteHostBootstrap` 的日志）：只是多了一种会收到 `Hidden` 的情况，接口不变，不需要改。
 - **编辑器假扫码**（`IteEditorFakeScan`）：第一次扫码之后，也要先把相机移进目标 Tour 的区域，假扫才生效。这和真机行为一致，不需要改。
 - **区域进出与自动重选**（`TourRegionPolicy`）：不变。

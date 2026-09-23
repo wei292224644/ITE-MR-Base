@@ -1,5 +1,6 @@
 using System.Collections;
 using UnityEngine;
+using Uality.IteTour.Core;
 
 namespace MRBase.Ite.Host
 {
@@ -216,24 +217,26 @@ namespace MRBase.Ite.Host
             _recenterHooked = false;
         }
 
-        private void HandleRecentered()
+        // PICO 的重定位事件来自原生回调（PXR_Loader.XrEventDataBufferFunction），不保证在主线程。
+        // RequireScan 会停用在播的 Tour，要调 Unity API，只能在主线程——所以回调里只记下请求，
+        // 下一帧 Update 再处理（ite-guide-state-machine D2 之后才需要：以前 RequireScan 只改一个 bool）。
+        private volatile bool _recenterRequested;
+
+        private void HandleRecentered() => _recenterRequested = true;
+
+        private void Update()
         {
+            if (!_recenterRequested)
+            {
+                return;
+            }
+
+            _recenterRequested = false;
             Debug.Log($"{LogPrefix} 追踪原点变化，上一次锚定作废，要求重新扫码。", this);
-            host?.Runtime?.RequireScan();
 
-            // 日志在头显里看不见：同一件事必须有一条给人的出口。
-            if (_panel == null)
-            {
-                _panel = FindFirstObjectByType<IteHmdPanel>();
-            }
-
-            if (_panel != null)
-            {
-                _panel.NotifyRecentered();
-            }
+            // 黄条由 IteHmdPanel 跟随状态显示（ite-guide-state-machine D8），这里不再去找面板
+            host?.Runtime?.RequireScan(GuideStateReason.Recentered);
         }
-
-        private IteHmdPanel _panel;
 
         /// <summary>
         /// 灭屏 / 摘下 / 切系统菜单都会走这里。暂停期间会话不派发也**不累计缺席时长**——

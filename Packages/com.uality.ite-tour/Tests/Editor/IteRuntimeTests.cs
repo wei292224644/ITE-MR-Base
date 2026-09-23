@@ -91,6 +91,27 @@ namespace Uality.IteTour.Tests
             }
         }
 
+        /// <summary>
+        /// 装配完但还没 StartAsync（=加载未完成）时扫码必须被忽略，不能解析
+        /// （ite-guide-state-machine D9）。
+        /// </summary>
+        [Test]
+        public void SubmitMarkerScan_BeforeInitialized_IsIgnored()
+        {
+            var fixture = new RuntimeFixture();
+            try
+            {
+                LogAssert.Expect(LogType.Log, new Regex("加载未完成，忽略扫码"));
+
+                Assert.DoesNotThrow(() =>
+                    fixture.Runtime.SubmitMarkerScan(MarkerKind.QrText, "whatever", Pose.identity));
+            }
+            finally
+            {
+                fixture.Dispose();
+            }
+        }
+
         [Test]
         public void Create_TourRootNotDirectChildOfAnchorRoot_RefusesAndExplainsWhy()
         {

@@ -33,7 +33,7 @@ namespace Uality.IteTour.Tests
             var state = new ScanState
             {
                 ActiveTourId = "t1",
-                ForcedScanPending = true,
+                State = GuideState.AwaitingScan,
                 PendingTourIds = Pending(),
             };
 
@@ -46,7 +46,7 @@ namespace Uality.IteTour.Tests
         [Test]
         public void Decide_WhenAScanIsRequired_ShowsWithoutNamingTours()
         {
-            var state = new ScanState { ForcedScanPending = true, PendingTourIds = Pending("t1") };
+            var state = new ScanState { State = GuideState.AwaitingScan, PendingTourIds = Pending("t1") };
 
             var prompt = ScanPromptPolicy.Decide(state, Tours(Tour("t1", Normal)));
 
@@ -61,7 +61,7 @@ namespace Uality.IteTour.Tests
         [Test]
         public void Decide_AfterAnchoring_NotInsideAnyVolume_Hides()
         {
-            var state = new ScanState { PendingTourIds = Pending() };
+            var state = new ScanState { State = GuideState.Anchored, PendingTourIds = Pending() };
 
             var prompt = ScanPromptPolicy.Decide(state, Tours(Tour("t1", Normal)));
 
@@ -71,23 +71,34 @@ namespace Uality.IteTour.Tests
         [Test]
         public void Decide_AfterAnchoring_WithoutVolumeSet_Hides()
         {
-            var state = new ScanState { PendingTourIds = null };
+            var state = new ScanState { State = GuideState.Anchored, PendingTourIds = null };
 
             var prompt = ScanPromptPolicy.Decide(state, Tours(Tour("t1", Normal)));
 
             Assert.That(prompt.State, Is.EqualTo(ScanPromptState.Hidden));
         }
 
-        /// <summary>强制扫码在所有体积外仍提示「随便扫哪个」——此刻体积位置还没锚定。</summary>
+        /// <summary>等待扫码在所有体积外仍提示「随便扫哪个」——此刻体积位置还没锚定。</summary>
         [Test]
         public void Decide_WhenAScanIsRequiredOutsideAllVolumes_ShowsWithoutNamingTours()
         {
-            var state = new ScanState { ForcedScanPending = true, PendingTourIds = Pending() };
+            var state = new ScanState { State = GuideState.AwaitingScan, PendingTourIds = Pending() };
 
             var prompt = ScanPromptPolicy.Decide(state, Tours(Tour("t1", Normal)));
 
             Assert.That(prompt.State, Is.EqualTo(ScanPromptState.Visible));
             Assert.That(prompt.TourIds, Is.Empty);
+        }
+
+        /// <summary>头显摘下：没人在看，一律不提示——即使区域里有只能扫码进入的 normal Tour。</summary>
+        [Test]
+        public void Decide_WhenSuspended_Hides()
+        {
+            var state = new ScanState { State = GuideState.Suspended, PendingTourIds = Pending("n1") };
+
+            var prompt = ScanPromptPolicy.Decide(state, Tours(Tour("n1", Normal)));
+
+            Assert.That(prompt.State, Is.EqualTo(ScanPromptState.Hidden));
         }
 
         /// <summary>
@@ -96,7 +107,7 @@ namespace Uality.IteTour.Tests
         [Test]
         public void Decide_WhenARegionalTriggerIsInRange_Hides()
         {
-            var state = new ScanState { PendingTourIds = Pending("r1", "n1") };
+            var state = new ScanState { State = GuideState.Anchored, PendingTourIds = Pending("r1", "n1") };
 
             var prompt = ScanPromptPolicy.Decide(
                 state, Tours(Tour("r1", Regional), Tour("n1", Normal)));
@@ -108,7 +119,7 @@ namespace Uality.IteTour.Tests
         [Test]
         public void Decide_WhenOnlyNormalToursAreInRange_ShowsTheirIds()
         {
-            var state = new ScanState { PendingTourIds = Pending("n1", "n2") };
+            var state = new ScanState { State = GuideState.Anchored, PendingTourIds = Pending("n1", "n2") };
 
             var prompt = ScanPromptPolicy.Decide(
                 state, Tours(Tour("n1", Normal), Tour("n2", Normal), Tour("r1", Regional)));
@@ -121,7 +132,7 @@ namespace Uality.IteTour.Tests
         [Test]
         public void Decide_WhenNothingActionableIsInRange_Hides()
         {
-            var state = new ScanState { PendingTourIds = Pending("a1") };
+            var state = new ScanState { State = GuideState.Anchored, PendingTourIds = Pending("a1") };
 
             var prompt = ScanPromptPolicy.Decide(
                 state, Tours(Tour("a1", IteSpaceScene.Tour.DisplayType.alwaysDisplayed)));

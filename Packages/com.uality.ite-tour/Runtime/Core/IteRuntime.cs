@@ -19,6 +19,9 @@ namespace Uality.IteTour.Core
 
         private bool _started;
 
+        /// <summary>加载完成（含所有 Tour 装配完毕）后置真；加载失败时不置真（ite-guide-state-machine D9）。</summary>
+        private bool _initialized;
+
         /// <summary>装配时收下的标记绑定，供 <see cref="SubmitMarkerScan"/> 反查。</summary>
         private readonly List<MarkerBinding> _bindings = new List<MarkerBinding>();
 
@@ -79,6 +82,7 @@ namespace Uality.IteTour.Core
             };
             _director.TourDeactivated += id => OnTourDeactivated?.Invoke(id);
             _director.ScanPromptChanged += prompt => OnScanPromptChanged?.Invoke(prompt);
+            _director.GuideStateChanged += (state, reason) => OnGuideStateChanged?.Invoke(state, reason);
 
             // 必须在 CreateTourObject 之前挂钩：alwaysDisplayed 的 Tour 在那里面就把内容
             // 建完并触发 OnTourSceneLoaded（design D29）
@@ -118,6 +122,13 @@ namespace Uality.IteTour.Core
 
         /// <summary>扫码提示的显隐与内容发生变化（design D5）。仅在变化时触发。</summary>
         public event Action<ScanPrompt> OnScanPromptChanged;
+
+        /// <summary>
+        /// 导览状态或进入原因变化（ite-guide-state-machine D8）。宿主据此显示对应提示，
+        /// 例如「视角已重定位」只在 <see cref="Core.GuideState.AwaitingScan"/> 且原因是
+        /// <see cref="Core.GuideStateReason.Recentered"/> 时显示。
+        /// </summary>
+        public event Action<GuideState, GuideStateReason> OnGuideStateChanged;
 
         /// <summary>
         /// 跑完整条加载链：拉场景描述 → 逐 Tour 拉内容并实例化 → 广播初始化完成。
@@ -187,13 +198,18 @@ namespace Uality.IteTour.Core
             }
 
             OnLoadProgress?.Invoke(1f);
+
+            // 装配是逐个 Tour 登记进 _liveTours 的（IteTourAssembler.cs），标记桥在 runtime 创建时
+            // 就已经接上——加载途中扫到已装配的码本来就能解析。这里置真之前扫码一律忽略，恢复
+            // 基线（旧实现）的语义：加载期间扫码不生效（ite-guide-state-machine D9）。
+            _initialized = true;
             OnInitialized?.Invoke();
 
             // 默认打开：忘了配置时应该能工作，而不是静默失效（design D2）
             _assembler.SetAllVolumesActive(true);
 
-            // 冷启动后的第一次扫码无条件生效
-            _director.RequireScan();
+            // 冷启动状态由 TourGuide 构造时给出（AwaitingScan / ColdStart），这里不再额外要求重扫
+            // （ite-guide-state-machine D9）。加载途中摘下头显时状态是 Suspended，戴上后照常进入等待扫码。
         }
 
         /// <summary>
@@ -221,10 +237,23 @@ namespace Uality.IteTour.Core
         }
 
         /// <summary>
-        /// 不经传感器直接激活指定 Tour（design D30）。没有真机与二维码时，
-        /// 这是验证内容管线的唯一手段。找不到返回 false。
+        /// 不经传感器直接激活指定 Tour（design D30），沿用现有锚定。只在已定位（Anchored）状态下可用，
+        /// 其他状态返回 false（ite-guide-state-machine D4）。找不到也返回 false。
         /// </summary>
         public bool ActivateTour(string tourId) => _director.ActivateById(tourId);
+
+        /// <summary>导览当前状态（ite-guide-state-machine D1）。</summary>
+        public GuideState GuideState => _director.State;
+
+        /// <summary>进入当前状态的原因。</summary>
+        public GuideStateReason GuideStateReason => _director.Reason;
+
+        /// <summary>
+        /// 当前扫码提示，即最近一次 <see cref="OnScanPromptChanged"/> 广播的值。构造完成后的
+        /// 第一帧就会广播一次（ite-guide-state-machine D9），宿主挂钩可能晚于这一刻——
+        /// 挂钩时应先读一次这个属性同步，不能只靠事件。
+        /// </summary>
+        public ScanPrompt ScanPrompt => _director.ScanPrompt;
 
         /// <summary>当前激活的 tour。无激活时为 null。</summary>
         public string ActiveTourId => _director.ActiveTourId;
@@ -260,9 +289,19 @@ namespace Uality.IteTour.Core
         ///
         /// <paramref name="pose"/> 是标记的世界位姿，按 <see cref="MarkerFrame"/> 的宿主约定给
         /// （X 印刷左、Y 印刷上、Z 出纸面）；换算到内容锚点在这里做，宿主不要自己转。
+        ///
+        /// 初始化完成前（含加载失败）忽略扫码，恢复基线语义（ite-guide-state-machine D9）：
+        /// 装配是逐个 Tour 登记的，标记桥在 runtime 创建时就已接上，不加这道门禁的话，加载
+        /// 途中扫到已装配的码会直接激活并锚定。
         /// </summary>
         public void SubmitMarkerScan(MarkerKind kind, string rawPayload, Pose pose)
         {
+            if (!_initialized)
+            {
+                Debug.Log($"[ITE] 加载未完成，忽略扫码 kind={kind} payload=\"{rawPayload}\"");
+                return;
+            }
+
             var outcome = MarkerIdentity.Resolve(kind, rawPayload, _bindings, out string tourId);
             if (outcome != MarkerResolution.Resolved)
             {
@@ -292,15 +331,18 @@ namespace Uality.IteTour.Core
         }
 
         /// <summary>
-        /// 宿主要求下一次扫码无条件生效。用于「上一次锚定不再可信」的场合——
-        /// 例如系统重定位改了追踪原点：内容在世界坐标里没动，物理世界却整个转了过去，
-        /// 不重扫就会一直偏着（design D18）。
-        ///
-        /// 与摘下/戴上不同：这里**不停用当前 Tour**，只是要求重扫。
+        /// 运行中直接进入「等待扫码定位」：停掉在播的 Tour，状态与冷启动一致（ite-guide-state-machine D2）。
+        /// 用于「上一次锚定不再可信」的场合——例如系统重定位改了追踪原点：内容在世界坐标里没动，
+        /// 物理世界却整个转了过去，不重扫就会一直偏着（design D18），此时传
+        /// <see cref="Core.GuideStateReason.Recentered"/>。头显摘下期间调用不切换状态，戴上时本就会要求扫码（ite-guide-state-machine D3）。
         /// </summary>
-        public void RequireScan() => _director.RequireScan();
+        public void RequireScan(GuideStateReason reason = GuideStateReason.HostRequested)
+            => _director.RequireScan(reason);
 
-        /// <summary>宿主推入头显佩戴状态。摘下暂停导览，重新戴上要求重新扫码。</summary>
+        /// <summary>
+        /// 宿主推入头显佩戴状态。摘下：停掉在播 Tour、不认扫码、区域不唤醒 Tour；戴上：进入等待扫码定位
+        /// （ite-guide-state-machine §3.2）。
+        /// </summary>
         public void SetHeadsetMounted(bool mounted)
             => _director.SetHeadsetMounted(mounted);
 

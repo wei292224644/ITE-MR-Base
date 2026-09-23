@@ -29,16 +29,13 @@ namespace Uality.IteTour.Core
     /// <summary>决策所需的导览状态快照。</summary>
     public struct ScanState
     {
-        /// <summary>摘下头显期间为 true，此时忽略一切扫描。</summary>
-        public bool Paused;
-
-        /// <summary>「必须先扫码」状态：冷启动、重新戴上头显、追踪原点重置后为 true（ite-scan-region-gate D2）。</summary>
-        public bool ForcedScanPending;
+        /// <summary>导览所处的状态（ite-guide-state-machine D1）。</summary>
+        public GuideState State;
 
         public string ActiveTourId;
 
         /// <summary>
-        /// 相机当前所在触发体积对应的 Tour 集合。非强制扫码只认这里面的码；
+        /// 相机当前所在触发体积对应的 Tour 集合。<see cref="GuideState.Anchored"/> 下扫码只认这里面的码；
         /// 为空表示相机在所有体积外，此时扫码不生效（ite-scan-region-gate D1）。
         /// </summary>
         public IReadOnlyList<string> PendingTourIds;
@@ -48,9 +45,6 @@ namespace Uality.IteTour.Core
     {
         public ScanAction Action;
         public string TourId;
-
-        /// <summary>本次是否消费掉「必须先扫码」状态。</summary>
-        public bool ClearsForcedScan;
 
         /// <summary>本次是否消耗目标 Tour 的二次锚定许可。</summary>
         public bool ConsumesSecondAnchor;
@@ -68,13 +62,14 @@ namespace Uality.IteTour.Core
     /// 走完，于是走出另一套语义。详见 design D14。
     ///
     /// 本实现采用**内容异步加载路径**下的行为作为规范语义（真机上的常规情况），
-    /// 把原先的偶然行为固化成契约。
+    /// 把原先的偶然行为固化成契约。状态转换（等待扫码 → 已定位）不在这里，归
+    /// <see cref="TourGuide"/>。
     /// </summary>
     public static class TourScanPolicy
     {
         public static ScanDecision Decide(ScanState state, IReadOnlyList<TourDescriptor> tours, string markerId)
         {
-            if (state.Paused || string.IsNullOrEmpty(markerId) || tours == null)
+            if (state.State == GuideState.Suspended || string.IsNullOrEmpty(markerId) || tours == null)
             {
                 return ScanDecision.Ignore;
             }
@@ -84,9 +79,10 @@ namespace Uality.IteTour.Core
                 return ScanDecision.Ignore;
             }
 
-            if (state.ForcedScanPending)
+            if (state.State == GuideState.AwaitingScan)
             {
-                // 强制扫码不看展示类型，任何匹配的 Tour 都会被激活（与源实现一致）。
+                // 等待扫码定位：不看区域、不看展示类型，任何匹配的 Tour 都激活（与源实现的强制扫码
+                // 一致；不看区域见 ite-scan-region-gate D2）。
                 //
                 // ConsumesSecondAnchor 为 false 是 D14 的所选语义：源实现中第二个
                 // 处理器此刻会去查 CanSecondAnchor()，而 Enable() 尚未完成、
@@ -95,13 +91,12 @@ namespace Uality.IteTour.Core
                 {
                     Action = ScanAction.Activate,
                     TourId = tour.TourId,
-                    ClearsForcedScan = true,
                     ConsumesSecondAnchor = false,
                 };
             }
 
             // 定位过之后只认相机所在触发体积的码，体积外一律不认（ite-scan-region-gate D1）。
-            // 源实现在体积外不设限；现在只有上面的强制扫码能无视区域（D2）——
+            // 源实现在体积外不设限；现在只有上面的等待扫码能无视区域（ite-scan-region-gate D2）——
             // 那时体积还没按真实位姿锚定，站在哪都不算数。
             if (!TourIdLists.Contains(state.PendingTourIds, markerId))
             {
@@ -159,6 +154,5 @@ namespace Uality.IteTour.Core
             found = default;
             return false;
         }
-
     }
 }

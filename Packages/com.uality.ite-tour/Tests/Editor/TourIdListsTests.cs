@@ -24,5 +24,25 @@ namespace Uality.IteTour.Tests
         {
             Assert.That(TourIdLists.Contains(null, "a"), Is.False);
         }
+
+        [Test]
+        public void SameSet_IgnoresOrder()
+        {
+            Assert.That(TourIdLists.SameSet(new[] { "a", "b" }, new[] { "b", "a" }), Is.True);
+        }
+
+        [Test]
+        public void SameSet_DifferentMembers_IsFalse()
+        {
+            Assert.That(TourIdLists.SameSet(new[] { "a" }, new[] { "a", "b" }), Is.False);
+            Assert.That(TourIdLists.SameSet(new[] { "a", "c" }, new[] { "a", "b" }), Is.False);
+        }
+
+        [Test]
+        public void SameSet_NullEqualsEmpty()
+        {
+            Assert.That(TourIdLists.SameSet(null, new string[0]), Is.True);
+            Assert.That(TourIdLists.SameSet(null, new[] { "a" }), Is.False);
+        }
     }
 }

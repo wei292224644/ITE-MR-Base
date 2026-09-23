@@ -75,9 +75,6 @@ namespace MRBase.Ite.Host
             Refresh();
         }
 
-        /// <summary>重定位后由输入层调一次，把「请重新扫码」摆到人眼前。</summary>
-        public void NotifyRecentered() => _recenterPending = true;
-
         private void TryHook()
         {
             if (host == null)
@@ -108,6 +105,11 @@ namespace MRBase.Ite.Host
             _hookedRuntime.OnSpaceSceneLoaded += HandleSpaceSceneLoaded;
             _hookedRuntime.OnScanPromptChanged += HandleScanPromptChanged;
             _hookedRuntime.OnInitialized += HandleInitialized;
+            _hookedRuntime.OnGuideStateChanged += HandleGuideStateChanged;
+
+            // 挂钩可能晚于首次广播（构造后第一帧就发），先同步一次当前提示与状态
+            _prompt = runtime.ScanPrompt;
+            HandleGuideStateChanged(runtime.GuideState, runtime.GuideStateReason);
         }
 
         private void Unhook()
@@ -121,6 +123,7 @@ namespace MRBase.Ite.Host
             _hookedRuntime.OnSpaceSceneLoaded -= HandleSpaceSceneLoaded;
             _hookedRuntime.OnScanPromptChanged -= HandleScanPromptChanged;
             _hookedRuntime.OnInitialized -= HandleInitialized;
+            _hookedRuntime.OnGuideStateChanged -= HandleGuideStateChanged;
             _hookedRuntime = null;
         }
 
@@ -129,14 +132,24 @@ namespace MRBase.Ite.Host
         private void HandleSpaceSceneLoaded(IteSpaceScene scene)
             => _sceneName = scene != null ? scene.name : null;
 
-        private void HandleScanPromptChanged(ScanPrompt prompt)
+        private void HandleScanPromptChanged(ScanPrompt prompt) => _prompt = prompt;
+
+        /// <summary>
+        /// 重定位黄条表达的是一个状态：「因为重定位，正在等待扫码」（ite-guide-state-machine D8）。
+        /// 跟着状态走：扫码进入 Anchored（或摘下）即清掉，不会残留。
+        /// </summary>
+        public static bool ShowsRecenterBanner(GuideState state, GuideStateReason reason)
+            => state == GuideState.AwaitingScan && reason == GuideStateReason.Recentered;
+
+        private void HandleGuideStateChanged(GuideState state, GuideStateReason reason)
         {
-            _prompt = prompt;
-            if (prompt.State == ScanPromptState.Visible)
+            bool show = ShowsRecenterBanner(state, reason);
+            if (show != _recenterPending)
             {
-                // 提示重新出现意味着扫码要求已被满足或重置，重定位提醒可以撤了。
-                _recenterPending = false;
+                Debug.Log("[ITE Host] 重定位横幅：" + (show ? "显示" : "清除"));
             }
+
+            _recenterPending = show;
         }
 
         private void HandleInitialized()

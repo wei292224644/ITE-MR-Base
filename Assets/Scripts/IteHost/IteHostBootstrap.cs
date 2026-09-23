@@ -329,7 +329,8 @@ namespace MRBase.Ite.Host
         }
 
         private static void HandleScanPromptChanged(ScanPrompt prompt)
-            => Debug.Log("[ITE Host] OnScanPromptChanged " + prompt.State);
+            => Debug.Log("[ITE Host] OnScanPromptChanged " + prompt.State
+                         + " [" + string.Join(",", prompt.TourIds ?? Array.Empty<string>()) + "]");
 
         private void OnDestroy()
         {

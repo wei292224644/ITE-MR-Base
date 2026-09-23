@@ -71,6 +71,10 @@ namespace MRBase.Ite.Host
             _hookedRuntime.OnLoadProgress += HandleLoadProgress;
             _hookedRuntime.OnSpaceSceneLoaded += HandleSpaceSceneLoaded;
             _hookedRuntime.OnScanPromptChanged += HandleScanPromptChanged;
+
+            // 挂钩可能晚于首次广播（构造后第一帧就发），先读一次当前提示同步
+            // （ite-guide-state-machine D9）。
+            _prompt = _hookedRuntime.ScanPrompt;
         }
 
         private void HandleLoadProgress(float progress) => _loadProgress = progress;

@@ -13,6 +13,6 @@ namespace Uality.IteTour.Core
     {
         internal TourDirector Director;
 
-        private void LateUpdate() => Director?.FlushRegionTransitions();
+        private void LateUpdate() => Director?.EndOfFrame();
     }
 }
