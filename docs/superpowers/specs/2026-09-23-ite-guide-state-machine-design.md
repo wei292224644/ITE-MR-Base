@@ -58,7 +58,7 @@ public enum GuideState
 | `Anchored` | 区域门禁（区域门禁 spec D1）+ 按展示类型处理（与现状相同） | 是（`regionalTrigger`，见 D5） | 有或无 | 与现状相同（在播隐藏；区域外隐藏；区域内有 `regionalTrigger` 隐藏；只有 `normal` 列出其名字） |
 
 **不变式**
-- **I1**：只有 `Anchored` 状态下才可能有 Tour 在播（由 `TourDirector` 管的那一个）。`alwaysDisplayed` 的 Tour 在装配时就建树常驻，不属于「在播」，不受状态影响，与现状一致。
+- **I1**：只有 `Anchored` 状态下才可能有 Tour 在播（由 `TourDirector` 管的那一个）。`alwaysDisplayed` 的 Tour 在装配时就建树常驻，不属于「在播」，不受状态影响，与现状一致。（`alwaysDisplayed` 不受状态影响这一点，已被 ite-current-tour D8 修订：只在 `Anchored` 下显示。）
 - **I2**：只有 `Anchored` 状态下区域才会唤醒 Tour。
 - **I3**：「所在区域」集合在所有状态下都照常随进出事件更新，状态只决定要不要据此行动。
 
@@ -122,6 +122,8 @@ public enum GuideStateReason { ColdStart, HeadsetRemoved, HeadsetMounted, Recent
 **为什么**：否则 `AwaitingScan` 下会冒出在播的 Tour，违反 I1。目前没有宿主调用方，唯一的测试调用的是不存在的 id，结果不变。
 
 ### D5 区域重选改为「帧末按集合的净变化判一次」，去掉 `_reselectPending`
+
+> 已被 `2026-09-23-ite-current-tour-design.md` 的 D2（取队尾）、D3（在播优先）、D9（锚定结算窗口）取代。
 
 **选了什么**：
 - 区域进出事件只更新「所在区域」集合（I3），不再在事件上做重选判断。

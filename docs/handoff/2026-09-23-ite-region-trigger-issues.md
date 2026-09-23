@@ -1,5 +1,7 @@
 # Handoff: ITE 区域触发的两个真机问题（PICO 实测）
 
+> 后续：两个问题的修复见 spec `docs/superpowers/specs/2026-09-23-ite-current-tour-design.md` 与计划 `docs/superpowers/plans/2026-09-23-ite-current-tour.md`。
+
 > Generated: 2026-09-23 14:40 CST
 > Next session focus: 记录并排查 PICO 实测暴露的两个区域触发问题——①扫码锚定后被区域重选立刻切走；②同一触发体积的进入/离开事件成对重复
 
