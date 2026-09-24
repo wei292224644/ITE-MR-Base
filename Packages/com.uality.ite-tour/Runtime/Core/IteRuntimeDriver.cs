@@ -17,11 +17,18 @@ namespace Uality.IteTour.Core
         private void LateUpdate() => Director?.EndOfFrame();
 
         /// <summary>
+        /// 在 OnEnable 而不是 Start 里启动（ite-current-tour D14）：对象停用时 Unity 会停掉它上面的协程，
+        /// 而 Start 只跑一次，再启用就回不来——LateUpdate 照常恢复，结算窗口却从此关不上，当前 Tour
+        /// 再也不换，且不报错。编辑器非播放态不跑（OnEnable 不会被调用），EditMode 测试直接调 AfterPhysicsStep。
+        /// </summary>
+        private void OnEnable() => StartCoroutine(NotifyPhysicsSteps());
+
+        /// <summary>
         /// 每个物理步之后通知一次，给锚定结算窗口用（ite-current-tour D9）。Unity 每个物理步的顺序是
         /// FixedUpdate → 物理模拟 → OnTrigger* → WaitForFixedUpdate，所以这里返回时，这一步的区域进出
-        /// 已经全部到达。编辑器非播放态不跑（Start 不会被调用），EditMode 测试直接调 AfterPhysicsStep。
+        /// 已经全部到达。
         /// </summary>
-        private IEnumerator Start()
+        private IEnumerator NotifyPhysicsSteps()
         {
             var wait = new WaitForFixedUpdate();
             while (true)
