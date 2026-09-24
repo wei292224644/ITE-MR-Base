@@ -36,7 +36,6 @@ namespace MRBase.Ite.Host
         [SerializeField]
         [Tooltip("一次触发持续投喂多久。必须大于 MarkerStabilizerProfile 的 stableSeconds，否则永远判不稳")]
         float feedSeconds = 1f;
-        [SerializeField] float lostAfterSeconds = 1f;
 
         private MockObservationSource _source;
         private MarkerTrackingSession _session;
@@ -62,10 +61,6 @@ namespace MRBase.Ite.Host
                 return;
             }
 
-            _source = new MockObservationSource();
-            _session = new MarkerTrackingSession(_source, lostAfterSeconds);
-            _session.Open();
-
             // 与 IteDeviceMarkerRig 同一套：连线为空就自己找，找不到出声。
             // 这里的连线跨预制体（本组件在 harness 预制体里，装配点在 IteTourRig 里），
             // 预制体资产存不了场景引用——没有兜底时，把 harness 拖进新场景会得到
@@ -74,6 +69,13 @@ namespace MRBase.Ite.Host
             {
                 host = FindFirstObjectByType<IteHostBootstrap>();
             }
+
+            // 丢失时长由装配点统一提供（marker-rescan D2）。没有装配点时假扫码不驱动任何导览，按默认值建会话即可。
+            _source = new MockObservationSource();
+            _session = new MarkerTrackingSession(
+                _source,
+                host != null ? host.MarkerLostAfterSeconds : MarkerStabilizerProfile.DefaultLostAfterSeconds);
+            _session.Open();
 
             if (host == null)
             {

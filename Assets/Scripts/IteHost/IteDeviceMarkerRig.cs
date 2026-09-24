@@ -25,10 +25,6 @@ namespace MRBase.Ite.Host
         [Tooltip("装配点。留空则在本场景里找")]
         private IteHostBootstrap host;
 
-        [SerializeField]
-        [Tooltip("标记连续缺席多久算丢失")]
-        private float lostAfterSeconds = 1.0f;
-
         [Header("触发体积的物理前提")]
         [SerializeField]
         [Tooltip("给相机挂的触发碰撞体半径（米）。太大容易提前触发，太小容易穿过去")]
@@ -123,7 +119,8 @@ namespace MRBase.Ite.Host
                 Debug.LogError($"{LogPrefix} {detail}", this);
             }
 
-            _session = new MarkerTrackingSession(_source, lostAfterSeconds);
+            // 丢失时长由装配点统一提供，真机与编辑器同一个来源（marker-rescan D2）
+            _session = new MarkerTrackingSession(_source, host.MarkerLostAfterSeconds);
 
             try
             {

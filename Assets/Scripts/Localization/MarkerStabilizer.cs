@@ -15,7 +15,7 @@ using UnityEngine;
 ///    就等于相邻两帧的原始抖动，阈值永远过不去——PICO 上一次都不触发的真正原因。
 /// 3. **每次出现只提交一次**（marker-rescan D1）。码固定贴在场地里，持续观测期间的「移动」只来自
 ///    识别噪声或追踪漂移——PICO 抖 2–5 度，旧的「移动后重新判稳再发」约 4 秒误触发一次重扫。
-///    要再提交，先 <see cref="Reset"/>（丢失）。
+///    要再提交，先 <see cref="Reset"/>（丢失）或 <see cref="ResetAll"/>（放行）。
 ///
 /// 三项参数按平台各存一套，见 <c>MarkerStabilizerProfile</c>；硬件不是纸面上的理想值，
 /// 这些必须留成可调旋钮。
@@ -110,4 +110,7 @@ public class MarkerStabilizer
 
     /// <summary>这张码当作没出现过：下次喂入重新平滑、重新判稳。</summary>
     public void Reset(string rawId) => tracked.Remove(rawId);
+
+    /// <summary>所有码都当作没出现过：下次喂入重新平滑、重新判稳（放行，marker-rescan D3）。</summary>
+    public void ResetAll() => tracked.Clear();
 }

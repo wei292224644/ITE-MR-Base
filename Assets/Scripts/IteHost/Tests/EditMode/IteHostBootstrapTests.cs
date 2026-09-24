@@ -81,6 +81,32 @@ namespace MRBase.Ite.Host.Tests
             }
         }
 
+        /// <summary>
+        /// 丢失时长只有一个来源：装配点的配置资产（marker-rescan D2）。没接资产时退回 3 秒，扫码仍可工作。
+        /// </summary>
+        [Test]
+        public void MarkerLostAfterSeconds_ComesFromProfile_FallsBackToThreeSeconds()
+        {
+            var fixture = new HostFixture();
+            var profile = ScriptableObject.CreateInstance<MarkerStabilizerProfile>();
+            try
+            {
+                Assert.AreEqual(3f, fixture.Host.MarkerLostAfterSeconds);
+
+                profile.lostAfterSeconds = 4.5f;
+                var so = new UnityEditor.SerializedObject(fixture.Host);
+                so.FindProperty("stabilizerProfile").objectReferenceValue = profile;
+                so.ApplyModifiedPropertiesWithoutUndo();
+
+                Assert.AreEqual(4.5f, fixture.Host.MarkerLostAfterSeconds);
+            }
+            finally
+            {
+                Object.DestroyImmediate(profile);
+                fixture.Dispose();
+            }
+        }
+
         private sealed class HostFixture
         {
             private readonly IteRuntimeConfig _config;

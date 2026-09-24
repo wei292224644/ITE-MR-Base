@@ -1,3 +1,4 @@
+using System.Collections.Generic;
 using NUnit.Framework;
 using UnityEngine;
 
@@ -82,6 +83,35 @@ public class MarkerStabilizerTests
         Assert.AreEqual(1, firedCount, "重新判稳要走满窗口");
         stabilizer.Feed("A", pose, 1f);
         Assert.AreEqual(2, firedCount);
+    }
+
+    /// <summary>
+    /// 放行（marker-rescan D3）：所有码当作新的一次出现，重新判稳、各自再提交一次。
+    /// </summary>
+    [Test]
+    public void ResetAll_EveryMarkerFiresAgain()
+    {
+        var stabilizer = new MarkerStabilizer(positionThreshold: 0.05f, rotationThreshold: 1f, smoothTime: 0.001f, stableSeconds: 2f);
+        var fired = new List<string>();
+        stabilizer.Stabilized += (id, _) => fired.Add(id);
+
+        var pose = new Pose(new Vector3(1, 0, 0), Quaternion.identity);
+        for (int i = 0; i < 2; i++)
+        {
+            stabilizer.Feed("A", pose, 1f);
+            stabilizer.Feed("B", pose, 1f);
+        }
+
+        CollectionAssert.AreEqual(new[] { "A", "B" }, fired);
+
+        stabilizer.ResetAll();
+        stabilizer.Feed("A", pose, 1f);
+        stabilizer.Feed("B", pose, 1f);
+        Assert.AreEqual(2, fired.Count, "重新判稳要走满窗口");
+
+        stabilizer.Feed("A", pose, 1f);
+        stabilizer.Feed("B", pose, 1f);
+        CollectionAssert.AreEqual(new[] { "A", "B", "A", "B" }, fired);
     }
 
     /// <summary>

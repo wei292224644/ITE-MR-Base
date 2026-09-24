@@ -78,7 +78,6 @@ MonoBehaviour:
   m_Name: 
   m_EditorClassIdentifier: MRBase.Ite.Host::MRBase.Ite.Host.IteDeviceMarkerRig
   host: {fileID: 0}
-  lostAfterSeconds: 1
   cameraColliderRadius: 0.15
   xrReadyTimeoutSeconds: 20
 --- !u!1 &4509620623774528240

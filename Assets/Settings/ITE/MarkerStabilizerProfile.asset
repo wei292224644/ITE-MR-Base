@@ -12,6 +12,7 @@ MonoBehaviour:
   m_Script: {fileID: 11500000, guid: 276238a111714156885df2062f497f3a, type: 3}
   m_Name: MarkerStabilizerProfile
   m_EditorClassIdentifier: MRBase.Localization::MarkerStabilizerProfile
+  lostAfterSeconds: 3
   quest:
     positionThreshold: 0.05
     rotationThreshold: 1

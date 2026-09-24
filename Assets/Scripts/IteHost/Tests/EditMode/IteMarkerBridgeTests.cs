@@ -149,6 +149,84 @@ namespace MRBase.Ite.Host.Tests
         }
 
         /// <summary>
+        /// 丢失时长就是重扫门槛（marker-rescan D2）：移开视线不满丢失时长就看回来，算同一次出现；
+        /// 满了再看回来，才算一次新的扫描。
+        /// </summary>
+        [Test]
+        public void Rescan_RequiresLookingAwayForTheLostTime()
+        {
+            var source = new MockObservationSource();
+            var session = new MarkerTrackingSession(source, lostAfterSeconds: 3f);
+            var forwarded = new List<(MarkerKind kind, string payload, Pose pose)>();
+            var visible = new[] { new MarkerObservation(MarkerPlatform.Quest, QuestPayload, Pose.identity) };
+
+            using (var bridge = new IteMarkerBridge(session, Profile(), null,
+                       (k, p, pose) => forwarded.Add((k, p, pose))))
+            {
+                void Run(int ticks, bool seen)
+                {
+                    for (int i = 0; i < ticks; i++)
+                    {
+                        if (seen)
+                        {
+                            source.SetNextPoll(visible);
+                        }
+                        else
+                        {
+                            source.SetNextPollEmpty();
+                        }
+
+                        bridge.Tick(Dt);
+                    }
+                }
+
+                Run(5, seen: true);
+                Assert.AreEqual(1, forwarded.Count);
+
+                Run(20, seen: false); // 移开 2 秒
+                Run(5, seen: true);
+                Assert.AreEqual(1, forwarded.Count, "移开不满 3 秒，算同一次出现");
+
+                Run(31, seen: false); // 移开 3.1 秒
+                Run(5, seen: true);
+                Assert.AreEqual(2, forwarded.Count, "移开满 3 秒再看回来，算新的一次扫描");
+            }
+        }
+
+        /// <summary>放行（marker-rescan D3）：ITE 在等第一次扫描时，视野里的码不必先移开视线。</summary>
+        [Test]
+        public void Rearm_WhileVisible_ForwardsAgain()
+        {
+            var source = new MockObservationSource();
+            var session = new MarkerTrackingSession(source, lostAfterSeconds: 3f);
+            var forwarded = new List<(MarkerKind kind, string payload, Pose pose)>();
+
+            using (var bridge = new IteMarkerBridge(session, Profile(), null,
+                       (k, p, pose) => forwarded.Add((k, p, pose))))
+            {
+                source.SetNextPoll(new[]
+                {
+                    new MarkerObservation(MarkerPlatform.Quest, QuestPayload, Pose.identity)
+                });
+
+                for (int i = 0; i < 5; i++)
+                {
+                    bridge.Tick(Dt);
+                }
+
+                Assert.AreEqual(1, forwarded.Count);
+
+                bridge.Rearm();
+                for (int i = 0; i < 20; i++)
+                {
+                    bridge.Tick(Dt);
+                }
+            }
+
+            Assert.AreEqual(2, forwarded.Count, "放行后重新判稳、再转发一次，之后仍然只算一次");
+        }
+
+        /// <summary>
         /// design D20：同一 tick 只提交一张码。落选的码重新判稳、之后单独提交（marker-rescan D7）——
         /// 判稳每次出现只发一次，丢掉它就要移开视线才能再扫；放行会让视野里的码同时判稳，落选是常态。
         /// </summary>

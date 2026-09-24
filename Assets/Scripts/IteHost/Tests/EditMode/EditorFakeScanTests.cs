@@ -73,6 +73,9 @@ namespace MRBase.Ite.Host.Tests
                 Assert.AreEqual(0, lost, "投喂尚未超过滞回");
 
                 Step(1.1f);
+                Assert.AreEqual(0, lost, "缺席不满丢失时长（没有装配点时默认 3 秒，marker-rescan D2）");
+
+                Step(2f);
                 Assert.AreEqual(1, lost);
                 Step(1f);
                 Assert.AreEqual(1, lost, "持续缺席只派发一次 Lost");

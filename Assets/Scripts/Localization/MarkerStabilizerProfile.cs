@@ -8,11 +8,21 @@ using UnityEngine;
 /// 70 Hz 派发；PICO 的位姿由单应解出、相邻两帧抖 2–5 度、5.6 Hz 派发。
 /// 但两端走同一条代码路径，差异只在这里的数字，避免故障只能在各自真机上复现。
 ///
+/// 丢失时长 <see cref="lostAfterSeconds"/> 是例外，两端共用一个值（marker-rescan D2）：它是
+/// 「移开视线多久才能重扫」的门槛，属于行为约定，不是噪声参数。
+///
 /// 缺省值是**起点不是结论**：真机调参把实测值回填到本资产（tasks 9.3）。
 /// </summary>
 [CreateAssetMenu(fileName = "MarkerStabilizerProfile", menuName = "MRBase/Localization/Marker Stabilizer Profile")]
 public class MarkerStabilizerProfile : ScriptableObject
 {
+    /// <summary>没接配置资产时的丢失时长（秒）。</summary>
+    public const float DefaultLostAfterSeconds = 3f;
+
+    [Header("在场判定（两端共用）")]
+    [Tooltip("连续这么久认不出一张码，才算它丢失（秒）。也是重扫门槛：移开视线这么久再看回来，才算一次新的扫描")]
+    public float lostAfterSeconds = DefaultLostAfterSeconds;
+
     [Serializable]
     public struct Settings
     {

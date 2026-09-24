@@ -37,7 +37,7 @@ namespace MRBase.Ite.Host
 
         [Header("标记桥接")]
         [SerializeField]
-        [Tooltip("防抖参数，两端各一套。留空则用出厂参数，扫码仍可工作")]
+        [Tooltip("防抖参数（两端各一套）与丢失时长（两端共用）。留空则用出厂参数，扫码仍可工作")]
         private MarkerStabilizerProfile stabilizerProfile;
 
         [SerializeField]
@@ -73,6 +73,14 @@ namespace MRBase.Ite.Host
 
         /// <summary>已接上的标记桥。未注入会话时为 null。</summary>
         public IteMarkerBridge MarkerBridge => _bridge;
+
+        /// <summary>
+        /// 标记连续认不出多久算丢失，也是重扫门槛（marker-rescan D2）。输入层建会话时从这里取，
+        /// 真机与编辑器只有这一个来源。没接配置资产时退回默认值。
+        /// </summary>
+        public float MarkerLostAfterSeconds => stabilizerProfile != null
+            ? stabilizerProfile.lostAfterSeconds
+            : MarkerStabilizerProfile.DefaultLostAfterSeconds;
 
         /// <summary>
         /// 注入标记会话。可在运行时就绪前或后调用：未就绪则暂存，就绪后补接。
@@ -328,9 +336,18 @@ namespace MRBase.Ite.Host
             }
         }
 
-        private static void HandleScanPromptChanged(ScanPrompt prompt)
-            => Debug.Log("[ITE Host] OnScanPromptChanged " + prompt.State
-                         + " [" + string.Join(",", prompt.TourIds ?? Array.Empty<string>()) + "]");
+        private void HandleScanPromptChanged(ScanPrompt prompt)
+        {
+            Debug.Log("[ITE Host] OnScanPromptChanged " + prompt.State
+                      + " [" + string.Join(",", prompt.TourIds ?? Array.Empty<string>()) + "]");
+
+            // 有提示 = ITE 在等第一次扫描：视野里已经提交过的码也要能直接扫上，不必先移开视线（marker-rescan D3）。
+            // 没提示时再扫同一张码是重扫，必须先移开满丢失时长（D2）。
+            if (prompt.State == ScanPromptState.Visible)
+            {
+                _bridge?.Rearm();
+            }
+        }
 
         private void OnDestroy()
         {

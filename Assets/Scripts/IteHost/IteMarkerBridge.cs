@@ -44,7 +44,7 @@ namespace MRBase.Ite.Host
             new Dictionary<(MarkerPlatform, string), float>();
 
         /// <summary>
-        /// 两次观测之间的空档最多算这么长的稳定时长：没丢失（会话滞回 1 秒）但隔得久时，
+        /// 两次观测之间的空档最多算这么长的稳定时长：没丢失（会话丢失时长默认 3 秒）但隔得久时，
         /// 不能只看到两三眼就判稳。取值高于 PICO 的观测间隔（约 0.18 秒），不影响正常连续识别。
         /// </summary>
         private const float MaxGapCreditSeconds = 0.25f;
@@ -105,6 +105,16 @@ namespace MRBase.Ite.Host
             _session.Tick(deltaTime);
         }
 
+        /// <summary>
+        /// 放行：视野里的码都当作新的一次出现，重新平滑、重新判稳（marker-rescan D3）。
+        /// 宿主在 ITE 发出扫码提示时调用——那是需要第一次扫描的时候，码一直在视野里也要能扫上。
+        /// </summary>
+        public void Rearm()
+        {
+            _questStabilizer.ResetAll();
+            _picoStabilizer.ResetAll();
+        }
+
         private void HandleObserved(MarkerObservation observation)
         {
             LastObservedRawPayload = observation.RawPayload;
@@ -124,7 +134,7 @@ namespace MRBase.Ite.Host
             _lastSeenAt.Remove((platform, rawPayload));
 
             // 丢失即重置：下次再出现要重新走完稳定窗口才算新的一次扫码。
-            // 这条同时让「二次锚定」回到人有意重扫的动作，而不是连续观测的第 2 帧。
+            // 丢失时长就是重扫门槛（marker-rescan D2）：移开视线够久再看回来，才是人有意重扫。
             StabilizerFor(platform).Reset(rawPayload);
         }
 

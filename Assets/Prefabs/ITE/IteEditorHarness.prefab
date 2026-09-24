@@ -310,7 +310,6 @@ MonoBehaviour:
   - hkdaowxy_0hu
   markerDistance: 1.5
   feedSeconds: 1
-  lostAfterSeconds: 1
 --- !u!114 &2831957015961796381
 MonoBehaviour:
   m_ObjectHideFlags: 0
