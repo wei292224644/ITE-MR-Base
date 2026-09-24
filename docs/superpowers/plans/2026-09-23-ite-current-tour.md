@@ -3011,3 +3011,521 @@ EOF
 - [ ] **Step 4: 汇报并停下**
 
 向用户汇报：两个程序集的 `Summary`；spec §10 的真机验证清单（出包要等用户说「打包」）。**不要打包、不要装机。**
+
+---
+
+## 补充（2026-09-24，整分支审查之后）
+
+整分支审查（`c8383d6..8d53ed9`）查出 C1：Task 6 用停用内容根来隐藏 `alwaysDisplayed`，会销毁其中的视频（`VideoPlaneElement.OnDisable` 销毁 `VideoPlayer` 与 RenderTexture，没有 `OnEnable` 重建），还会让首屏效果在看不见的时候就放完。用户选方案 B，并把 M3 一并做。依据 spec D13、D14（`c9ab701`）。
+
+Review Focus 第 5 条（`alwaysDisplayed` 隐藏后再显示）改由 Task 8 的测试覆盖，不再只靠真机。
+
+### Task 8: `alwaysDisplayed` 按导览状态建树、拆树（spec D13）
+
+**Files:**
+- Create: `Packages/com.uality.ite-tour/Tests/Editor/AlwaysDisplayedLifecycleTests.cs`
+- Modify: `Packages/com.uality.ite-tour/Tests/Editor/TourAssemblyTests.cs`（删 `RetainsSceneWhenDeactivated_OnlyAlwaysDisplayed`）
+- Modify: `Packages/com.uality.ite-tour/Runtime/Core/IteTourObject.cs`
+- Modify: `Packages/com.uality.ite-tour/Runtime/Core/TourAssembly.cs`
+- Modify: `Packages/com.uality.ite-tour/Runtime/Core/IteTourAssembler.cs`
+- Modify: `Packages/com.uality.ite-tour/Runtime/Core/IteRuntime.cs`
+- Modify: `Packages/com.uality.ite-tour/Runtime/Core/TourDirector.cs`（只改一段注释）
+
+**Interfaces:**
+- Consumes: `IteTourAssembler.CreateAsync`、`IteTourAssembler.TourCreated`、`IteTourAssembler.SetAlwaysDisplayedVisible(bool)`（Task 6）、`IteTourObject.IsSceneReady`、`IteTourObject.OnTourSceneLoaded`（既有）
+- Produces: `SetAlwaysDisplayedVisible(bool)` 签名不变，语义改为「显示就建树、隐藏就拆树」；删除 `IteTourObject.SetContentVisible`、`TourAssembly.RetainsSceneWhenDeactivated`
+
+- [ ] **Step 1: 写失败的测试**
+
+新建 `Packages/com.uality.ite-tour/Tests/Editor/AlwaysDisplayedLifecycleTests.cs`：
+
+```csharp
+using System.Collections.Generic;
+using NUnit.Framework;
+using UnityEditor;
+using UnityEngine;
+using Uality.IteTour.Core;
+using Uality.IteTour.Data;
+
+namespace Uality.IteTour.Tests
+{
+    /// <summary>
+    /// alwaysDisplayed 可见 ⇔ 内容树已建好（ite-current-tour D13）。内容组件把 OnDisable 当拆除用
+    /// （VideoPlaneElement 会销毁 VideoPlayer），所以隐藏只能拆树、重新显示只能重建。
+    ///
+    /// 走真实的 IteTourAssembler / IteTourObject：Tour 预制体在内存里搭（体积 + 内容根），内容是一个
+    /// 空场景，装配、建树、拆树都同步完成，不需要 async 测试。
+    /// </summary>
+    public class AlwaysDisplayedLifecycleTests
+    {
+        private const IteSpaceScene.Tour.DisplayType Always = IteSpaceScene.Tour.DisplayType.alwaysDisplayed;
+        private const IteSpaceScene.Tour.DisplayType Regional = IteSpaceScene.Tour.DisplayType.regionalTrigger;
+
+        private GameObject _prefab;
+        private GameObject _anchorRoot;
+        private GameObject _camera;
+        private IteTourAssembler _assembler;
+        private readonly Dictionary<string, int> _loaded = new Dictionary<string, int>();
+
+        [SetUp]
+        public void SetUp()
+        {
+            _prefab = new GameObject("tour-prefab");
+
+            var volume = new GameObject("Volume");
+            volume.transform.SetParent(_prefab.transform);
+            volume.AddComponent<BoxCollider>();
+
+            var group = new GameObject("Group");
+            group.transform.SetParent(_prefab.transform);
+
+            var serialized = new SerializedObject(_prefab.AddComponent<IteTourObject>());
+            serialized.FindProperty("_volumeObject").objectReferenceValue = volume;
+            serialized.FindProperty("_mainGroupObject").objectReferenceValue = group;
+            serialized.ApplyModifiedPropertiesWithoutUndo();
+
+            _anchorRoot = new GameObject("AnchorRoot");
+            var tourRoot = new GameObject("TourRoot");
+            tourRoot.transform.SetParent(_anchorRoot.transform);
+            _camera = new GameObject("Camera");
+
+            _assembler = new IteTourAssembler(_prefab, tourRoot.transform, _anchorRoot.transform, _camera.transform);
+
+            // TourId 在 CreateTourObject 里才写入；回调触发时已经有值
+            _loaded.Clear();
+            _assembler.TourCreated += tour =>
+                tour.OnTourSceneLoaded += () => _loaded[tour.TourId] = LoadedCount(tour.TourId) + 1;
+        }
+
+        [TearDown]
+        public void TearDown()
+        {
+            Object.DestroyImmediate(_anchorRoot);
+            Object.DestroyImmediate(_camera);
+            Object.DestroyImmediate(_prefab);
+        }
+
+        [Test]
+        public void Assembled_AlwaysDisplayed_IsNotBuilt()
+        {
+            var tour = Create("a1", Always);
+
+            Assert.That(tour.IsSceneReady, Is.False, "锚定前看不见，就不该建树——首屏效果会在看不见时放完");
+            Assert.That(LoadedCount("a1"), Is.EqualTo(0));
+        }
+
+        [Test]
+        public void Shown_Builds_AndRaisesLoadedOnce()
+        {
+            var tour = Create("a1", Always);
+            int before = LoadedCount("a1");
+
+            _assembler.SetAlwaysDisplayedVisible(true);
+
+            Assert.That(tour.IsSceneReady, Is.True);
+            Assert.That(LoadedCount("a1"), Is.EqualTo(before + 1), "首屏效果在看得见时触发");
+        }
+
+        /// <summary>每个 Tour 装配完成后都会按当前状态同步一次，已定位时会反复「显示」。</summary>
+        [Test]
+        public void ShownTwice_BuildsOnce()
+        {
+            var tour = Create("a1", Always);
+            int before = LoadedCount("a1");
+
+            _assembler.SetAlwaysDisplayedVisible(true);
+            _assembler.SetAlwaysDisplayedVisible(true);
+
+            Assert.That(tour.IsSceneReady, Is.True);
+            Assert.That(LoadedCount("a1"), Is.EqualTo(before + 1), "首屏效果不能叠放");
+        }
+
+        [Test]
+        public void Hidden_TearsDown()
+        {
+            var tour = Create("a1", Always);
+            _assembler.SetAlwaysDisplayedVisible(true);
+
+            _assembler.SetAlwaysDisplayedVisible(false);
+
+            Assert.That(tour.IsSceneReady, Is.False,
+                "停用不是可恢复的隐藏（VideoPlaneElement.OnDisable 会销毁 VideoPlayer），只能拆树");
+        }
+
+        [Test]
+        public void ShownAgain_Rebuilds_AndRaisesLoadedAgain()
+        {
+            var tour = Create("a1", Always);
+            _assembler.SetAlwaysDisplayedVisible(true);
+            _assembler.SetAlwaysDisplayedVisible(false);
+            int before = LoadedCount("a1");
+
+            _assembler.SetAlwaysDisplayedVisible(true);
+
+            Assert.That(tour.IsSceneReady, Is.True);
+            Assert.That(LoadedCount("a1"), Is.EqualTo(before + 1), "摘下再戴上、扫码后首屏效果重放");
+        }
+
+        /// <summary>回归守卫（改动前也成立）：别的类型由 TourDirector 按当前 Tour 激活，不受显隐影响。</summary>
+        [Test]
+        public void OtherDisplayTypes_AreUnaffected()
+        {
+            var regional = Create("r1", Regional);
+
+            _assembler.SetAlwaysDisplayedVisible(true);
+
+            Assert.That(regional.IsSceneReady, Is.False);
+        }
+
+        private int LoadedCount(string tourId) => _loaded.TryGetValue(tourId, out var count) ? count : 0;
+
+        private IteTourObject Create(string tourId, IteSpaceScene.Tour.DisplayType displayType)
+        {
+            var tour = new IteSpaceScene.Tour
+            {
+                tourID = tourId,
+                displayType = displayType,
+                transform = new[]
+                {
+                    new[] { 1f, 0f, 0f, 0f },
+                    new[] { 0f, 1f, 0f, 0f },
+                    new[] { 0f, 0f, 1f, 0f },
+                    new[] { 0f, 0f, 0f, 1f },
+                },
+                triggerVolume = new IteSpaceScene.Tour.TriggerVolume { width = 1f, height = 1f, depth = 1f },
+            };
+
+            // 必须有一个场景：ScenesOrder 为空时建树会 LogError（测试框架会判失败）
+            var data = new Data.IteTour
+            {
+                Id = tourId,
+                Assets = new Dictionary<string, Data.Assets.Asset>(),
+                Scenes = new Dictionary<string, Data.Scene>
+                {
+                    ["s1"] = new Data.Scene { Entities = new Dictionary<string, Data.Entity>() },
+                },
+                ScenesOrder = new[] { "s1" },
+            };
+
+            var task = _assembler.CreateAsync(tour, data);
+            Assert.That(task.IsCompleted, Is.True, "内容为空时装配应同步完成，用例前提不成立");
+            return task.Result;
+        }
+    }
+}
+```
+
+注意：在 `Uality.IteTour.Tests` 命名空间里，简单名 `IteTour` 会先解析成命名空间 `Uality.IteTour`，所以数据类一律写 `Data.IteTour`、`Data.Scene`、`Data.Entity`。
+
+在 `Packages/com.uality.ite-tour/Tests/Editor/TourAssemblyTests.cs` 里删掉整个 `RetainsSceneWhenDeactivated_OnlyAlwaysDisplayed` 测试（含 `[Test]` 和它前面的空行）。
+
+- [ ] **Step 2: 编译并跑测试，确认失败**
+
+编译；跑 `A=Uality.IteTour.Tests`。Expected: 编译成功（新测试只用到已有接口）；`AlwaysDisplayedLifecycleTests` 里 5 个失败：`Assembled_AlwaysDisplayed_IsNotBuilt`、`Shown_Builds_AndRaisesLoadedOnce`、`ShownTwice_BuildsOnce`、`Hidden_TearsDown`、`ShownAgain_Rebuilds_AndRaisesLoadedAgain`；`OtherDisplayTypes_AreUnaffected` 通过（回归守卫）。其余测试全部通过。
+
+- [ ] **Step 3: 实现**
+
+(a) `IteTourObject.cs`，`CreateTourObject` 末尾，把
+
+```csharp
+            await LoadAssets(tourData.Assets);
+            ChangeDisplayType(tour.displayType);
+
+            // 源实现对 alwaysDisplayed 既不 Disable 也不 Enable，而内容树由 Enable 构建——
+            // 于是「一直显示」的 Tour 内容永远是空的，且不报错（design D29）。
+            if (tour.displayType == IteSpaceScene.Tour.DisplayType.alwaysDisplayed)
+            {
+                await Enable();
+            }
+            else
+            {
+                Disable();
+            }
+        }
+```
+
+改为
+
+```csharp
+            await LoadAssets(tourData.Assets);
+            ChangeDisplayType(tour.displayType);
+
+            // 装配只准备资源、不建树，所有展示类型一样。什么时候建由编排层决定：普通 Tour 在被激活时，
+            // alwaysDisplayed 在进入已定位时（ite-current-tour D13）。design D29 曾让 alwaysDisplayed
+            // 装配即建树（源实现对它既不 Enable 也不 Disable，内容永远是空的），但那样首屏效果会在
+            // 锚定前、看不见的时候就放完。
+            Disable();
+        }
+```
+
+(b) `IteTourObject.cs`，删掉 Task 6 加的整个 `SetContentVisible` 方法（含上方 `/// <summary>` 注释）。
+
+(c) `IteTourObject.cs`，`TearDownScene` 不再有保留内容树的特例，参数 `force` 随之删除。把
+
+```csharp
+        private void TearDownScene(bool force)
+        {
+            if (_scene.IsDestroyed) return;
+
+            if (!force && TourAssembly.RetainsSceneWhenDeactivated(_displayType))
+            {
+                _canAnchor = false;
+                return;
+            }
+
+            _scene.TearDown();
+```
+
+改为
+
+```csharp
+        private void TearDownScene()
+        {
+            if (_scene.IsDestroyed) return;
+
+            _scene.TearDown();
+```
+
+并把 `Disable()` 里的 `TearDownScene(force: false);`、`Destroy()` 里的 `TearDownScene(force: true);` 都改为 `TearDownScene();`。
+
+(d) `TourAssembly.cs`，删掉 `RetainsSceneWhenDeactivated` 方法及其 `/// <summary>停用当前导览时仍保留内容树。只有卸载才拆。</summary>` 注释（连同前面的空行）。
+
+(e) `IteTourAssembler.cs`，把 `TourCreated` 的注释
+
+```csharp
+        /// <summary>
+        /// Tour 实例已就位、内容尚未构建。订阅方在这一刻挂钩子。
+        ///
+        /// 时机必须在 <c>CreateTourObject</c> 之前：<c>alwaysDisplayed</c> 的 Tour 会在
+        /// 那里面就把内容建完并触发 <c>OnTourSceneLoaded</c>（design D29），事后再订就晚了。
+        /// </summary>
+```
+
+改为
+
+```csharp
+        /// <summary>
+        /// Tour 实例已就位、内容尚未构建。订阅方在这一刻挂钩子：早于 <c>CreateTourObject</c>，
+        /// 之后的体积进出、体积停用、建树完成都不会漏。
+        /// </summary>
+```
+
+再把 Task 6 加的 `SetAlwaysDisplayedVisible`（含注释）整个替换为：
+
+```csharp
+        /// <summary>
+        /// alwaysDisplayed 只在已定位时显示（ite-current-tour D8），可见 ⇔ 内容树已建好（ite-current-tour D13）：
+        /// 显示就建树，隐藏就拆树。不能只停用内容根——内容组件把 OnDisable 当拆除用（VideoPlaneElement
+        /// 会销毁 VideoPlayer），重新启用回不来。重复调用是空操作（Enable / Disable 都幂等）。
+        /// </summary>
+        public void SetAlwaysDisplayedVisible(bool visible)
+        {
+            foreach (var tour in _liveTours)
+            {
+                if (tour == null || tour.DisplayType != IteSpaceScene.Tour.DisplayType.alwaysDisplayed)
+                {
+                    continue;
+                }
+
+                if (visible)
+                {
+                    Show(tour);
+                }
+                else
+                {
+                    tour.Disable();
+                }
+            }
+        }
+
+        /// <summary>
+        /// 发出即走，不让调用方等建树（ite-current-tour D13）。建树抛错必须出声：没人 await 的 Task 里的
+        /// 异常不会进日志，内容就这样静默地空着。
+        /// </summary>
+        private static async void Show(IteTourObject tour)
+        {
+            try
+            {
+                await tour.Enable();
+            }
+            catch (Exception e)
+            {
+                Debug.LogException(e, tour);
+            }
+        }
+```
+
+(f) `IteRuntime.cs`，把 `TourActivated` 的订阅
+
+```csharp
+            _director.TourActivated += id =>
+            {
+                OnTourActivated?.Invoke(id);
+
+                // alwaysDisplayed 在装配时已经建树并派发过组件侧 OnTourSceneLoaded。
+                // 再次 Activate 不再重建，组件事件不能重放（LoadTrigger 会再跑一遍）。
+                // 宿主超时监视仍需要一次 Loaded，由这里补发给宿主。
+                var tour = _assembler.Find(id);
+                if (tour != null && tour.IsSceneReady)
+                {
+                    OnTourSceneLoaded?.Invoke(id);
+                }
+            };
+```
+
+改为（D10 之后 `alwaysDisplayed` 不会被激活，别的类型被激活时内容一定已拆，补发分支走不到）
+
+```csharp
+            _director.TourActivated += id => OnTourActivated?.Invoke(id);
+```
+
+把
+
+```csharp
+            // 必须在 CreateTourObject 之前挂钩：alwaysDisplayed 的 Tour 在那里面就把内容
+            // 建完并触发 OnTourSceneLoaded（design D29）
+```
+
+改为
+
+```csharp
+            // 早于 CreateTourObject 挂钩，之后的体积事件与建树完成都不会漏（见 IteTourAssembler.TourCreated）
+```
+
+把
+
+```csharp
+                // alwaysDisplayed 在装配里就建好树并显示了；按当前导览状态收一次——锚定前不该看见它（ite-current-tour D8）
+```
+
+改为
+
+```csharp
+                // 已定位之后才装配完的 alwaysDisplayed 在这里建树；未定位时它们本就没建，调用无副作用（ite-current-tour D13）
+```
+
+(g) `TourDirector.cs`，`Activate` 里把
+
+```csharp
+            // 先广播再 Enable。已建树时 Enable 是空操作、不再派发组件侧 Loaded
+            // （LoadTrigger 不能重放）；宿主超时由 IteRuntime 在 Activated 回调里补一次。
+```
+
+改为
+
+```csharp
+            // 先广播再 Enable：宿主据此开始等 OnTourSceneLoaded。换过来的 Tour 内容一定已拆
+            // （ite-current-tour D13 之后没有停用时保留内容树的类型），Enable 必然重建并派发 Loaded。
+```
+
+- [ ] **Step 4: 编译并跑测试，确认通过**
+
+编译；跑 `A=Uality.IteTour.Tests`，再跑 `A=MRBase.Ite.Host.Tests`。Expected: 两个程序集全部通过，`AlwaysDisplayedLifecycleTests` 6 个全过。
+
+再确认没有残留：
+
+```bash
+cd /Users/wwj/Desktop/unity/MR_Base
+grep -rn "RetainsSceneWhenDeactivated\|SetContentVisible\|force: " Packages/com.uality.ite-tour Assets/Scripts | grep -v "\.meta:"
+```
+
+Expected: 没有输出。
+
+- [ ] **Step 5: 提交**
+
+```bash
+cd /Users/wwj/Desktop/unity/MR_Base
+P=Packages/com.uality.ite-tour
+git add $P/Tests/Editor/AlwaysDisplayedLifecycleTests.cs $P/Tests/Editor/AlwaysDisplayedLifecycleTests.cs.meta \
+        $P/Tests/Editor/TourAssemblyTests.cs \
+        $P/Runtime/Core/IteTourObject.cs $P/Runtime/Core/TourAssembly.cs $P/Runtime/Core/IteTourAssembler.cs \
+        $P/Runtime/Core/IteRuntime.cs $P/Runtime/Core/TourDirector.cs
+git commit -m "$(cat <<'EOF'
+fix(ite): alwaysDisplayed 按导览状态建树拆树，不再停用内容根
+
+停用内容根会触发内容组件的 OnDisable（VideoPlaneElement 销毁 VideoPlayer），
+重新显示后视频面是白板；首屏效果也在锚定前、看不见时就放完了。
+改为可见即已建树：进入已定位时建，离开时拆（ite-current-tour D13）。
+删除 RetainsSceneWhenDeactivated、SetContentVisible 与 IteRuntime 里走不到的补发分支。
+
+Co-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>
+EOF
+)"
+```
+
+### Task 9: 帧驱动在 `OnEnable` 启动物理步协程（spec D14）
+
+**Files:**
+- Modify: `Packages/com.uality.ite-tour/Runtime/Core/IteRuntimeDriver.cs`
+
+**Interfaces:**
+- Consumes: `TourDirector.AfterPhysicsStep()`（Task 6）
+- Produces: 无
+
+**这个 Task 没有先失败的测试**：EditMode 不跑 MonoBehaviour 的生命周期和协程，为此引入 PlayMode 测试框架不划算。验收是编译通过、已有测试全部通过、残留检查为空，行为靠真机日志（spec §10 第 6 条：每次扫码后都有「锚定结算完成」）。
+
+- [ ] **Step 1: 实现**
+
+把 `IteRuntimeDriver.cs` 里 Task 6 加的
+
+```csharp
+        /// <summary>
+        /// 每个物理步之后通知一次，给锚定结算窗口用（ite-current-tour D9）。Unity 每个物理步的顺序是
+        /// FixedUpdate → 物理模拟 → OnTrigger* → WaitForFixedUpdate，所以这里返回时，这一步的区域进出
+        /// 已经全部到达。编辑器非播放态不跑（Start 不会被调用），EditMode 测试直接调 AfterPhysicsStep。
+        /// </summary>
+        private IEnumerator Start()
+        {
+```
+
+改为
+
+```csharp
+        /// <summary>
+        /// 在 OnEnable 而不是 Start 里启动（ite-current-tour D14）：对象停用时 Unity 会停掉它上面的协程，
+        /// 而 Start 只跑一次，再启用就回不来——LateUpdate 照常恢复，结算窗口却从此关不上，当前 Tour
+        /// 再也不换，且不报错。编辑器非播放态不跑（OnEnable 不会被调用），EditMode 测试直接调 AfterPhysicsStep。
+        /// </summary>
+        private void OnEnable() => StartCoroutine(NotifyPhysicsSteps());
+
+        /// <summary>
+        /// 每个物理步之后通知一次，给锚定结算窗口用（ite-current-tour D9）。Unity 每个物理步的顺序是
+        /// FixedUpdate → 物理模拟 → OnTrigger* → WaitForFixedUpdate，所以这里返回时，这一步的区域进出
+        /// 已经全部到达。
+        /// </summary>
+        private IEnumerator NotifyPhysicsSteps()
+        {
+```
+
+方法体不变。
+
+- [ ] **Step 2: 编译并跑测试**
+
+编译；跑 `A=Uality.IteTour.Tests`、`A=MRBase.Ite.Host.Tests`、`A=MRBase.Build.Editor.Tests`。Expected: 全部通过。
+
+```bash
+cd /Users/wwj/Desktop/unity/MR_Base
+grep -n "IEnumerator Start\|void Start" Packages/com.uality.ite-tour/Runtime/Core/IteRuntimeDriver.cs
+```
+
+Expected: 没有输出。
+
+- [ ] **Step 3: 提交**
+
+```bash
+cd /Users/wwj/Desktop/unity/MR_Base
+git add Packages/com.uality.ite-tour/Runtime/Core/IteRuntimeDriver.cs
+git commit -m "$(cat <<'EOF'
+fix(ite): 帧驱动在 OnEnable 启动物理步协程
+
+用 Start 启动时，驱动对象停用再启用后协程永久消失，结算窗口从此关不上、
+当前 Tour 再也不换且不报错（ite-current-tour D14）。
+
+Co-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>
+EOF
+)"
+```
+
+- [ ] **Step 4: 汇报并停下**
+
+向用户汇报三个程序集的 `Summary`，以及 spec §10 的真机验证清单（第 1–7 条）。**不要打包、不要装机。**
