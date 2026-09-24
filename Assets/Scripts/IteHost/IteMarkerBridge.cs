@@ -1,4 +1,5 @@
 using System;
+using System.Collections.Generic;
 using UnityEngine;
 using Uality.IteTour.Core;
 
@@ -32,6 +33,21 @@ namespace MRBase.Ite.Host
 
         /// <summary>本 tick 的时长，由 <see cref="Tick"/> 注入后供观测回调取用。</summary>
         private float _deltaTime;
+
+        /// <summary>
+        /// 桥接自己的时钟（<see cref="Tick"/> 累加）与每张码上次被观测的时刻。防抖要的是「这张码距上次
+        /// 观测过了多久」（<see cref="MarkerStabilizer"/> 的约定，design D22），不是帧长：PICO 每秒只出约
+        /// 5.6 个检测结果，按帧长记，0.5 秒窗口要攒 36～45 次观测（真机 2026-09-24 连续识别 10～24 秒才判稳）。
+        /// </summary>
+        private float _clock;
+        private readonly Dictionary<(MarkerPlatform, string), float> _lastSeenAt =
+            new Dictionary<(MarkerPlatform, string), float>();
+
+        /// <summary>
+        /// 两次观测之间的空档最多算这么长的稳定时长：没丢失（会话滞回 1 秒）但隔得久时，
+        /// 不能只看到两三眼就判稳。取值高于 PICO 的观测间隔（约 0.18 秒），不影响正常连续识别。
+        /// </summary>
+        private const float MaxGapCreditSeconds = 0.25f;
 
         /// <summary>最近一次观测的原始 payload，供 HUD 显示。尚未观测则为 null。</summary>
         public string LastObservedRawPayload { get; private set; }
@@ -85,18 +101,27 @@ namespace MRBase.Ite.Host
         {
             _submittedThisTick = false;
             _deltaTime = deltaTime;
+            _clock += deltaTime;
             _session.Tick(deltaTime);
         }
 
         private void HandleObserved(MarkerObservation observation)
         {
             LastObservedRawPayload = observation.RawPayload;
-            StabilizerFor(observation.Platform).Feed(observation.RawPayload, observation.Pose, _deltaTime);
+
+            // 首次观测没有「上次」，记一帧，与每帧都有观测的 Quest 一致
+            var key = (observation.Platform, observation.RawPayload);
+            float sinceLast = _lastSeenAt.TryGetValue(key, out float lastSeenAt) ? _clock - lastSeenAt : _deltaTime;
+            _lastSeenAt[key] = _clock;
+
+            StabilizerFor(observation.Platform).Feed(
+                observation.RawPayload, observation.Pose, Mathf.Min(sinceLast, MaxGapCreditSeconds));
         }
 
         private void HandleLost(MarkerPlatform platform, string rawPayload)
         {
             LastLostRawPayload = rawPayload;
+            _lastSeenAt.Remove((platform, rawPayload));
 
             // 丢失即重置：下次再出现要重新走完稳定窗口才算新的一次扫码。
             // 这条同时让「二次锚定」回到人有意重扫的动作，而不是连续观测的第 2 帧。

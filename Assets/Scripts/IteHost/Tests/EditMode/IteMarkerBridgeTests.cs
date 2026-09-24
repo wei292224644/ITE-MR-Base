@@ -187,6 +187,79 @@ namespace MRBase.Ite.Host.Tests
                 Is.LessThan(0.01f), "平滑收敛后应当落在标记位姿上");
         }
 
+        /// <summary>
+        /// 稳定窗口是时间不是次数（design D22）：防抖要的是「这张码距上次观测过了多久」。
+        /// PICO 每秒只出约 5.6 个检测结果，帧率 72——每次只记一帧的时长，0.3 秒窗口要攒约 22 次观测、
+        /// 近 4 秒（真机 2026-09-24：连续识别 10～24 秒才判稳，Quest 只要 0.4 秒）。
+        /// </summary>
+        [Test]
+        public void SlowSource_StableWindowIsWallClockTime()
+        {
+            const float frameDt = 1f / 72f;
+            const int framesPerObservation = 13; // 72 / 13 ≈ 5.5 Hz
+            var source = new MockObservationSource();
+            var session = new MarkerTrackingSession(source, lostAfterSeconds: 1.0f);
+            float elapsed = 0f;
+            float firstForwardAt = -1f;
+            var observation = new[] { new MarkerObservation(MarkerPlatform.Pico, "0", Pose.identity) };
+
+            using (var bridge = new IteMarkerBridge(session, Profile(), null,
+                       (_, __, ___) => { if (firstForwardAt < 0f) firstForwardAt = elapsed; }))
+            {
+                for (int frame = 0; frame < 72 * 6; frame++)
+                {
+                    if (frame % framesPerObservation == 0)
+                    {
+                        source.SetNextPoll(observation);
+                    }
+                    else
+                    {
+                        source.SetNextPollEmpty();
+                    }
+
+                    elapsed += frameDt;
+                    bridge.Tick(frameDt);
+                }
+            }
+
+            Assert.That(firstForwardAt, Is.GreaterThan(0f), "慢速源也必须判稳");
+            Assert.That(firstForwardAt, Is.LessThan(0.3f + 2f * framesPerObservation * frameDt),
+                "应在稳定窗口加约一个观测间隔内判稳，而不是按帧数攒够");
+        }
+
+        /// <summary>
+        /// 两次观测隔得久（还没到丢失）时，这段空档最多只算 0.25 秒稳定时长：
+        /// 不能只看到两眼就判稳。
+        /// </summary>
+        [Test]
+        public void SparseSightings_GapCreditIsCapped()
+        {
+            var source = new MockObservationSource();
+            var session = new MarkerTrackingSession(source, lostAfterSeconds: 1.0f);
+            var forwarded = new List<(MarkerKind kind, string payload, Pose pose)>();
+            var observation = new[] { new MarkerObservation(MarkerPlatform.Pico, "0", Pose.identity) };
+
+            using (var bridge = new IteMarkerBridge(session, Profile(), null,
+                       (k, p, pose) => forwarded.Add((k, p, pose))))
+            {
+                // 每 0.8 秒看到一次（低于 1 秒丢失阈值），每次只看到一帧
+                for (int sighting = 0; sighting < 2; sighting++)
+                {
+                    source.SetNextPoll(observation);
+                    bridge.Tick(0.01f);
+                    source.SetNextPollEmpty();
+                    bridge.Tick(0.79f);
+                }
+
+                Assert.AreEqual(0, forwarded.Count, "两眼、相隔 0.8 秒：空档只算 0.25 秒，不够 0.3 秒窗口");
+
+                source.SetNextPoll(observation);
+                bridge.Tick(0.01f);
+            }
+
+            Assert.AreEqual(1, forwarded.Count, "第三眼累计超过窗口，判稳");
+        }
+
         /// <summary>桥接是会话唯一的推进点——输入层再 Tick 一次就是一帧推两次。</summary>
         [Test]
         public void Tick_AdvancesTheSessionExactlyOncePerCall()
