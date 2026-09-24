@@ -113,6 +113,7 @@ namespace MRBase.Ite.Host
         {
             _questStabilizer.ResetAll();
             _picoStabilizer.ResetAll();
+            Debug.Log("[ITE Host] 放行：视野里的码重新判稳");
         }
 
         private void HandleObserved(MarkerObservation observation)
@@ -132,6 +133,9 @@ namespace MRBase.Ite.Host
         {
             LastLostRawPayload = rawPayload;
             _lastSeenAt.Remove((platform, rawPayload));
+
+            // 真机上判断重扫门槛生不生效只能靠这一行（例如 MRUK 离开视野后是否一直报在追踪）
+            Debug.Log("[ITE Host] 标记丢失 " + rawPayload + "（再认出算新的一次扫描）");
 
             // 丢失即重置：下次再出现要重新走完稳定窗口才算新的一次扫码。
             // 丢失时长就是重扫门槛（marker-rescan D2）：移开视线够久再看回来，才是人有意重扫。

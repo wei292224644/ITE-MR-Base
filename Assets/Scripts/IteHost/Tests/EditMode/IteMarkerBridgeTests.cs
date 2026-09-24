@@ -1,6 +1,8 @@
 using System.Collections.Generic;
+using System.Text.RegularExpressions;
 using NUnit.Framework;
 using UnityEngine;
+using UnityEngine.TestTools;
 using Uality.IteTour.Core;
 
 namespace MRBase.Ite.Host.Tests
@@ -369,6 +371,33 @@ namespace MRBase.Ite.Host.Tests
             }
 
             Assert.AreEqual(1, forwarded.Count, "第三眼累计超过窗口，判稳");
+        }
+
+        /// <summary>
+        /// 丢失与放行都要在真机日志里看得见：重扫门槛生不生效（例如 MRUK 离开视野后是否一直报在追踪），
+        /// 只能靠这两行判断（marker-rescan D2、D3）。
+        /// </summary>
+        [Test]
+        public void LostAndRearm_AreLogged()
+        {
+            var source = new MockObservationSource();
+            var session = new MarkerTrackingSession(source, lostAfterSeconds: 1f);
+
+            using (var bridge = new IteMarkerBridge(session, Profile(), null, (_, __, ___) => { }))
+            {
+                source.SetNextPoll(new[]
+                {
+                    new MarkerObservation(MarkerPlatform.Quest, QuestPayload, Pose.identity)
+                });
+                bridge.Tick(Dt);
+
+                source.SetNextPollEmpty();
+                LogAssert.Expect(LogType.Log, new Regex("标记丢失.*" + Regex.Escape(QuestPayload)));
+                bridge.Tick(1.5f);
+
+                LogAssert.Expect(LogType.Log, new Regex("放行"));
+                bridge.Rearm();
+            }
         }
 
         /// <summary>桥接是会话唯一的推进点——输入层再 Tick 一次就是一帧推两次。</summary>
