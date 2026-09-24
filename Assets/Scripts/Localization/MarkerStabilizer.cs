@@ -5,7 +5,7 @@ using UnityEngine;
 /// <summary>
 /// 位姿防抖：平滑 + 稳定判定，判稳时发一次 <see cref="Stabilized"/>。
 ///
-/// 移植自源工程的 <c>AnchorObject</c>，但两处按实测改掉了（design D9 / D22）：
+/// 移植自源工程的 <c>AnchorObject</c>，但三处按实测改掉了（design D9 / D22、marker-rescan D1）：
 ///
 /// 1. **窗口是时间不是次数。** 两端派发速率实测差 12.5 倍（PICO 5.6 Hz / Quest 70 Hz），
 ///    帧计数制下同一个阈值 30 在 Quest 上是 0.43 s、在 PICO 上是 5.4 s ——
@@ -13,6 +13,9 @@ using UnityEngine;
 /// 2. **平滑用时间常数，不是 <c>Clamp01(deltaTime / smoothTime)</c>。** 后者在
 ///    smoothTime 小于帧间隔时恒为 1，平滑位姿每帧跳到目标，于是「平滑 vs 目标」的差
 ///    就等于相邻两帧的原始抖动，阈值永远过不去——PICO 上一次都不触发的真正原因。
+/// 3. **每次出现只提交一次**（marker-rescan D1）。码固定贴在场地里，持续观测期间的「移动」只来自
+///    识别噪声或追踪漂移——PICO 抖 2–5 度，旧的「移动后重新判稳再发」约 4 秒误触发一次重扫。
+///    要再提交，先 <see cref="Reset"/>（丢失）。
 ///
 /// 三项参数按平台各存一套，见 <c>MarkerStabilizerProfile</c>；硬件不是纸面上的理想值，
 /// 这些必须留成可调旋钮。
@@ -68,8 +71,8 @@ public class MarkerStabilizer
 
         if (moved)
         {
+            // 判稳前一移动就重新计时；判稳之后不再因移动重发（marker-rescan D1）
             marker.StableSeconds = 0f;
-            marker.HasFiredStableEvent = false;
         }
 
         // 本次也计入稳定时长（含移动后的第一次），与移植前的计数语义一致。
@@ -105,5 +108,6 @@ public class MarkerStabilizer
     public Pose SmoothedPose(string rawId)
         => tracked.TryGetValue(rawId, out var marker) ? marker.SmoothedPose : Pose.identity;
 
+    /// <summary>这张码当作没出现过：下次喂入重新平滑、重新判稳。</summary>
     public void Reset(string rawId) => tracked.Remove(rawId);
 }

@@ -130,13 +130,16 @@ namespace MRBase.Ite.Host
 
         private void Submit(MarkerPlatform platform, string rawPayload, Pose stabilizedPose)
         {
-            // 同一帧内多张码同时判稳时只认第一张（design D20）。不规定就是未定义行为：
-            // 跟踪表是字典、迭代顺序不保证，而后到者会把先到者刚激活的 tour 停用销毁。
+            // 同一帧内多张码同时判稳时只提交第一张（design D20）。不规定就是未定义行为：
+            // 跟踪表是字典、迭代顺序不保证。
+            //
+            // 落选的码重新判稳、之后单独提交（marker-rescan D7）：判稳每次出现只发一次（D1），
+            // 丢掉它就要移开视线才能再扫。后到的码不会停掉先到者刚激活的 Tour——已定位后
+            // ITE 只认当前 Tour 的码（ite-current-tour D6）。
             if (_submittedThisTick)
             {
-                Debug.Log(
-                    "[ITE Host] 同帧已提交过扫码，忽略后到的标记：" + rawPayload +
-                    "（先判稳的赢）");
+                StabilizerFor(platform).Reset(rawPayload);
+                Debug.Log("[ITE Host] 同帧已提交过扫码，" + rawPayload + " 重新判稳后再提交");
                 return;
             }
 

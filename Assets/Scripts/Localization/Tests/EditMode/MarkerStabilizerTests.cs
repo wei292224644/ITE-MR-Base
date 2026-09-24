@@ -39,8 +39,12 @@ public class MarkerStabilizerTests
         Assert.AreEqual(0, firedCount);
     }
 
+    /// <summary>
+    /// 每次出现只提交一次（marker-rescan D1）：判稳之后位姿再移动、再稳定，也不重发。
+    /// 码固定贴在场地里，持续观测期间的移动只来自识别噪声——PICO 上旧规则约 4 秒误触发一次重扫。
+    /// </summary>
     [Test]
-    public void Feed_FiresOnce_ThenRefiresOnlyAfterMovingAgain()
+    public void Feed_FiresOncePerAppearance_EvenAfterMovingAndSettlingAgain()
     {
         var stabilizer = new MarkerStabilizer(positionThreshold: 0.05f, rotationThreshold: 1f, smoothTime: 0.001f, stableSeconds: 2f);
         int firedCount = 0;
@@ -49,12 +53,34 @@ public class MarkerStabilizerTests
         var poseA = new Pose(new Vector3(1, 0, 0), Quaternion.identity);
         stabilizer.Feed("A", poseA, 1f);
         stabilizer.Feed("A", poseA, 1f); // 累计到窗口,触发
-        stabilizer.Feed("A", poseA, 1f); // 仍稳定,不重复触发
         Assert.AreEqual(1, firedCount);
 
         var poseB = new Pose(new Vector3(5, 0, 0), Quaternion.identity);
-        stabilizer.Feed("A", poseB, 1f); // 移动了,重新计时
-        stabilizer.Feed("A", poseB, 1f); // 再次累计到窗口,重新触发
+        for (int i = 0; i < 5; i++)
+        {
+            stabilizer.Feed("A", poseB, 1f); // 移动后再稳定,远超窗口
+        }
+
+        Assert.AreEqual(1, firedCount, "同一次出现只提交一次");
+    }
+
+    /// <summary>Reset 之后是新的一次出现：重新判稳、再提交一次（丢失时由桥接调用）。</summary>
+    [Test]
+    public void Reset_ThenStableAgain_FiresAgain()
+    {
+        var stabilizer = new MarkerStabilizer(positionThreshold: 0.05f, rotationThreshold: 1f, smoothTime: 0.001f, stableSeconds: 2f);
+        int firedCount = 0;
+        stabilizer.Stabilized += (_, __) => firedCount++;
+
+        var pose = new Pose(new Vector3(1, 0, 0), Quaternion.identity);
+        stabilizer.Feed("A", pose, 1f);
+        stabilizer.Feed("A", pose, 1f);
+        Assert.AreEqual(1, firedCount);
+
+        stabilizer.Reset("A");
+        stabilizer.Feed("A", pose, 1f);
+        Assert.AreEqual(1, firedCount, "重新判稳要走满窗口");
+        stabilizer.Feed("A", pose, 1f);
         Assert.AreEqual(2, firedCount);
     }
 

@@ -81,6 +81,36 @@ namespace MRBase.Ite.Host.Tests
             Assert.AreEqual(QuestPayload, forwarded[0].payload, "payload 原样透传，不剥壳");
         }
 
+        /// <summary>
+        /// 一直盯着码看只扫一次（marker-rescan D1）。PICO 解出的位姿偶尔抖过防抖阈值，
+        /// 旧规则把它当成「码移动了」，重新判稳后再提交一次（真机 2026-09-24：约 4 秒自动 Reanchor 一次）。
+        /// </summary>
+        [Test]
+        public void ContinuouslyVisible_OccasionalJitterAboveThreshold_ForwardsOnce()
+        {
+            var source = new MockObservationSource();
+            var session = new MarkerTrackingSession(source);
+            var forwarded = new List<(MarkerKind kind, string payload, Pose pose)>();
+
+            using (var bridge = new IteMarkerBridge(session, Profile(), null,
+                       (k, p, pose) => forwarded.Add((k, p, pose))))
+            {
+                for (int i = 0; i < 100; i++)
+                {
+                    // 每 2 秒抖一次 3 度（阈值 1 度），其余时间不动
+                    float yaw = i > 0 && i % 20 == 0 ? 3f : 0f;
+                    source.SetNextPoll(new[]
+                    {
+                        new MarkerObservation(MarkerPlatform.Pico, "0",
+                            new Pose(Vector3.zero, Quaternion.Euler(0f, yaw, 0f)))
+                    });
+                    bridge.Tick(Dt);
+                }
+            }
+
+            Assert.AreEqual(1, forwarded.Count, "持续可见期间的位姿抖动不算重扫");
+        }
+
         [Test]
         public void LostThenSeenAgain_ForwardsASecondTime()
         {
@@ -119,18 +149,19 @@ namespace MRBase.Ite.Host.Tests
         }
 
         /// <summary>
-        /// design D20：同帧多张码只认最先判稳的那张。不规定就是未定义行为——
-        /// 跟踪表是字典、迭代顺序不保证，而后到者会把先到者刚激活的 tour 停用销毁。
+        /// design D20：同一 tick 只提交一张码。落选的码重新判稳、之后单独提交（marker-rescan D7）——
+        /// 判稳每次出现只发一次，丢掉它就要移开视线才能再扫；放行会让视野里的码同时判稳，落选是常态。
         /// </summary>
         [Test]
-        public void TwoMarkersStabilizingInSameTick_OnlyFirstIsForwarded()
+        public void TwoMarkersStabilizingInSameTick_OnePerTick_LoserFollowsLater()
         {
             var source = new MockObservationSource();
             var session = new MarkerTrackingSession(source);
-            var forwarded = new List<(MarkerKind kind, string payload, Pose pose)>();
+            var forwarded = new List<(string payload, int tick)>();
+            int tick = 0;
 
             using (var bridge = new IteMarkerBridge(session, Profile(), null,
-                       (k, p, pose) => forwarded.Add((k, p, pose))))
+                       (k, p, pose) => forwarded.Add((p, tick))))
             {
                 source.SetNextPoll(new[]
                 {
@@ -138,13 +169,15 @@ namespace MRBase.Ite.Host.Tests
                     new MarkerObservation(MarkerPlatform.Quest, "******b******", Pose.identity),
                 });
 
-                for (int i = 0; i < 10; i++)
+                for (tick = 0; tick < 10; tick++)
                 {
                     bridge.Tick(Dt);
                 }
             }
 
-            Assert.AreEqual(1, forwarded.Count, "同一 tick 内只提交一次");
+            Assert.AreEqual(2, forwarded.Count, "两张码都要提交");
+            Assert.AreNotEqual(forwarded[0].payload, forwarded[1].payload);
+            Assert.AreNotEqual(forwarded[0].tick, forwarded[1].tick, "同一 tick 内只提交一次");
         }
 
         [Test]
