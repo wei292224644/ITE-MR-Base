@@ -21,29 +21,38 @@ public sealed class QuestObservationSource : IMarkerObservationSource
     {
         opened = true;
         OVRManager.InputFocusAcquired += HandleInputFocusAcquired;
+        OVRManager.HMDMounted += HandleHmdMounted;
         TrySubscribe();
     }
 
+    private void HandleInputFocusAcquired() => RebuildQrTracking("输入焦点恢复");
+
+    // InputFocusAcquired 不可靠：会话重开后已是 FOCUSED，OVRPlugin.hasInputFocus 却可能一直是 false，
+    // 事件就不来（真机 2026-09-24，30 秒内都没来，扫码全程无观测）。会话重开总伴随摘下再戴上，所以戴上也重建。
+    private void HandleHmdMounted() => RebuildQrTracking("戴上头显");
+
     /// <summary>
-    /// 失去输入焦点再恢复，可能是 OpenXR 会话被整个停掉又重开了（摘下头显较久时 Quest 会这么做）。
-    /// 会话一重开，原生层的 QR 追踪上下文就跟着旧会话没了，可 MRUK 只在「期望配置 ≠ 当前配置」时
-    /// 才重配追踪器（MRUK.UpdateTrackables），它记着的仍是「QR 已开」，于是永远不再重配，
-    /// 扫码从此没有任何观测（真机 2026-09-23）。
+    /// OpenXR 会话被整个停掉又重开时（摘下头显较久时 Quest 会这么做），原生层的 QR 追踪上下文跟着旧会话
+    /// 没了，可 MRUK 只在「期望配置 ≠ 当前配置」时才重配追踪器（MRUK.UpdateTrackables），它记着的仍是
+    /// 「QR 已开」，于是永远不再重配，扫码从此没有任何观测（真机 2026-09-23）。
     ///
     /// 关一下 MRUK 组件：它的 OnDisable 会 ConfigureTrackers(0) 并清掉记住的配置，下一帧
     /// Update 就按期望配置重新建 QR 追踪。
     /// </summary>
-    private void HandleInputFocusAcquired()
+    private void RebuildQrTracking(string reason)
     {
         if (!opened || MRUK.Instance == null)
         {
             return;
         }
 
-        // ponytail: 分不出焦点恢复是会话重开还是只关了系统菜单，一律重建；后者只让 QR 追踪中断一瞬
+        // ponytail: 分不出是会话重开、只关了系统菜单还是短暂摘下，一律重建；后两者只让 QR 追踪中断一瞬。
+        // 同一次戴上两个信号都可能到（相隔约 0.25 秒）——不合并：HMDMounted 早于会话进入 FOCUSED，
+        // 若只认先到的那个，FOCUSED 之后的那次（49804c1 验证过有效的时机）就被挡掉了。连续重建两次无害。
+        // 触发靠 OVRManager 的两个事件拼凑，仍可能漏；再漏就改为直接监听 OpenXR 会话重开（自定义 OpenXRFeature）。
         MRUK.Instance.enabled = false;
         MRUK.Instance.enabled = true;
-        Debug.Log("[QuestObservationSource] 输入焦点恢复，重建 MRUK QR 追踪器");
+        Debug.Log($"[QuestObservationSource] {reason}，重建 MRUK QR 追踪器");
     }
 
     /// <summary>
@@ -81,6 +90,7 @@ public sealed class QuestObservationSource : IMarkerObservationSource
     public void Close()
     {
         OVRManager.InputFocusAcquired -= HandleInputFocusAcquired;
+        OVRManager.HMDMounted -= HandleHmdMounted;
 
         if (!subscribed)
         {
