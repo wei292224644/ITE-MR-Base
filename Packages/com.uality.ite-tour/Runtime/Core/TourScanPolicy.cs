@@ -13,8 +13,8 @@ namespace Uality.IteTour.Core
         Activate,
 
         /// <summary>
-        /// 不换 Tour，仅按新位姿重新锚定（不销毁重建内容）。等待扫码时扫到 alwaysDisplayed 也走这里：
-        /// 只锚定，不当当前 Tour（ite-current-tour D10）。
+        /// 不换 Tour，仅按新位姿重新锚定（不销毁重建内容）。当前 Tour 在播时再扫它的码走这里（marker-rescan D4）；
+        /// 等待扫码时扫到 alwaysDisplayed 也走这里：只锚定，不当当前 Tour（ite-current-tour D10）。
         /// </summary>
         Reanchor,
     }
@@ -24,9 +24,6 @@ namespace Uality.IteTour.Core
     {
         public string TourId;
         public IteSpaceScene.Tour.DisplayType DisplayType;
-
-        /// <summary>该 Tour 当前是否还允许一次二次锚定。</summary>
-        public bool SecondAnchorAvailable;
     }
 
     /// <summary>决策所需的导览状态快照。</summary>
@@ -48,24 +45,18 @@ namespace Uality.IteTour.Core
         public ScanAction Action;
         public string TourId;
 
-        /// <summary>本次是否消耗目标 Tour 的二次锚定许可。</summary>
-        public bool ConsumesSecondAnchor;
-
         public static ScanDecision Ignore => new ScanDecision { Action = ScanAction.Ignore };
     }
 
     /// <summary>
     /// 标记扫描的**纯决策**。无副作用、不碰 GameObject、不依赖帧或 async 时序。
     ///
-    /// 源实现把这段逻辑摊在三个订阅同一事件的处理器里，其中第一个会清掉
-    /// 「必须扫码」标志，导致第二个在同一次扫码中也会执行；而第二个是否生效
-    /// 又取决于 <c>IteTourObject.Enable()</c> 里 <c>_canAnchor = true</c> 有没有
-    /// 在 <c>await CreateTourScene()</c> 之后跑到——一个内容为空的 Tour 会同步
-    /// 走完，于是走出另一套语义。详见 design D14。
+    /// 源实现把这段逻辑摊在三个订阅同一事件的处理器里，一次扫码的效果取决于处理器的执行顺序和 await 时序
+    /// （design D14）；这里由一次决策明确规定。
     ///
-    /// 本实现采用**内容异步加载路径**下的行为作为规范语义（真机上的常规情况），
-    /// 把原先的偶然行为固化成契约。状态转换（等待扫码 → 已定位）不在这里，归
-    /// <see cref="TourGuide"/>。
+    /// 只回答「这次扫到的码要怎么处理」：激活、定位还是忽略。「这是不是一次有意的扫描」不归这里——
+    /// 底层保证同一张码每次出现只提交一次、移开视线够久再看回来才算新的一次（marker-rescan D1、D2），
+    /// 所以这里不限次数（marker-rescan D4）。状态转换（等待扫码 → 已定位）不在这里，归 <see cref="TourGuide"/>。
     /// </summary>
     public static class TourScanPolicy
     {
@@ -88,69 +79,27 @@ namespace Uality.IteTour.Core
                 //
                 // alwaysDisplayed 只拿来锚定：它没有触发体积，当了当前 Tour 就永远离不开
                 // （ite-current-tour D10）。
-                if (!TourAssembly.CanBeCurrent(tour.DisplayType))
-                {
-                    return new ScanDecision
-                    {
-                        Action = ScanAction.Reanchor,
-                        TourId = tour.TourId,
-                        ConsumesSecondAnchor = false,
-                    };
-                }
-
-                // ConsumesSecondAnchor 为 false 是 D14 的所选语义：源实现中第二个
-                // 处理器此刻会去查 CanSecondAnchor()，而 Enable() 尚未完成、
-                // _canAnchor 仍为 false，因此不消耗。
                 return new ScanDecision
                 {
-                    Action = ScanAction.Activate,
+                    Action = TourAssembly.CanBeCurrent(tour.DisplayType) ? ScanAction.Activate : ScanAction.Reanchor,
                     TourId = tour.TourId,
-                    ConsumesSecondAnchor = false,
                 };
             }
 
             // 已定位：只认当前 Tour 的码（ite-current-tour D6，取代 ite-scan-region-gate D1）。
             // 当前 Tour 优先级最高：人站在别的 Tour 的区域里、扫别的码，一律不认。
-            if (tour.TourId != state.CurrentTourId)
+            // alwaysDisplayed 不会是当前 Tour（I5）；万一是，也不参与扫码切换。
+            if (tour.TourId != state.CurrentTourId || !TourAssembly.CanBeCurrent(tour.DisplayType))
             {
                 return ScanDecision.Ignore;
             }
 
-            switch (tour.DisplayType)
+            // 在播时再扫它的码 = 重新定位，不分展示类型、不限次数（marker-rescan D4）；没在播就开始播。
+            return new ScanDecision
             {
-                case IteSpaceScene.Tour.DisplayType.normal:
-                    // 当前 Tour 是 normal：还没播就扫它的码开始播；已在播则忽略
-                    return tour.TourId == state.ActiveTourId
-                        ? ScanDecision.Ignore
-                        : new ScanDecision { Action = ScanAction.Activate, TourId = tour.TourId };
-
-                case IteSpaceScene.Tour.DisplayType.regionalTrigger:
-                    if (tour.TourId == state.ActiveTourId)
-                    {
-                        // 重锚路径不触发 Enable()，所以这里消耗的许可不会被覆盖回来 —— 真正生效。
-                        return tour.SecondAnchorAvailable
-                            ? new ScanDecision
-                            {
-                                Action = ScanAction.Reanchor,
-                                TourId = tour.TourId,
-                                ConsumesSecondAnchor = true,
-                            }
-                            : ScanDecision.Ignore;
-                    }
-
-                    // 按 D14 所选语义，激活不消耗二次锚定许可（源实现此处的 SecondAnchored()
-                    // 会被 Enable() 续体里的 _canAnchor = true 覆盖掉，是死代码）。
-                    return new ScanDecision
-                    {
-                        Action = ScanAction.Activate,
-                        TourId = tour.TourId,
-                        ConsumesSecondAnchor = false,
-                    };
-
-                // alwaysDisplayed 不会是当前 Tour（I5）；万一是，也不参与扫码切换
-                default:
-                    return ScanDecision.Ignore;
-            }
+                Action = tour.TourId == state.ActiveTourId ? ScanAction.Reanchor : ScanAction.Activate,
+                TourId = tour.TourId,
+            };
         }
 
         private static bool TryFind(IReadOnlyList<TourDescriptor> tours, string tourId, out TourDescriptor found)

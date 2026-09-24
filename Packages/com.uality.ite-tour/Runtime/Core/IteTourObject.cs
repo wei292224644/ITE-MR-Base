@@ -10,7 +10,7 @@ using Uality.IteTour.Internal;
 namespace Uality.IteTour.Core
 {
     /// <summary>
-    /// 一个 Tour 在场景中的载体：持有描述与资源、按需构建/销毁内容、维护二次锚定许可。
+    /// 一个 Tour 在场景中的载体：持有描述与资源、按需构建/销毁内容。
     ///
     /// 与源实现的差异：
     /// - 删掉了 <c>CanAnchor</c> 属性。它在源工程里**无人调用**，却是 <c>IteTourObject</c>
@@ -51,9 +51,6 @@ namespace Uality.IteTour.Core
 
         /// <summary>内容构建完成。触发器组件（LoadTrigger）据此派发首屏动作。</summary>
         public Action OnTourSceneLoaded;
-
-        /// <summary>本 Tour 当前是否还允许一次二次锚定。</summary>
-        private bool _canAnchor;
 
         public string TourId => _tourId;
 
@@ -307,17 +304,7 @@ namespace Uality.IteTour.Core
 
             _scene.TearDown();
             DestroyTourScene();
-
-            // 源实现此处先 ResetSecondAnchor()（置 true）再置 false，前者是死调用（D14）。
-            // 连同只有它一个调用方的 ResetSecondAnchor 一并删除。
-            _canAnchor = false;
         }
-
-        /// <summary>本 Tour 当前是否还允许一次二次锚定。</summary>
-        public bool CanSecondAnchor()
-            => _displayType == IteSpaceScene.Tour.DisplayType.regionalTrigger && _canAnchor;
-
-        public void SecondAnchored() => _canAnchor = false;
 
         public Asset GetAsset(string assetId)
         {
@@ -415,7 +402,6 @@ namespace Uality.IteTour.Core
                     return;
                 }
 
-                _canAnchor = true;
                 OnTourSceneLoaded?.Invoke();
             }
             catch

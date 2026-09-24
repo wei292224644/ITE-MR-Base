@@ -10,7 +10,7 @@ namespace Uality.IteTour.Core
     ///
     /// 这一层刻意做得很薄——状态与所有判断都在 TourGuide 与三个策略函数里，这里只剩「照做」
     /// （ite-guide-state-machine D7）。与源实现的差异见 design D14：源实现把扫描逻辑摊在三个订阅
-    /// 同一事件的处理器里、二次锚定许可依赖 await 时序，这里都由一次决策明确规定。
+    /// 同一事件的处理器里，这里由一次决策明确规定；二次锚定许可已删除（marker-rescan D5）。
     /// </summary>
     public class TourDirector
     {
@@ -244,7 +244,7 @@ namespace Uality.IteTour.Core
 
             if (effect.ReanchorTourId != null)
             {
-                Reanchor(_assembler.Find(effect.ReanchorTourId), effect.ReanchorPose, effect.ConsumesSecondAnchor);
+                Reanchor(_assembler.Find(effect.ReanchorTourId), effect.ReanchorPose);
             }
 
             if (effect.AlwaysDisplayedVisible.HasValue)
@@ -297,7 +297,6 @@ namespace Uality.IteTour.Core
                 {
                     TourId = tour.TourId,
                     DisplayType = tour.DisplayType,
-                    SecondAnchorAvailable = tour.CanSecondAnchor(),
                 });
             }
 
@@ -335,7 +334,7 @@ namespace Uality.IteTour.Core
             _ = tour.Enable();
         }
 
-        private void Reanchor(IteTourObject tour, Pose pose, bool consumesSecondAnchor)
+        private void Reanchor(IteTourObject tour, Pose pose)
         {
             if (tour == null)
             {
@@ -343,13 +342,7 @@ namespace Uality.IteTour.Core
             }
 
             tour.ChangeTourObjectTransform(pose.position, pose.rotation);
-
-            if (consumesSecondAnchor)
-            {
-                tour.SecondAnchored();
-            }
-
-            Debug.Log("[ITE] Reanchor " + tour.TourId + (consumesSecondAnchor ? " consumesSecondAnchor" : ""));
+            Debug.Log("[ITE] Reanchor " + tour.TourId);
         }
 
         private void DeactivateCurrent()

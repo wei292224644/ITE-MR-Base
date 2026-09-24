@@ -18,9 +18,8 @@ namespace Uality.IteTour.Tests
 
         private static readonly Pose MarkerPose = new Pose(new Vector3(1f, 2f, 3f), Quaternion.Euler(0f, 90f, 0f));
 
-        private static TourDescriptor Tour(
-            string id, IteSpaceScene.Tour.DisplayType type = Regional, bool secondAnchorAvailable = false)
-            => new TourDescriptor { TourId = id, DisplayType = type, SecondAnchorAvailable = secondAnchorAvailable };
+        private static TourDescriptor Tour(string id, IteSpaceScene.Tour.DisplayType type = Regional)
+            => new TourDescriptor { TourId = id, DisplayType = type };
 
         private static List<TourDescriptor> Tours(params TourDescriptor[] tours) => new List<TourDescriptor>(tours);
 
@@ -93,22 +92,32 @@ namespace Uality.IteTour.Tests
             Assert.That(guide.IsSettling, Is.True, "锚定挪动了体积（ite-current-tour D9）");
         }
 
-        [Test]
-        public void Anchored_RescanCurrentRegional_ReanchorsAndOpensSettle()
+        /// <summary>marker-rescan D4：在播时每次再扫它的码都重新定位，不分类型、不限次数，每次都打开结算窗口。</summary>
+        [TestCase(Normal)]
+        [TestCase(Regional)]
+        public void Anchored_RescanPlayingTour_ReanchorsEveryTime(IteSpaceScene.Tour.DisplayType type)
         {
-            var tours = Tours(Tour("t1", Regional, secondAnchorAvailable: true));
+            var tours = Tours(Tour("t1", type));
             var guide = AnchoredOn("t1", tours);
-            var newPose = new Pose(new Vector3(4f, 5f, 6f), Quaternion.identity);
 
-            var effect = guide.SubmitScan("t1", newPose, tours, out _);
+            for (int i = 0; i < 3; i++)
+            {
+                var newPose = new Pose(new Vector3(4f + i, 5f, 6f), Quaternion.identity);
 
-            Assert.That(effect.ReanchorTourId, Is.EqualTo("t1"));
-            Assert.That(effect.ReanchorPose, Is.EqualTo(newPose));
-            Assert.That(effect.ConsumesSecondAnchor, Is.True);
-            Assert.That(effect.ActivateTourId, Is.Null);
-            Assert.That(effect.Deactivate, Is.False);
-            Assert.That(effect.AlwaysDisplayedVisible, Is.Null, "状态没变，显隐不动");
-            Assert.That(guide.IsSettling, Is.True);
+                var effect = guide.SubmitScan("t1", newPose, tours, out var decision);
+
+                Assert.That(decision.Action, Is.EqualTo(ScanAction.Reanchor), $"第 {i + 1} 次");
+                Assert.That(effect.ReanchorTourId, Is.EqualTo("t1"));
+                Assert.That(effect.ReanchorPose, Is.EqualTo(newPose));
+                Assert.That(effect.ActivateTourId, Is.Null);
+                Assert.That(effect.Deactivate, Is.False);
+                Assert.That(effect.AlwaysDisplayedVisible, Is.Null, "状态没变，显隐不动");
+                Assert.That(guide.IsSettling, Is.True);
+                Assert.That(guide.ActiveTourId, Is.EqualTo("t1"));
+
+                guide.AfterPhysicsStep();
+                Frame(guide, tours);
+            }
         }
 
         /// <summary>ite-current-tour D10：等待扫码时扫到 alwaysDisplayed，只锚定，当前 Tour 为空，之后取队尾。</summary>
@@ -121,7 +130,6 @@ namespace Uality.IteTour.Tests
             var effect = guide.SubmitScan("a1", MarkerPose, tours, out _);
 
             Assert.That(effect.ReanchorTourId, Is.EqualTo("a1"));
-            Assert.That(effect.ConsumesSecondAnchor, Is.False);
             Assert.That(effect.ActivateTourId, Is.Null);
             Assert.That(guide.State, Is.EqualTo(GuideState.Anchored));
             Assert.That(guide.CurrentTourId, Is.Null, "alwaysDisplayed 不当当前 Tour（I5）");

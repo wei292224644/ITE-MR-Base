@@ -19,13 +19,10 @@ namespace Uality.IteTour.Core
         /// <summary>激活时的锚定位姿；null 表示沿用现有锚定（区域补位、直接激活）。</summary>
         public Pose? AnchorPose;
 
-        /// <summary>只重新锚定、不换 Tour（regionalTrigger 二次锚定；等待扫码时扫到 alwaysDisplayed）；null 表示无。</summary>
+        /// <summary>只重新锚定、不换 Tour（在播时再扫当前 Tour 的码，marker-rescan D4；等待扫码时扫到 alwaysDisplayed）；null 表示无。</summary>
         public string ReanchorTourId;
 
         public Pose ReanchorPose;
-
-        /// <summary>重锚是否消耗该 Tour 的二次锚定许可。</summary>
-        public bool ConsumesSecondAnchor;
 
         /// <summary>alwaysDisplayed 的显隐要变成什么；null 表示不变。只在进出 Anchored 时给出（ite-current-tour D8）。</summary>
         public bool? AlwaysDisplayedVisible;
@@ -155,7 +152,6 @@ namespace Uality.IteTour.Core
                     {
                         ReanchorTourId = decision.TourId,
                         ReanchorPose = pose,
-                        ConsumesSecondAnchor = decision.ConsumesSecondAnchor,
                     };
                     break;
 

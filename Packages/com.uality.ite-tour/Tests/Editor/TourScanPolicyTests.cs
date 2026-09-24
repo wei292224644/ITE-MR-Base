@@ -7,7 +7,7 @@ namespace Uality.IteTour.Tests
 {
     /// <summary>
     /// 扫描决策是这个包里最容易在 PICO 上出问题、又最难在真机上复现的一段。
-    /// D14 把它从「三个订阅者的相互作用 + `_canAnchor` 的 await 竞态」抽成纯函数，
+    /// design D14 把它从「三个订阅者的相互作用」抽成纯函数，
     /// 就是为了让这组测试能够存在。已定位后只认当前 Tour 的码（ite-current-tour D6）。
     /// </summary>
     public class TourScanPolicyTests
@@ -16,16 +16,8 @@ namespace Uality.IteTour.Tests
         private const IteSpaceScene.Tour.DisplayType Regional = IteSpaceScene.Tour.DisplayType.regionalTrigger;
         private const IteSpaceScene.Tour.DisplayType Always = IteSpaceScene.Tour.DisplayType.alwaysDisplayed;
 
-        private static TourDescriptor Tour(
-            string id,
-            IteSpaceScene.Tour.DisplayType type = Normal,
-            bool secondAnchorAvailable = false)
-            => new TourDescriptor
-            {
-                TourId = id,
-                DisplayType = type,
-                SecondAnchorAvailable = secondAnchorAvailable,
-            };
+        private static TourDescriptor Tour(string id, IteSpaceScene.Tour.DisplayType type = Normal)
+            => new TourDescriptor { TourId = id, DisplayType = type };
 
         private static List<TourDescriptor> Tours(params TourDescriptor[] tours) => new List<TourDescriptor>(tours);
 
@@ -89,7 +81,6 @@ namespace Uality.IteTour.Tests
 
             Assert.That(decision.Action, Is.EqualTo(ScanAction.Reanchor));
             Assert.That(decision.TourId, Is.EqualTo("a1"));
-            Assert.That(decision.ConsumesSecondAnchor, Is.False);
         }
 
         [Test]
@@ -101,26 +92,6 @@ namespace Uality.IteTour.Tests
 
             Assert.That(decision.Action, Is.EqualTo(ScanAction.Activate));
             Assert.That(decision.TourId, Is.EqualTo("t1"));
-        }
-
-        /// <summary>
-        /// D14 所选语义，单独钉住：等待扫码时激活 regionalTrigger 后，本次扫码
-        /// **不**消耗其二次锚定许可。
-        ///
-        /// 源实现中第二个处理器此刻会去查 CanSecondAnchor()，而 Enable() 尚未完成、
-        /// _canAnchor 仍为 false，因此不消耗。内容为空的 Tour 会同步走完 Enable()
-        /// 从而走出另一分支——那个偶然分支本次被规范掉了。
-        /// </summary>
-        [Test]
-        public void Decide_AwaitingScanOnRegionalTrigger_DoesNotConsumeSecondAnchor_D14()
-        {
-            var state = new ScanState { State = GuideState.AwaitingScan };
-
-            var decision = TourScanPolicy.Decide(
-                state, Tours(Tour("t1", Regional, secondAnchorAvailable: true)), "t1");
-
-            Assert.That(decision.Action, Is.EqualTo(ScanAction.Activate));
-            Assert.That(decision.ConsumesSecondAnchor, Is.False);
         }
 
         // ---- 已定位：只认当前 Tour 的码（ite-current-tour D6）----
@@ -154,46 +125,32 @@ namespace Uality.IteTour.Tests
             Assert.That(decision.TourId, Is.EqualTo("t1"));
         }
 
-        [Test]
-        public void Decide_CurrentNormalPlaying_Ignores()
-        {
-            var decision = TourScanPolicy.Decide(Anchored("t1", "t1"), Tours(Tour("t1", Normal)), "t1");
-
-            Assert.That(decision.Action, Is.EqualTo(ScanAction.Ignore));
-        }
-
         // ---- 当前 Tour 是 regionalTrigger ----
 
         [Test]
-        public void Decide_CurrentRegionalNotPlaying_ActivatesWithoutConsumingSecondAnchor()
+        public void Decide_CurrentRegionalNotPlaying_Activates()
         {
-            var decision = TourScanPolicy.Decide(
-                Anchored("t1"), Tours(Tour("t1", Regional, secondAnchorAvailable: true)), "t1");
+            var decision = TourScanPolicy.Decide(Anchored("t1"), Tours(Tour("t1", Regional)), "t1");
 
             Assert.That(decision.Action, Is.EqualTo(ScanAction.Activate));
-            Assert.That(decision.ConsumesSecondAnchor, Is.False,
-                "源实现此处的 SecondAnchored() 会被 Enable() 续体覆盖，是死代码（D14）");
+            Assert.That(decision.TourId, Is.EqualTo("t1"));
         }
 
-        [Test]
-        public void Decide_CurrentRegionalPlayingWithAllowance_ReanchorsAndConsumesIt()
+        // ---- 当前 Tour 在播 ----
+
+        /// <summary>
+        /// marker-rescan D4：在播时再扫它的码 = 重新定位，不分展示类型、不限次数
+        /// （取代 design D14 的「每次激活只允许一次二次锚定」与「normal 在播时忽略」）。
+        /// 防误触发由底层负责：每次出现只提交一次、移开视线够久才算重扫。
+        /// </summary>
+        [TestCase(Normal)]
+        [TestCase(Regional)]
+        public void Decide_CurrentPlaying_Reanchors(IteSpaceScene.Tour.DisplayType type)
         {
-            var decision = TourScanPolicy.Decide(
-                Anchored("t1", "t1"), Tours(Tour("t1", Regional, secondAnchorAvailable: true)), "t1");
+            var decision = TourScanPolicy.Decide(Anchored("t1", "t1"), Tours(Tour("t1", type)), "t1");
 
             Assert.That(decision.Action, Is.EqualTo(ScanAction.Reanchor));
             Assert.That(decision.TourId, Is.EqualTo("t1"));
-            Assert.That(decision.ConsumesSecondAnchor, Is.True,
-                "重锚路径不触发 Enable()，所以这次消耗真正生效");
-        }
-
-        [Test]
-        public void Decide_CurrentRegionalPlayingWithoutAllowance_Ignores()
-        {
-            var decision = TourScanPolicy.Decide(
-                Anchored("t1", "t1"), Tours(Tour("t1", Regional, secondAnchorAvailable: false)), "t1");
-
-            Assert.That(decision.Action, Is.EqualTo(ScanAction.Ignore));
         }
 
         // ---- alwaysDisplayed ----
@@ -216,7 +173,7 @@ namespace Uality.IteTour.Tests
         [Test]
         public void Decide_IsPurelyStateDriven_SameMarkerTwiceIsNotDeduplicated()
         {
-            var tours = Tours(Tour("t1", Regional, secondAnchorAvailable: true));
+            var tours = Tours(Tour("t1", Regional));
             var afterActivation = Anchored("t1", "t1");
 
             var first = TourScanPolicy.Decide(afterActivation, tours, "t1");
