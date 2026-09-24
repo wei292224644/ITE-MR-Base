@@ -120,6 +120,8 @@
 
 ### D8 `alwaysDisplayed` 只在已定位状态下显示
 
+> 显示规则不变；「隐藏只切 `activeSelf`、不拆内容树」这一实现方式已被 D13 取代（2026-09-24，整分支审查 C1）。
+
 **选了什么**：进入已定位时显示全部 `alwaysDisplayed`，离开已定位时隐藏。隐藏只切换 Tour 对象的 `activeSelf`，不拆内容树（沿用 `RetainsSceneWhenDeactivated`）。时机：
 - Tour 装配完成后（`CreateAsync` 返回时）按当前状态设一次；
 - 进入或离开已定位时，对全部 `alwaysDisplayed` 设一次。
@@ -194,6 +196,46 @@
 | 扫码提示 | `ScanPromptPolicy` |
 | 摘戴头显、要求重扫、`alwaysDisplayed` 显隐 | `TourGuide` 的状态转换 |
 
+### D13 `alwaysDisplayed` 按导览状态建树、拆树（取代 D8 的实现方式，修订 design D29）
+
+**选了什么**：规则只有一条——`alwaysDisplayed` 可见 ⇔ 内容树已建好。
+- 进入已定位：对全部 `alwaysDisplayed` 调 `Enable()` 建树。建完派发 `OnTourSceneLoaded`，LoadTrigger 的首屏效果在这时触发。
+- 离开已定位（摘下、要求重扫）：调 `Disable()`，完整拆树。
+- 装配时不再建树：`CreateTourObject` 对所有展示类型都以 `Disable()` 收尾，删掉 `alwaysDisplayed` 装配即 `await Enable()` 的分支（design D29 的做法）。
+- 删除 `TourAssembly.RetainsSceneWhenDeactivated`：`alwaysDisplayed` 不再是「停用时保留内容树」的特例，和 `normal`、`regionalTrigger` 走同一条 `Enable` / `Disable` 路径。
+- 时机沿用 D8：`GuideEffect.AlwaysDisplayedVisible` 在进出已定位时给出；每个 Tour 装配完成后按当前状态设一次（覆盖「已定位之后才装配完」的 Tour）。
+- `Enable()` 在这里是发出即走，不再挂在加载链上等。建树抛错时必须打 `LogException`，不能变成没人观察的 Task 异常。
+- 建到一半就离开已定位：沿用 `TourSceneLifecycle` 的世代作废（既有机制，`TourSceneLifecycleTests` 已覆盖），拆树会作废进行中的构建。
+- 资源不重载：`LoadAssets` 只在装配时做一次，`ReleaseAssets` 只在卸载（`Destroy`）时做。重建只实例化实体、跑各组件的 `Constructor`（视频要重新 `Prepare`）。
+
+**随之删除**：`IteTourObject.SetContentVisible`（D8 的实现；spec 原写 `SetShown` 切 Tour 对象 `activeSelf`，实现改成切内容根，这个偏离当时没记，一并在此了结）；`IteRuntime` 在 `TourActivated` 时给已建好树的 Tour 补发 `OnTourSceneLoaded` 的分支——D10 之后 `alwaysDisplayed` 不会被激活，别的类型被激活时内容一定还没建好，这个分支走不到。
+
+**为什么**：内容组件把 `OnDisable` 当拆除用，停用内容根不是可恢复的隐藏。
+- `VideoPlaneElement.OnDisable` 销毁 `VideoPlayer` 并释放 RenderTexture，二者只在 `Constructor` 里建、没有 `OnEnable` 重建：重新显示后视频面是白板，点击无反应。
+- Spin、局部动画、`AutoRotate` 在 `OnDisable` 里复位，显隐动画协程停在半途。
+- LoadTrigger 的首屏效果只在建树时派发一次：按 D8 的做法，冷启动时 `alwaysDisplayed` 在看不见的时候建树、放完首屏效果，然后才被隐藏。
+
+改动前 `alwaysDisplayed` 从不被停用，所以 D8 的做法是回归（整分支审查 C1，已核实）。让「可见」与「已建树」等价，生命周期由一条规则决定，不依赖每个组件（包括以后加的）都能扛住停用。
+
+**替代方案**：
+- A：让 `VideoPlaneElement` 对停用对称（停用只暂停，销毁挪到 `OnDestroy`，启用时恢复）。只修了视频，首屏效果仍被吞，而且要求以后每个组件都扛住停用。否决（用户选择，2026-09-24）。
+- D8 原做法（停用 Tour 对象或内容根）：即上面的回归。否决。
+
+**代价**：
+- 每次重新定位（摘下再戴上、重定位后再扫码）都重建一次内容，首屏效果每次都重放——和 `normal` / `regionalTrigger` 每次激活都重建一致。
+- 宿主收到 `alwaysDisplayed` 的 `OnTourSceneLoaded` 从加载期挪到定位之后，而且每次定位都会收到。宿主 `IteHostBootstrap` 只对「刚激活、正在等」的 Tour 处理这个事件，其余只打日志，不受影响。
+- 加载链不再等 `alwaysDisplayed` 建树，加载完成得更早；建树失败不再让加载链失败，改为打 `LogException`。
+
+### D14 帧驱动在 `OnEnable` 启动物理步协程
+
+**选了什么**：`IteRuntimeDriver` 在 `OnEnable` 里启动 `WaitForFixedUpdate` 循环（D9 的关窗通知），不再用 `Start`。对象停用时 Unity 自动停掉协程，再启用时重新启动。
+
+**为什么**：用 `Start` 启动时，驱动对象停用再启用后协程永久消失，`LateUpdate` 却照常恢复。之后每次锚定，结算窗口都关不上，当前 Tour 再也不换，而且不报错——只是日志里少了「锚定结算完成」那一行（整分支审查 M3）。
+
+**替代方案**：加看门狗（窗口持续超过若干帧就报错）。不做：已知的原因已经修掉，看门狗防的是推测出来的原因；真机上出现窗口长时间不关时再加。
+
+**验证**：EditMode 不跑协程，只能靠真机日志（§10 第 6 条）。
+
 ## 5. 数据流
 
 ```
@@ -241,8 +283,10 @@ Next(C, 基准, 当前):
 | `TourDirector(assembler, pick)` / `TourGuide(pick)` | 删除 `pick` 参数（D2） |
 | `TourDirector` | 新增 `CurrentTourId`、`AfterPhysicsStep()`（D9） |
 | `TourRegionPolicy`、`RegionDecision` | 删除，由 `RegionQueue` / `RegionBaseline` / `CurrentTourRule` 取代 |
-| `IteTourObject.OnCameraVolumeTransition` | 增加碰撞体名字参数（只用于日志）；新增「体积清除」通知（D11）；新增 `SetShown(bool)`（D8） |
-| `IteRuntimeDriver` | 新增常驻协程，每次 `WaitForFixedUpdate` 后调用 `Director.AfterPhysicsStep()`（D9） |
+| `IteTourObject.OnCameraVolumeTransition` | 增加碰撞体名字参数（只用于日志）；新增「体积清除」通知（D11）。显隐不另设接口，走 `Enable()` / `Disable()`（D13） |
+| `IteRuntimeDriver` | 新增常驻协程，每次 `WaitForFixedUpdate` 后调用 `Director.AfterPhysicsStep()`（D9），在 `OnEnable` 启动（D14） |
+| `TourAssembly.RetainsSceneWhenDeactivated` | 删除（D13） |
+| `IteRuntime.OnTourSceneLoaded` | `alwaysDisplayed` 的这个事件从加载期挪到每次进入已定位后（D13） |
 | `TourAssembly` | 新增 `PlaysOnSelect(displayType)`（D5） |
 
 宿主（`Assets/Scripts/IteHost`）不需要改代码：`IteEditorHud` 读的是 `ActiveTourId` 和 `PendingTourIds`，这两个类型都不变。
@@ -255,8 +299,9 @@ Next(C, 基准, 当前):
 4. 补位从随机挑选改为取队尾，而且不区分展示类型（D2、D4）。
 5. 已定位后只认 C 的码（D6）。
 6. 已定位后只在 C 是 `normal` 且未播时提示，只提示 C（D7）。
-7. `alwaysDisplayed` 在等待扫码和摘下状态下隐藏（D8）。
+7. `alwaysDisplayed` 在等待扫码和摘下状态下隐藏（D8）：离开已定位时拆树，进入已定位时建树，首屏效果在看得见时触发（D13）。
 8. 首次扫到 `alwaysDisplayed` 的码只做锚定；`ActivateTour` 拒绝 `alwaysDisplayed`（D10）。
+9. 帧驱动被停用再启用后，结算窗口仍能关上（D14）。
 
 ## 8. 诊断日志
 
@@ -285,10 +330,18 @@ EditMode 纯逻辑测试，放在 `Packages/com.uality.ite-tour/Tests/Editor/`�
 - 进入、离开已定位时，`alwaysDisplayed` 的显隐效果正确。
 - 维持 I4、I5。
 
+**`alwaysDisplayed` 生命周期（D13）**：用内存里搭的最小 Tour 预制体（带 `IteTourObject`、体积和内容根子物体）走 `IteTourAssembler`，内容为空时建树、拆树都同步完成。
+- 装配完成后没有建树。
+- 设为可见：建树，派发一次 `OnTourSceneLoaded`。
+- 设为不可见：拆树。
+- 再设为可见：重建，再派发一次 `OnTourSceneLoaded`。
+- 非 `alwaysDisplayed` 的 Tour 不受影响。
+
 **改动已有测试**
 - `TourRegionPolicyTests`：删除，其中的用例迁移到新模块。
 - `TourGuideTests`、`TourScanPolicyTests`、`ScanPromptPolicyTests`：按新规则更新（去掉 `pick`；`ScanState` 字段变化；区域门禁相关用例改为 C 门禁）。
 - `CameraColliderMatchTests`：保留（`IsCamera` 不变）。
+- `TourAssemblyTests`：删掉 `RetainsSceneWhenDeactivated` 的用例（D13）。
 
 **回归**：在已打开的 Editor 里跑 `Uality.IteTour.Tests` 和 `MRBase.Ite.Host.Tests`，全部通过。
 
@@ -297,7 +350,10 @@ EditMode 纯逻辑测试，放在 `Packages/com.uality.ite-tour/Tests/Editor/`�
 1. 日志里同一个体积的计数会到 2（Main Camera 和 XR Origin），全部离开才出队，以此确认 §2.1。
 2. 扫 tag 0 后内容不被切走；走进 ujf5 的体积再走出来，才切换。
 3. C 是 `normal` 时，走进 `regionalTrigger` 区域不切换；只提示 C；扫 C 才播放。
-4. 冷启动和摘下再戴上后，`alwaysDisplayed` 不可见；扫码之后出现。
+4. 冷启动和摘下再戴上后，`alwaysDisplayed` 不可见；扫码之后出现，里面的视频能播、能点，首屏效果在出现时播放（D13）。
+5. 重复摘下、戴上、扫码几次，`alwaysDisplayed` 每次都正常出现，日志里每次定位后都有它的 `OnTourSceneLoaded`。
+6. 每次扫码后日志里都有「锚定结算完成」；锚定引起的区域进出都出现在这一行之前（D9、D14）。
+7. 人完全走出一个区域后，这个区域的计数回到 0。停在 1 说明相机侧某个碰撞体被停用再启用过（Unity 补发 Enter、不发 Exit）。
 
 ## 11. 不在范围内
 
@@ -310,4 +366,5 @@ EditMode 纯逻辑测试，放在 `Packages/com.uality.ite-tour/Tests/Editor/`�
 
 - `2026-09-23-ite-scan-region-gate-design.md`：D1（定位后只认所在区域的码）由本文 D6 取代；D3（区域外不提示）由本文 D7 取代；D2、D4 不变；D5 维持待确认。
 - `2026-09-23-ite-guide-state-machine-design.md`：D5（帧末按集合的净变化重选、随机挑选）由本文 D3、D2、D9 取代；D6 的快照去掉队列；I1 中「`alwaysDisplayed` 不受状态影响」由本文 D8 修订；三态与状态转换（§3）不变。
+- design D29（`alwaysDisplayed` 装配时即建树）：由本文 D13 修订为「进入已定位时建树」。原文档随 `openspec/` 删除，决策记录在 `IteTourObject.CreateTourObject` 的注释里，D13 实施时一并改掉。
 - `docs/handoff/2026-09-23-ite-region-trigger-issues.md`：本文对应其中的问题 1 和问题 2。
