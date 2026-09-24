@@ -140,6 +140,22 @@ ITE（只响应回调，不认识底层）
 - 落选直接丢弃（D20 的原做法）。否决：见上。
 - 落选的码排队，下一帧直接提交、不重新判稳。否决：多一份排队状态；重新判稳只多等一个稳定窗口（0.4～0.5 秒）。
 
+### D8 加载完成前不对外发扫码提示
+
+**选了什么**：`IteRuntime` 在加载完成前不转发 `OnScanPromptChanged`，`ScanPrompt` 属性返回隐藏；加载完成时，如果当前提示不是隐藏，就补发一次。门禁由一个纯逻辑小类 `ScanPromptGate` 实现，`IteRuntime` 只做接线。
+
+**为什么**：D3 的前提是「有提示 = ITE 在等第一次扫描，而且收扫码」，冷启动时这个前提不成立。
+- 导览状态一构造就是等待扫码，首帧就会广播「请扫码」，但加载完成前 ITE 会丢弃所有扫码（ite-guide-state-machine D9）。
+- 宿主在加载途中就放行了；码判稳后提交，被丢弃。
+- D1 之后这张码这次出现不会再提交；加载完成时提示没有变化，也不会再放行。
+- 结果是：面板叫用户扫码，用户盯着码却没有反应，要移开视线 3 秒才行（终审发现，2026-09-24）。
+
+门禁放在运行时边界，「提示可见 ⇔ 收扫码」就在包的公开面上成立，宿主仍然只有一个放行触发点。
+
+**替代方案**：宿主在 `OnInitialized` 里再放行一次。否决：宿主会有两个放行触发点，同一个决策分散在两个处理器里；公开面上「提示可见」和「收扫码」仍不一致，接入这个包的其他宿主会踩同一个坑。
+
+**影响**：修正 ite-guide-state-machine D9 里「首帧广播提示」的实现。头显面板加载期间照常显示加载进度（它按 `OnInitialized` 判断是否加载完成），加载完成后才显示扫码提示，用户看到的和以前一样。
+
 ## 5. 对外接口变化
 
 | 接口 | 变化 |
@@ -151,8 +167,8 @@ ITE（只响应回调，不认识底层）
 | `IteDeviceMarkerRig`、`IteEditorFakeScan` | 删除 `lostAfterSeconds` 序列化字段，改从宿主读取（D2） |
 | `TourScanPolicy.Decide` | 签名不变；当前 Tour 在播时扫它的码一律返回 `Reanchor`（D4） |
 | `TourDescriptor`、`ScanDecision`、`GuideEffect`、`IteTourObject`、`TourDirector` | 删除二次锚定许可相关的成员（D5） |
-
-ITE 对外的 API（`IteRuntime`）不变。
+| `IteRuntime` | 签名不变；加载完成前不广播 `OnScanPromptChanged`、`ScanPrompt` 返回隐藏，加载完成时补发（D8） |
+| `ScanPromptGate`（新增） | 扫码提示对外的门禁（D8） |
 
 ## 6. 行为变化
 
@@ -180,6 +196,7 @@ EditMode：
   - normal 在播时扫它的码 → `Reanchor`；
   - regionalTrigger 在播时连续多次扫它的码，每次都是 `Reanchor`；
   - 删除与二次锚定许可有关的用例和字段（D4、D5）。
+- `ScanPromptGateTests`（`Uality.IteTour.Tests`）：打开前不转发、当前提示为隐藏；打开时补发最近的可见提示；最近的是隐藏时打开不广播；打开后原样转发（D8）。
 
 宿主接线（`IteHostBootstrap` 在扫码提示可见时调用 `Rearm()`、从配置资产读丢失时长）属于 MonoBehaviour 接线，EditMode 测不了，放到真机验证。
 
@@ -193,6 +210,7 @@ EditMode：
 4. 摘下后 3 秒内就戴回来、码一直在视野里：不用移开视线就能扫上（放行生效）。
 5. 休眠后戴上：直接能扫上。
 6. 当前 Tour 是 normal、还没播放时，盯着它的码：直接激活。
+7. 冷启动时，加载期间就盯着码：加载完成后一个稳定窗口内扫上（D8）。
 
 ## 9. 不在范围内
 
@@ -203,4 +221,5 @@ EditMode：
 ## 10. 与既有文档的关系
 
 - `docs/superpowers/specs/2026-09-23-ite-current-tour-design.md`：D6（已定位后只认当前 Tour 的码）、D9（定位打开结算窗口）、D10（等待扫码时扫到 alwaysDisplayed 只定位）不变。它的 §7 行为变化和 `TourScanPolicy` 注释里沿用的 design D14 二次锚定语义，由本文 D4、D5 取代。
+- ite-guide-state-machine D9（加载完成前忽略扫码）不变；它的实现补充里「构造后首帧广播扫码提示」由本文 D8 修正为「加载完成时补发」。
 - `IteMarkerBridge` 的 design D5（桥接只做稳定、偏移、透传）、D22（稳定窗口按时间算）不变；D20（同帧只认第一张）不变，但落选的码不再丢弃，由本文 D7 规定。
