@@ -34,10 +34,6 @@ namespace Uality.IteTour.Core
         public static bool AllowsTriggerVolume(IteSpaceScene.Tour.DisplayType displayType)
             => displayType != IteSpaceScene.Tour.DisplayType.alwaysDisplayed;
 
-        /// <summary>停用当前导览时仍保留内容树。只有卸载才拆。</summary>
-        public static bool RetainsSceneWhenDeactivated(IteSpaceScene.Tour.DisplayType displayType)
-            => displayType == IteSpaceScene.Tour.DisplayType.alwaysDisplayed;
-
         /// <summary>
         /// 被选为当前 Tour 后是否立即播放（ite-current-tour D5）：regionalTrigger 一进区域就播；
         /// normal 要扫到它的码才播——碰撞永远不激活 normal。

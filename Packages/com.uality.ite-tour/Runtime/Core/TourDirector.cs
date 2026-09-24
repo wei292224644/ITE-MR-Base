@@ -327,8 +327,8 @@ namespace Uality.IteTour.Core
                 tour.ChangeTourObjectTransform(pose.Value.position, pose.Value.rotation);
             }
 
-            // 先广播再 Enable。已建树时 Enable 是空操作、不再派发组件侧 Loaded
-            // （LoadTrigger 不能重放）；宿主超时由 IteRuntime 在 Activated 回调里补一次。
+            // 先广播再 Enable：宿主据此开始等 OnTourSceneLoaded。换过来的 Tour 内容一定已拆
+            // （ite-current-tour D13 之后没有停用时保留内容树的类型），Enable 必然重建并派发 Loaded。
             TourActivated?.Invoke(tour.TourId);
 
             // 与源实现一致：不等内容构建完就返回，构建完成由 OnTourSceneLoaded 通知

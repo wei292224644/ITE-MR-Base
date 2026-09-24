@@ -67,25 +67,12 @@ namespace Uality.IteTour.Core
                 bootstrap.Camera);
 
             _director = new TourDirector(_assembler);
-            _director.TourActivated += id =>
-            {
-                OnTourActivated?.Invoke(id);
-
-                // alwaysDisplayed 在装配时已经建树并派发过组件侧 OnTourSceneLoaded。
-                // 再次 Activate 不再重建，组件事件不能重放（LoadTrigger 会再跑一遍）。
-                // 宿主超时监视仍需要一次 Loaded，由这里补发给宿主。
-                var tour = _assembler.Find(id);
-                if (tour != null && tour.IsSceneReady)
-                {
-                    OnTourSceneLoaded?.Invoke(id);
-                }
-            };
+            _director.TourActivated += id => OnTourActivated?.Invoke(id);
             _director.TourDeactivated += id => OnTourDeactivated?.Invoke(id);
             _director.ScanPromptChanged += prompt => OnScanPromptChanged?.Invoke(prompt);
             _director.GuideStateChanged += (state, reason) => OnGuideStateChanged?.Invoke(state, reason);
 
-            // 必须在 CreateTourObject 之前挂钩：alwaysDisplayed 的 Tour 在那里面就把内容
-            // 建完并触发 OnTourSceneLoaded（design D29）
+            // 早于 CreateTourObject 挂钩，之后的体积事件与建树完成都不会漏（见 IteTourAssembler.TourCreated）
             _assembler.TourCreated += tour =>
             {
                 _director.Observe(tour);
@@ -198,7 +185,7 @@ namespace Uality.IteTour.Core
                 var data = await _pipeline.FetchTourAsync(tour.tourID);
                 await _assembler.CreateAsync(tour, data);
 
-                // alwaysDisplayed 在装配里就建好树并显示了；按当前导览状态收一次——锚定前不该看见它（ite-current-tour D8）
+                // 已定位之后才装配完的 alwaysDisplayed 在这里建树；未定位时它们本就没建，调用无副作用（ite-current-tour D13）
                 _director.SyncAlwaysDisplayed();
 
                 // 绑定在装配时收下：这里 IteSpaceScene.Tour 就在手上，

@@ -79,20 +79,6 @@ namespace Uality.IteTour.Tests
                 Is.False);
         }
 
-        [Test]
-        public void RetainsSceneWhenDeactivated_OnlyAlwaysDisplayed()
-        {
-            Assert.That(
-                TourAssembly.RetainsSceneWhenDeactivated(IteSpaceScene.Tour.DisplayType.alwaysDisplayed),
-                Is.True);
-            Assert.That(
-                TourAssembly.RetainsSceneWhenDeactivated(IteSpaceScene.Tour.DisplayType.normal),
-                Is.False);
-            Assert.That(
-                TourAssembly.RetainsSceneWhenDeactivated(IteSpaceScene.Tour.DisplayType.regionalTrigger),
-                Is.False);
-        }
-
         [TestCase(IteSpaceScene.Tour.DisplayType.regionalTrigger, true)]
         [TestCase(IteSpaceScene.Tour.DisplayType.normal, false)]
         [TestCase(IteSpaceScene.Tour.DisplayType.alwaysDisplayed, false)]

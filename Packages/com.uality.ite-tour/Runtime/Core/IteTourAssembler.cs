@@ -27,10 +27,8 @@ namespace Uality.IteTour.Core
         public IReadOnlyList<IteTourObject> LiveTours => _liveTours;
 
         /// <summary>
-        /// Tour 实例已就位、内容尚未构建。订阅方在这一刻挂钩子。
-        ///
-        /// 时机必须在 <c>CreateTourObject</c> 之前：<c>alwaysDisplayed</c> 的 Tour 会在
-        /// 那里面就把内容建完并触发 <c>OnTourSceneLoaded</c>（design D29），事后再订就晚了。
+        /// Tour 实例已就位、内容尚未构建。订阅方在这一刻挂钩子：早于 <c>CreateTourObject</c>，
+        /// 之后的体积进出、体积停用、建树完成都不会漏。
         /// </summary>
         public Action<IteTourObject> TourCreated;
 
@@ -105,16 +103,43 @@ namespace Uality.IteTour.Core
         }
 
         /// <summary>
-        /// alwaysDisplayed 只在已定位时显示（ite-current-tour D8）。只切内容根的显隐，不拆内容树。
+        /// alwaysDisplayed 只在已定位时显示（ite-current-tour D8），可见 ⇔ 内容树已建好（ite-current-tour D13）：
+        /// 显示就建树，隐藏就拆树。不能只停用内容根——内容组件把 OnDisable 当拆除用（VideoPlaneElement
+        /// 会销毁 VideoPlayer），重新启用回不来。重复调用是空操作（Enable / Disable 都幂等）。
         /// </summary>
         public void SetAlwaysDisplayedVisible(bool visible)
         {
             foreach (var tour in _liveTours)
             {
-                if (tour != null && tour.DisplayType == IteSpaceScene.Tour.DisplayType.alwaysDisplayed)
+                if (tour == null || tour.DisplayType != IteSpaceScene.Tour.DisplayType.alwaysDisplayed)
                 {
-                    tour.SetContentVisible(visible);
+                    continue;
                 }
+
+                if (visible)
+                {
+                    Show(tour);
+                }
+                else
+                {
+                    tour.Disable();
+                }
+            }
+        }
+
+        /// <summary>
+        /// 发出即走，不让调用方等建树（ite-current-tour D13）。建树抛错必须出声：没人 await 的 Task 里的
+        /// 异常不会进日志，内容就这样静默地空着。
+        /// </summary>
+        private static async void Show(IteTourObject tour)
+        {
+            try
+            {
+                await tour.Enable();
+            }
+            catch (Exception e)
+            {
+                Debug.LogException(e, tour);
             }
         }
 

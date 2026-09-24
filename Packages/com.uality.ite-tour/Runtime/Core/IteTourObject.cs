@@ -126,16 +126,11 @@ namespace Uality.IteTour.Core
             await LoadAssets(tourData.Assets);
             ChangeDisplayType(tour.displayType);
 
-            // 源实现对 alwaysDisplayed 既不 Disable 也不 Enable，而内容树由 Enable 构建——
-            // 于是「一直显示」的 Tour 内容永远是空的，且不报错（design D29）。
-            if (tour.displayType == IteSpaceScene.Tour.DisplayType.alwaysDisplayed)
-            {
-                await Enable();
-            }
-            else
-            {
-                Disable();
-            }
+            // 装配只准备资源、不建树，所有展示类型一样。什么时候建由编排层决定：普通 Tour 在被激活时，
+            // alwaysDisplayed 在进入已定位时（ite-current-tour D13）。design D29 曾让 alwaysDisplayed
+            // 装配即建树（源实现对它既不 Enable 也不 Disable，内容永远是空的），但那样首屏效果会在
+            // 锚定前、看不见的时候就放完。
+            Disable();
         }
 
         public void ChangeTourObjectTransform(Vector3 t, Quaternion r)
@@ -180,16 +175,6 @@ namespace Uality.IteTour.Core
             {
                 OnVolumeCleared?.Invoke(_tourId);
             }
-        }
-
-        /// <summary>
-        /// 只切内容根的显隐，不拆内容树。alwaysDisplayed 按导览状态显隐用（ite-current-tour D8）。
-        /// </summary>
-        public void SetContentVisible(bool visible)
-        {
-            if (_scene.IsDestroyed) return;
-
-            _mainGroupObject.SetActive(visible);
         }
 
         public async Task Enable()
@@ -237,12 +222,12 @@ namespace Uality.IteTour.Core
 
         public void Disable()
         {
-            TearDownScene(force: false);
+            TearDownScene();
         }
 
         public void Destroy()
         {
-            TearDownScene(force: true);
+            TearDownScene();
             _scene.Destroy();
             ReleaseAssets();
         }
@@ -316,15 +301,9 @@ namespace Uality.IteTour.Core
             }
         }
 
-        private void TearDownScene(bool force)
+        private void TearDownScene()
         {
             if (_scene.IsDestroyed) return;
-
-            if (!force && TourAssembly.RetainsSceneWhenDeactivated(_displayType))
-            {
-                _canAnchor = false;
-                return;
-            }
 
             _scene.TearDown();
             DestroyTourScene();
