@@ -124,9 +124,21 @@ ITE（只响应回调，不认识底层）
 
 **为什么**：许可状态只为 D4 取代的那条规则服务。留着不用，就是一套没人读的状态，下一个读代码的人会以为它还有作用。
 
-### D6 同帧多张码只认第一张（不变）
+### D6 同帧多张码只提交第一张（不变）
 
-`IteMarkerBridge` 的 design D20 保持不变：同一帧里有多张码判稳时，只提交第一张。D1 让每张码每次出现只提交一次，与 D20 不冲突。
+`IteMarkerBridge` 的 design D20 保持不变：同一帧里有多张码判稳时，只提交第一张。落选的码怎么处理见 D7。
+
+### D7 同帧落选的码重新判稳，之后单独提交
+
+**选了什么**：同一帧里多张码判稳时，仍只提交第一张（D6）；落选的码由桥接对它调用 `Reset`，重新走一遍判稳窗口，之后在更晚的帧单独提交。
+
+**为什么**：D1 之后每张码每次出现只提交一次，落选如果直接丢弃，就要移开视线 3 秒才能再扫。而 D3 放行会让视野里所有码的判稳同时从头开始，它们大概率在同一帧判稳，落选成了常态。例如：已定位后当前 Tour 是 normal、提示「扫 X」，视野里同时有 X 的码和一张 alwaysDisplayed 的码；放行后若先提交的是 alwaysDisplayed（被 ITE 忽略），X 就扫不上。
+
+延后提交不会重新引出 D20 要防的事（后到的码把先到者刚激活的 Tour 停掉）：已定位后 ITE 只认当前 Tour 的码（ite-current-tour D6），后到的码不会换掉当前 Tour。
+
+**替代方案**：
+- 落选直接丢弃（D20 的原做法）。否决：见上。
+- 落选的码排队，下一帧直接提交、不重新判稳。否决：多一份排队状态；重新判稳只多等一个稳定窗口（0.4～0.5 秒）。
 
 ## 5. 对外接口变化
 
@@ -134,7 +146,7 @@ ITE（只响应回调，不认识底层）
 |---|---|
 | `MarkerStabilizer` | 位姿移动不再触发重新提交（D1）；新增 `ResetAll()`（D3） |
 | `MarkerStabilizerProfile` | 新增顶层字段 `lostAfterSeconds`，默认 3（D2） |
-| `IteMarkerBridge` | 新增 `Rearm()`（D3） |
+| `IteMarkerBridge` | 新增 `Rearm()`（D3）；同帧落选的码重新判稳后再提交（D7） |
 | `IteHostBootstrap` | 对外提供丢失时长；扫码提示变为可见时调用 `Rearm()`（D2、D3） |
 | `IteDeviceMarkerRig`、`IteEditorFakeScan` | 删除 `lostAfterSeconds` 序列化字段，改从宿主读取（D2） |
 | `TourScanPolicy.Decide` | 签名不变；当前 Tour 在播时扫它的码一律返回 `Reanchor`（D4） |
@@ -149,6 +161,7 @@ ITE 对外的 API（`IteRuntime`）不变。
 3. 在需要第一次扫描的场合（有扫码提示时），码一直在视野里也能直接扫上（D3）。
 4. 当前 Tour 正在播放时，每次有意重扫它的码都会重新定位；normal 也一样（D4）。
 5. 丢失判定从 1 秒变为 3 秒：码离开视野 1～3 秒内又回来，算同一次出现（D2）。
+6. 视野里同时有多张码时，它们依次提交，间隔一个稳定窗口；ITE 分别决定每一张怎么处理（D7）。
 
 ## 7. 测试
 
@@ -161,7 +174,8 @@ EditMode：
 - `IteMarkerBridgeTests`（`MRBase.Ite.Host.Tests`）：
   - 持续可见、位姿抖动超过阈值：只转发一次（D1）；
   - 看不见 2 秒（小于 3 秒）后再看见：不转发；看不见超过 3 秒后再看见：转发第二次（D2，会话用 3 秒丢失时长）；
-  - 持续可见时调用 `Rearm()`：再转发一次（D3）。
+  - 持续可见时调用 `Rearm()`：再转发一次（D3）；
+  - 两张码同帧判稳：同一帧只转发一张，落选的那张在之后的帧转发（D6、D7；改写 `TwoMarkersStabilizingInSameTick_OnlyFirstIsForwarded`）。
 - `TourScanPolicyTests`、`TourGuideTests`（`Uality.IteTour.Tests`）：
   - normal 在播时扫它的码 → `Reanchor`；
   - regionalTrigger 在播时连续多次扫它的码，每次都是 `Reanchor`；
@@ -189,4 +203,4 @@ EditMode：
 ## 10. 与既有文档的关系
 
 - `docs/superpowers/specs/2026-09-23-ite-current-tour-design.md`：D6（已定位后只认当前 Tour 的码）、D9（定位打开结算窗口）、D10（等待扫码时扫到 alwaysDisplayed 只定位）不变。它的 §7 行为变化和 `TourScanPolicy` 注释里沿用的 design D14 二次锚定语义，由本文 D4、D5 取代。
-- `IteMarkerBridge` 的 design D5（桥接只做稳定、偏移、透传）、D20（同帧只认第一张）、D22（稳定窗口按时间算）不变。
+- `IteMarkerBridge` 的 design D5（桥接只做稳定、偏移、透传）、D22（稳定窗口按时间算）不变；D20（同帧只认第一张）不变，但落选的码不再丢弃，由本文 D7 规定。
