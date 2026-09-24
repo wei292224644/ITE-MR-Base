@@ -17,6 +17,10 @@ public sealed class QuestObservationSource : IMarkerObservationSource
     private bool opened;
     private bool warnedUnavailable;
 
+    // 应用暂停过 ⇒ OpenXR 会话可能已停掉又重开（真机 2026-09-24：每次会话停止都紧跟 OnApplicationPause(true)）。
+    // 没暂停过就不重建：重建会丢掉已认出的码，重新识别要 1.6～41 秒（同日真机）。
+    private bool pausedSinceRebuild;
+
     public void Open()
     {
         opened = true;
@@ -46,10 +50,16 @@ public sealed class QuestObservationSource : IMarkerObservationSource
             return;
         }
 
-        // ponytail: 分不出是会话重开、只关了系统菜单还是短暂摘下，一律重建；后两者只让 QR 追踪中断一瞬。
-        // 同一次戴上两个信号都可能到（相隔约 0.25 秒）——不合并：HMDMounted 早于会话进入 FOCUSED，
-        // 若只认先到的那个，FOCUSED 之后的那次（49804c1 验证过有效的时机）就被挡掉了。连续重建两次无害。
-        // 触发靠 OVRManager 的两个事件拼凑，仍可能漏；再漏就改为直接监听 OpenXR 会话重开（自定义 OpenXRFeature）。
+        if (!pausedSinceRebuild)
+        {
+            Debug.Log($"[QuestObservationSource] {reason}，应用未暂停过，保留 MRUK QR 追踪器");
+            return;
+        }
+
+        // 同一次戴上两个信号都可能到（相隔约 0.25 秒），只重建先到的那次：真机 2026-09-24 两次会话重开，
+        // 先到的 HMDMounted 虽早于会话进入 FOCUSED，重建都有效。
+        // ponytail: 触发靠 OVRManager 事件 + 暂停标记推断会话重开；再漏就改为直接监听 OpenXR 会话重开（自定义 OpenXRFeature）。
+        pausedSinceRebuild = false;
         MRUK.Instance.enabled = false;
         MRUK.Instance.enabled = true;
         Debug.Log($"[QuestObservationSource] {reason}，重建 MRUK QR 追踪器");
@@ -110,7 +120,11 @@ public sealed class QuestObservationSource : IMarkerObservationSource
         active.Clear();
     }
 
-    public void Pause() => paused = true;
+    public void Pause()
+    {
+        paused = true;
+        pausedSinceRebuild = true;
+    }
 
     public void Resume() => paused = false;
 
