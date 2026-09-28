@@ -76,6 +76,7 @@
     }
   ],
   "testables": [
-    "com.uality.ite-tour"
+    "com.uality.ite-tour",
+    "wu.yize.gsplat"
   ]
 }
