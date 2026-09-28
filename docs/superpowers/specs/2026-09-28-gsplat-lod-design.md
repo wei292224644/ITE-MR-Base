@@ -95,7 +95,7 @@ uint4 #1  packHalf2x16(r, g) · packHalf2x16(b, ln sx) · packHalf2x16(ln sy, ln
 
 alpha ≤ 1 为普通不透明度；alpha > 1 即合并节点的 D（≤ 5）。坐标系为 **Unity RUF**。
 
-**SH**：与现有 `GsplatAssetSpark` 的打包逐位相同（SH1 sint7，SH2/SH3 sint8）。
+**SH**：与现有 `GsplatAssetSpark` 的打包逐位相同（SH1 sint7，SH2 sint8，SH3 sint6）。
 
 **不变式**（写入端自检、读取端校验，共用一套规则）：
 
@@ -111,11 +111,10 @@ alpha ≤ 1 为普通不透明度；alpha > 1 即合并节点的 D（≤ 5）。
 
 ```
 [复用 spark-lib]  MultiDecoder            读 .ply/.spz/.splat/.ksplat
-[自写]            坐标系转换              --source（默认 RUB）→ RUF，含 SH 奇偶翻转
 [复用 spark-lib]  bhatt_lod / tiny_lod    默认 bhatt（base 1.75），--quick → tiny（base 1.5）
 [复用 spark-lib]  chunk_tree              重排：根在 0，子节点连续
+[自写]            坐标系转换 + .gsd 编码  --source（默认 RUB）→ RUF，含 SH 奇偶翻转；与 HLSL 解码逐位一致
 [自写]            不变式自检              §4 规则，不过不写文件
-[自写]            .gsd 编码               与 HLSL 解码逐位一致
 ```
 
 - 依赖：`spark-lib = { git = "https://github.com/sparkjsdev/spark", rev = "9672638", default-features = false,
@@ -221,7 +220,8 @@ Unity 资产路径出包时有 Unity 自己的压缩；运行时字节路径由�
 ### D6 — 坐标系转换在 CLI，`.gsd` 固定为 RUF
 
 **为什么**：坐标系是格式契约的一部分，只在一处转换；reader 只解析不计算。
-符号翻转是正交变换，与合并可交换，放在建树前与建树后等价。
+转换放在**编码时**（建树之后）：翻转在连续意义上与合并可交换，但建树用的离散网格对齐会随之改变，
+两棵树都合法却不相同；编码时转换，树与 Spark 对原始文件建出的一致，可直接对照。
 **否决**：*文件头记源坐标系、reader 加载时转换* —— reader 承担计算，契约里多一个自由度。
 
 ### D7 — CLI 用 Rust，放 gsplat 仓库 `Tools~/`，`spark-lib` 锁 rev
