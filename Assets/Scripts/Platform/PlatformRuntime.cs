@@ -130,6 +130,30 @@ public static class PlatformRuntime
     }
 
     /// <summary>
+    /// 本平台专属的手柄模型；null 表示沿用 rig 默认的 XRI 模型。由 <see cref="PlatformControllerModel"/> 取用。
+    ///
+    /// PICO 必须换：XRI 模型的偏移是按 OpenXR aim 位姿（原点在手柄前端）调的，而 PXR_Loader 下的
+    /// <c>PXR_Controller</c> 布局没有 <c>pointerPosition</c>，手柄节点落到 <c>devicePosition</c>
+    /// （原点在机身中段），模型于是整体掉到手腕方向约 7 cm。SDK 自带模型的原点正对 devicePosition，
+    /// 并按实际连接的手柄型号加载。见 docs/superpowers/specs/2026-09-24-pico-controller-model-design.md。
+    /// </summary>
+    public static GameObject LoadControllerModel(bool leftHand)
+    {
+#if MRBASE_PICO && MRBASE_HAS_PICO_SDK
+        string path = leftHand ? "Prefabs/LeftControllerModel" : "Prefabs/RightControllerModel";
+        var model = Resources.Load<GameObject>(path);
+        if (model == null)
+        {
+            Debug.LogError($"[PlatformRuntime] PICO SDK 手柄模型缺失：Resources/{path}，手柄将沿用错位的 XRI 模型。");
+        }
+
+        return model;
+#else
+        return null;
+#endif
+    }
+
+    /// <summary>
     /// 系统重定位（recenter）发生了。两端的事件源不同，订阅方不必知道是哪一端。
     ///
     /// - PICO：<c>PXR_Plugin.System.RecenterSuccess</c>。
