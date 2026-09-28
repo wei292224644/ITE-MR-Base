@@ -92,6 +92,8 @@ public sealed class PicoFiducialObservationSource : MonoBehaviour, IMarkerObserv
 
     private float cameraFx, cameraFy, cameraCx, cameraCy;
     private bool intrinsicsValid;
+    private Pose headToCamera = Pose.identity;
+    private bool extrinsicsValid;
 
     private string detectorStatus = "(未启动)";
     private string lastDetection = "(未检出)";
@@ -247,10 +249,18 @@ public sealed class PicoFiducialObservationSource : MonoBehaviour, IMarkerObserv
         cameraCx = (float)p.cx;
         cameraCy = (float)p.cy;
         intrinsicsValid = cameraFx > 0f && cameraFy > 0f;
+        // frame.pose 是头位姿，合成前必须乘上头→左相机外参，否则码被定偏约 7.6 cm。
+        extrinsicsValid = PicoEnterpriseCameraPose.TryCreateHeadToCamera(p.l_pos, p.l_rot, out headToCamera);
         Debug.Log($"[PicoFiducialObservationSource] intrinsics fx={p.fx:F2} fy={p.fy:F2} cx={p.cx:F2} cy={p.cy:F2} " +
-                  $"l_pos={p.l_pos} l_rot={p.l_rot}");
+                  $"l_pos={p.l_pos:F4} l_rot={p.l_rot:F5} headToCamera={headToCamera.position:F4} " +
+                  $"residual={Quaternion.Angle(headToCamera.rotation, Quaternion.identity):F2}°");
+        if (!extrinsicsValid)
+        {
+            Debug.LogError("[PicoFiducialObservationSource] 头→左相机外参不可信，不出位姿。" +
+                           $"l_pos={p.l_pos:F4} l_rot={p.l_rot:F5}");
+        }
 
-        // 官方样例只打印外参，不乘进 FrameTarget（design D13）。这里同样只记日志。
+        // 这个矩阵是相机→IMU，不是相机→头（frame.pose 的参考），不参与合成，只记日志备查。
         if (PXR_Enterprise.GetCameraExtrinsicsfor4U(out Matrix4x4 leftExtrinsics, out Matrix4x4 rightExtrinsics))
         {
             Debug.Log($"[PicoFiducialObservationSource] extrinsics L=\n{leftExtrinsics}\nR=\n{rightExtrinsics}");
@@ -288,8 +298,8 @@ public sealed class PicoFiducialObservationSource : MonoBehaviour, IMarkerObserv
         frameHeight = (int)frame.height;
         frameStatus = frame.status;
         lastFrameTimestamp = (long)frame.timestamp;
-        // 锁存该帧曝光时刻的传感器位姿。合成时由 PicoEnterpriseCameraPose 翻进 Unity 追踪系，
-        // 不在这里转，也不套外参。Pose 不是原子写入，读写必须同一把锁。
+        // 锁存该帧曝光时刻的头位姿。合成时由 PicoEnterpriseCameraPose 翻进 Unity 追踪系并乘外参，
+        // 不在这里转。Pose 不是原子写入，读写必须同一把锁。
         lock (gate)
         {
             latestFramePose = frame.pose;
@@ -342,7 +352,7 @@ public sealed class PicoFiducialObservationSource : MonoBehaviour, IMarkerObserv
     /// 不触碰任何 Unity API，所以不需要主线程。frameBuffer 在 workerBusy 期间由该线程独占，
     /// 期间新到的采样直接丢弃并计数。
     /// </summary>
-    private void DispatchDetection(Pose cameraPose)
+    private void DispatchDetection(Pose headPose)
     {
         ThreadPool.QueueUserWorkItem(_ =>
         {
@@ -365,7 +375,7 @@ public sealed class PicoFiducialObservationSource : MonoBehaviour, IMarkerObserv
 
                 foreach (AprilTagDetectorCore.TagObservation observation in observations)
                 {
-                    bool hasPose = TrySolveWorldPose(observation, cameraPose, out Pose worldPose);
+                    bool hasPose = TrySolveWorldPose(observation, headPose, out Pose worldPose);
                     detectResults.Enqueue(new DetectedMarker(
                         observation.Id, observation.Hamming, observation.DecisionMargin, hasPose, worldPose));
                 }
@@ -438,12 +448,18 @@ public sealed class PicoFiducialObservationSource : MonoBehaviour, IMarkerObserv
 
     /// <summary>由四个真角点解出世界位姿。跑在检测线程上，只做纯数学。</summary>
     private bool TrySolveWorldPose(
-        in AprilTagDetectorCore.TagObservation observation, Pose cameraPose, out Pose worldPose)
+        in AprilTagDetectorCore.TagObservation observation, Pose headPose, out Pose worldPose)
     {
         worldPose = default;
         if (!intrinsicsValid)
         {
             poseStatus = "内参不可用";
+            return false;
+        }
+
+        if (!extrinsicsValid)
+        {
+            poseStatus = "外参不可信";
             return false;
         }
 
@@ -456,9 +472,10 @@ public sealed class PicoFiducialObservationSource : MonoBehaviour, IMarkerObserv
             return false;
         }
 
-        worldPose = PicoEnterpriseCameraPose.ComposeWorld(cameraPose, markerInCamera);
+        worldPose = PicoEnterpriseCameraPose.ComposeWorld(headPose, headToCamera, markerInCamera);
         Debug.Log(
-            $"[PicoFiducialObservationSource] cam={cameraPose.position:F3} marker@cam={markerInCamera.position:F3} " +
+            $"[PicoFiducialObservationSource] head={headPose.position:F3} headRot={headPose.rotation:F4} " +
+            $"marker@cam={markerInCamera.position:F3} " +
             $"dist={markerInCamera.position.magnitude:F3}m world={worldPose.position:F3}");
         poseStatus = "位姿已解算";
         return true;
