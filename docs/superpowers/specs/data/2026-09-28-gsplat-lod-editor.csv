@@ -1,0 +1,41 @@
+# gsplat-bench 1.0.0
+# utc,2026-09-29T08:43:07.2248190Z
+# device,Mac14,3 / Apple M2 / Metal
+# unity,6000.4.4f1
+# asset,Model_30w
+# asset_splat_count,286358
+# stereo,disabled
+# locked_refresh_hz,60.0
+# locked_viewport_scale,0.70
+# locked_foveation,0.66
+# sweep_mode,LodComparison
+# warmup_s,2.0
+# sample_s,6.0
+# hud_enabled,True
+# game_view,2064x2208
+# viewpoints,Overview@1.56/1.20/3.06 r12.0/225.0/0.0;Mid@0.60/1.10/2.10 r8.0/225.0/0.0;Close@0.32/1.00/1.82 r3.0/225.0/0.0
+step_index,step_name,mode,valid,msaa,sh_degree,downscale,sort_interval,viewport_scale,renderer_copies,ffr_knob,cutout_m,offscreen_scale,lod_budget,asset,asset_is_lod,viewpoint,drawn_splats,lod_traversal_ms,lod_latency_frames,splat_total,renderer_count,gpu_source,gpu_median_ms,gpu_p99_ms,compositor_gpu_ms,cpu_median_ms,display_interval_ms,budget_ms,refresh_hz,stereo,foveation,eye_res_scale,samples,drift
+0,Model_50w.ply-v0,LodComparison,invalid,1,0,0.25,30,0.70,1,0.66,0,0.50,500000,Model_50w,False,Overview,338003,,0,338003,1,FrameTiming,11.561,13.941,0.000,4.852,4.796,16.667,60.0,disabled,0.00,0.00,1179,xr-inactive (flat mode; not a valid headset run)
+1,Model_50w.ply-v1,LodComparison,invalid,1,0,0.25,30,0.70,1,0.66,0,0.50,500000,Model_50w,False,Mid,338003,,0,338003,1,FrameTiming,15.206,18.013,0.000,6.612,6.650,16.667,60.0,disabled,0.00,0.00,843,xr-inactive (flat mode; not a valid headset run)
+2,Model_50w.ply-v2,LodComparison,invalid,1,0,0.25,30,0.70,1,0.66,0,0.50,500000,Model_50w,False,Close,338003,,0,338003,1,FrameTiming,22.110,24.122,0.000,8.658,8.649,16.667,60.0,disabled,0.00,0.00,693,xr-inactive (flat mode; not a valid headset run)
+3,Model_200w.ply-v0,LodComparison,invalid,1,0,0.25,30,0.70,1,0.66,0,0.50,500000,Model_200w,False,Overview,880282,,0,880282,1,FrameTiming,25.421,30.389,0.000,10.849,10.808,16.667,60.0,disabled,0.00,0.00,555,xr-inactive (flat mode; not a valid headset run)
+4,Model_200w.ply-v1,LodComparison,invalid,1,0,0.25,30,0.70,1,0.66,0,0.50,500000,Model_200w,False,Mid,880282,,0,880282,1,FrameTiming,26.422,30.338,0.000,11.099,11.127,16.667,60.0,disabled,0.00,0.00,546,xr-inactive (flat mode; not a valid headset run)
+5,Model_200w.ply-v2,LodComparison,invalid,1,0,0.25,30,0.70,1,0.66,0,0.50,500000,Model_200w,False,Close,880282,,0,880282,1,FrameTiming,29.523,33.768,0.000,12.396,12.360,16.667,60.0,disabled,0.00,0.00,472,xr-inactive (flat mode; not a valid headset run)
+6,Model_100w.gsd@30w-v0,LodComparison,invalid,1,0,0.25,30,0.70,1,0.66,0,0.50,300000,Model_100w,True,Overview,300000,67.063,0,728449,1,FrameTiming,11.432,14.134,0.000,4.743,4.728,16.667,60.0,disabled,0.00,0.00,1095,xr-inactive (flat mode; not a valid headset run)
+7,Model_100w.gsd@30w-v1,LodComparison,invalid,1,0,0.25,30,0.70,1,0.66,0,0.50,300000,Model_100w,True,Mid,299998,59.052,11,728449,1,FrameTiming,20.837,23.185,0.000,8.204,8.255,16.667,60.0,disabled,0.00,0.00,676,xr-inactive (flat mode; not a valid headset run)
+8,Model_100w.gsd@30w-v2,LodComparison,invalid,1,0,0.25,30,0.70,1,0.66,0,0.50,300000,Model_100w,True,Close,299999,58.878,7,728449,1,FrameTiming,29.261,32.014,0.000,11.299,11.280,16.667,60.0,disabled,0.00,0.00,530,xr-inactive (flat mode; not a valid headset run)
+9,Model_100w.gsd@50w-v0,LodComparison,invalid,1,0,0.25,30,0.70,1,0.66,0,0.50,500000,Model_100w,True,Overview,500000,122.827,0,728449,1,FrameTiming,16.120,18.906,0.000,6.536,6.534,16.667,60.0,disabled,0.00,0.00,899,xr-inactive (flat mode; not a valid headset run)
+10,Model_100w.gsd@50w-v1,LodComparison,invalid,1,0,0.25,30,0.70,1,0.66,0,0.50,500000,Model_100w,True,Mid,500000,106.144,15,728449,1,FrameTiming,23.439,26.025,0.000,9.458,9.446,16.667,60.0,disabled,0.00,0.00,636,xr-inactive (flat mode; not a valid headset run)
+11,Model_100w.gsd@50w-v2,LodComparison,invalid,1,0,0.25,30,0.70,1,0.66,0,0.50,500000,Model_100w,True,Close,499995,122.349,12,728449,1,FrameTiming,30.730,33.474,0.000,12.008,11.973,16.667,60.0,disabled,0.00,0.00,504,xr-inactive (flat mode; not a valid headset run)
+12,Model_100w.gsd@80w-v0,LodComparison,invalid,1,0,0.25,30,0.70,1,0.66,0,0.50,800000,Model_100w,True,Overview,549658,123.398,0,728449,1,FrameTiming,16.892,19.327,0.000,6.826,6.824,16.667,60.0,disabled,0.00,0.00,854,xr-inactive (flat mode; not a valid headset run)
+13,Model_100w.gsd@80w-v1,LodComparison,invalid,1,0,0.25,30,0.70,1,0.66,0,0.50,800000,Model_100w,True,Mid,556480,146.970,16,728449,1,FrameTiming,23.992,27.380,0.000,9.911,9.918,16.667,60.0,disabled,0.00,0.00,603,xr-inactive (flat mode; not a valid headset run)
+14,Model_100w.gsd@80w-v2,LodComparison,invalid,1,0,0.25,30,0.70,1,0.66,0,0.50,800000,Model_100w,True,Close,556122,142.205,15,728449,1,FrameTiming,30.758,34.395,0.000,12.167,12.152,16.667,60.0,disabled,0.00,0.00,493,xr-inactive (flat mode; not a valid headset run)
+15,Model_200w.gsd@30w-v0,LodComparison,invalid,1,0,0.25,30,0.70,1,0.66,0,0.50,300000,Model_200w,True,Overview,299994,56.663,0,1134668,1,FrameTiming,10.672,14.104,0.000,5.301,5.309,16.667,60.0,disabled,0.00,0.00,964,xr-inactive (flat mode; not a valid headset run)
+16,Model_200w.gsd@30w-v1,LodComparison,invalid,1,0,0.25,30,0.70,1,0.66,0,0.50,300000,Model_200w,True,Mid,299998,51.362,8,1134668,1,FrameTiming,21.608,23.661,0.000,8.372,8.355,16.667,60.0,disabled,0.00,0.00,706,xr-inactive (flat mode; not a valid headset run)
+17,Model_200w.gsd@30w-v2,LodComparison,invalid,1,0,0.25,30,0.70,1,0.66,0,0.50,300000,Model_200w,True,Close,299999,55.911,7,1134668,1,FrameTiming,29.638,32.460,0.000,11.438,11.420,16.667,60.0,disabled,0.00,0.00,528,xr-inactive (flat mode; not a valid headset run)
+18,Model_200w.gsd@50w-v0,LodComparison,invalid,1,0,0.25,30,0.70,1,0.66,0,0.50,500000,Model_200w,True,Overview,499996,137.287,0,1134668,1,FrameTiming,16.523,19.470,0.000,6.887,6.859,16.667,60.0,disabled,0.00,0.00,764,xr-inactive (flat mode; not a valid headset run)
+19,Model_200w.gsd@50w-v1,LodComparison,invalid,1,0,0.25,30,0.70,1,0.66,0,0.50,500000,Model_200w,True,Mid,499999,94.799,25,1134668,1,FrameTiming,24.065,34.969,0.000,9.939,9.891,16.667,60.0,disabled,0.00,0.00,509,xr-inactive (flat mode; not a valid headset run)
+20,Model_200w.gsd@50w-v2,LodComparison,invalid,1,0,0.25,30,0.70,1,0.66,0,0.50,500000,Model_200w,True,Close,499995,108.166,10,1134668,1,FrameTiming,29.758,58.146,0.000,13.269,13.149,16.667,60.0,disabled,0.00,0.00,231,xr-inactive (flat mode; not a valid headset run)
+21,Model_200w.gsd@80w-v0,LodComparison,invalid,1,0,0.25,30,0.70,1,0.66,0,0.50,800000,Model_200w,True,Overview,799998,183.988,0,1134668,1,FrameTiming,23.318,29.244,0.000,9.798,9.881,16.667,60.0,disabled,0.00,0.00,562,xr-inactive (flat mode; not a valid headset run)
+22,Model_200w.gsd@80w-v1,LodComparison,invalid,1,0,0.25,30,0.70,1,0.66,0,0.50,800000,Model_200w,True,Mid,799998,237.471,21,1134668,1,FrameTiming,27.915,31.954,0.000,11.499,11.519,16.667,60.0,disabled,0.00,0.00,521,xr-inactive (flat mode; not a valid headset run)
+23,Model_200w.gsd@80w-v2,LodComparison,invalid,1,0,0.25,30,0.70,1,0.66,0,0.50,800000,Model_200w,True,Close,799993,186.121,19,1134668,1,FrameTiming,33.856,37.111,0.000,13.447,13.471,16.667,60.0,disabled,0.00,0.00,447,xr-inactive (flat mode; not a valid headset run)
