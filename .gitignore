@@ -149,3 +149,4 @@ venv/
 
 # Large 3DGS PLY models (too big for git; keep .meta for stable GUIDs)
 /[Aa]ssets/[Aa]ssets/3dgs/*.ply
+/[Aa]ssets/[Aa]ssets/3dgs/*.gsd
