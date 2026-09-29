@@ -118,8 +118,12 @@ alpha ≤ 1 为普通不透明度；alpha > 1 即合并节点的 D（≤ 5）。
 ```
 
 - 依赖：`spark-lib = { git = "https://github.com/sparkjsdev/spark", rev = "9672638", default-features = false,
-  features = ["ply", "spz", "tiny_lod", "bhatt_lod"] }`。
-- 参数：`--source`、`--max-sh 0..3`（默认保留源阶数）、`--quick`。输出节点数、叶子数、层数、耗时。
+  features = ["gsplat", "ply", "spz", "antisplat", "ksplat", "tiny_lod", "bhatt_lod"] }`。`antisplat`/`ksplat` 就是
+  `.splat`/`.ksplat` 的解码器（锁定的 rev 里都有、都不引入额外依赖）；此前的特性表漏了这两项，`MultiDecoder` 那行声称的
+  `.splat`/`.ksplat` 实际解不了，现已补上。`.splat` 有 `cargo test`（`antisplat_input_decodes`）覆盖，`.ksplat` 只依赖
+  spark-lib 自身的解码器，本仓库未单测。
+- 参数：`--source`、`--max-sh 0..3`（默认保留源阶数）、`--quick`。输出一行统计：输入数、丢弃数、叶子数、节点数、层数、SH 阶、耗时、文件大小，
+  如 `338003 leaves, 450113 nodes, 25 levels, SH 3, LoD 4.0s, 33.5 MB`（`Model_50w`）。
 - 坐标转换规则照 `GsplatUtils.AxisSigns` 及其 SH 带内奇偶规则。
 
 ## 6. 运行时：加载、遍历、调度
@@ -200,7 +204,7 @@ gsplat 包新建 `Tests/Editor`（asmdef），`Packages/manifest.json` 的 `test
 | Mid | (0.60, 1.10, 2.10) | (8, 225, 0) |
 | Close | (0.32, 1.00, 1.82) | (3, 225, 0) |
 
-CSV：`docs/superpowers/specs/data/2026-09-28-gsplat-lod-editor.csv`，24 行数据（控制台打印的"40 rows"是文件总行数，含 16 行 `#` 头注释 + 1 行列头 + 24 行数据 = 41 行，不是数据行数）。sweep 全程未出现新增 console error、未触发 Error Pause 暂停（对比开跑前的错误基线 seq 16172，跑完后最新错误仍是 16172）。
+CSV：`docs/superpowers/specs/data/2026-09-28-gsplat-lod-editor.csv`，24 行数据（控制台打印的"40 rows"是文件总行数，含 16 行 `#` 头注释 + 1 行列头 + 24 行数据 = 41 行，不是数据行数）。sweep 全程未出现新增 console error、未触发 Error Pause 暂停（对比开跑前的错误基线 seq 16172，跑完后最新错误仍是 16172）。CSV 头注释里的 `# asset,Model_30w` / `# asset_splat_count,286358` 是 bench rig 启动时挂着的初始资产，**不是** sweep 所测的资产；每行测的是哪个资产以数据行的 `asset` / `asset_is_lod` 列为准。
 
 **行有效性（Ruling 9）**：Editor 下每一行 `valid` 列都是 `invalid`——`BenchConditions` 给非 XR（flat mode）运行统一打上 `drift = "xr-inactive (flat mode; not a valid headset run)"`，这是设计如此（D17 让本轮就在 Editor 里验收），不是异常。判据改用"editor-valid"：`gpu_median_ms` 是数字、`samples > 0`，且把这条固定 drift 原因（以及残留的 `"; "` 分隔符）去掉后 `drift` 为空——其余任何 drift 原因，或没有 GPU 计时，仍会被排除。按此规则，24 行全部 editor-valid，判据 1/2/4 用这 24 行计算，没有行因此被跳过。
 
@@ -214,7 +218,7 @@ Model_200w.ply -> Model_200w.gsd: 880282 input, 0 empty dropped, 880282 leaves, 
 
 **模型规模说明**：文件名夸大了 splat 数——"200w" 实际只有 0.88M splats（880282 leaves），本轮判据没有直接测到 spec 的 1.5M 目标规模。判据 2（与源大小脱钩）是唯一间接支持"往 1.5M 外推"的证据，但见下文，它在 80 万预算档已经不成立。
 
-**Burst / Jobs 设置（Ruling 10，原样记录，未改动）**：`Unity.Burst.BurstCompiler.IsEnabled = True`，`EnableBurstSafetyChecks = True`，`Unity.Jobs.LowLevel.Unsafe.JobsUtility.JobDebuggerEnabled = True`。`lod_traversal_ms` 是"带这些设置的 Editor 数字"，不是真机估计：18 行 LoD 行里 `lod_traversal_ms` 落在 **51.4–237.5 ms**，`lod_latency_frames` 落在 **0–25 帧**——量级与 Task 13 冒烟测试的 45–51 ms / 最多 28 帧一致，且随预算变大而显著变长（80 万预算档遍历普遍超过 140 ms）。这两项都不进 GPU 时间，只影响 LoD 更新的滞后。
+**Burst / Jobs 设置（Ruling 10，原样记录，未改动）**：`Unity.Burst.BurstCompiler.IsEnabled = True`，`EnableBurstSafetyChecks = True`，`Unity.Jobs.LowLevel.Unsafe.JobsUtility.JobDebuggerEnabled = True`。`lod_traversal_ms` 是"带这些设置的 Editor 数字"，不是真机估计：18 行 LoD 行里 `lod_traversal_ms` 落在 **51.4–237.5 ms**，`lod_latency_frames` 落在 **0–25 帧**——量级与 Task 13 冒烟测试的 45–51 ms / 最多 28 帧一致，且随预算变大而显著变长（80 万预算档遍历普遍超过 140 ms）。这两项都不进 GPU 时间，只影响 LoD 更新的滞后。**Overview 各行的 lat = 0 不是测出来的**：sweep 每换一个资产/预算就先把相机放到 Overview 再换绑，绑定时同步跑的那一轮 `RunNow`（D10）用的已经是 Overview 的视角，它把 `LastLatencyFrames` 置 0；相机此后不动，不会再发起异步遍历。异步延迟只在 Mid/Close（换视点后的那一轮）上测到，即 7–25 帧。
 
 **逐视点结果表**（GPU 时间为 `gpu_median_ms`，trav 为 `lod_traversal_ms`，lat 为 `lod_latency_frames`）：
 
@@ -263,7 +267,7 @@ Model_200w.ply -> Model_200w.gsd: 880282 input, 0 empty dropped, 880282 leaves, 
 - Mid：24.07 / 15.21 = **1.58×**
 - Close：29.76 / 22.11 = **1.35×**
 
-原因判断：预算 50 万（500000）在三个视点的 `drawn_splats` 都逼近或打满预算上限（499995–500000），比对照组 `Model_50w.ply` 的 338003 个原生 splat 多出约 48%——但"多画了节点"不是三个视点共同的主因。用**等节点数**的切片把"多画节点"这个变量控制掉，能把原因拆成两半：取 `Model_200w.gsd @30万`（`drawn_splats` ≈30 万，比 338003 **更少**）与 `Model_50w.ply` 全量比：
+原因判断：预算 50 万（500000）在三个视点的 `drawn_splats` 都逼近或打满预算上限（499995–500000），比对照组 `Model_50w.ply` 的 338003 个原生 splat 多出约 48%——但"多画了图元"只解释得了 Overview。用**等图元数**的切片把"多画图元"这个变量控制掉：取 `Model_200w.gsd @30万`（`drawn_splats` ≈30 万，比 338003 **更少**）与 `Model_50w.ply` 全量比：
 
 | 视点 | 200w.gsd@30万 ms | 50w.ply 全量 ms | 比值 | ns/drawn（200w.gsd@30万） | ns/drawn（200w.ply 全量） |
 |---|---|---|---|---|---|
@@ -273,9 +277,19 @@ Model_200w.ply -> Model_200w.gsd: 880282 input, 0 empty dropped, 880282 leaves, 
 
 （ns/drawn = `gpu_median_ms × 1e6 / drawn_splats`，即每画一个图元的平均 GPU 时间；"200w.ply 全量"的 ns/drawn 用 `Model_200w.ply` 全量的 `gpu_median_ms`/`drawn_splats` 算，作为"未合并的原生 splat"基准。）
 
-这张表说明：画的图元数更少（30 万 < 33.8 万）时，Overview 反而比 `50w.ply` 全量更快（0.92×，通过），说明 Overview 的判据 1 失败是**数量驱动**——50 万预算下三个视点都在打满预算，Overview 本来不需要画到 50 万个节点，是预算档位把它推高的。但 Mid 和 Close 在图元数更少的情况下依然更慢（1.42×、1.34×），且每图元耗时明显更高——Close 处 `200w.gsd@30万` 每个图元 98.8 ns，是 `200w.ply` 全量每个原生 splat 33.5 ns 的**约 2.9 倍**；30 万个 LoD 节点在 Close 处的总耗时（29.64ms）已经接近画出全部 88 万个原生 splat 的耗时（29.52ms）。这只能用**合并节点的 fill 更大**解释：合并节点用更大的 quad（宽度按合并规模 k 与深度 D 放大）覆盖屏幕，近距离时这些放大的 quad 互相重叠、每像素多次 overdraw，图元数少也换不来 fill 变少。
+这张表说明：图元更少（30 万 < 33.8 万）时，Overview 反而比 `50w.ply` 全量更快（0.92×，通过）——Overview 的判据 1 失败是**数量驱动**：它本来不需要画到 50 万个节点，是预算档位把它推高的。Mid 和 Close 在图元更少时依然更慢（1.42×、1.34×），每图元耗时也高得多（Close 处 98.8 vs 33.5 ns/drawn，约 2.9 倍；30 万个 LoD 节点的 29.64 ms 已接近画全部 88 万个原生 splat 的 29.52 ms）。但这**不是**合并节点变宽造成的，数据不支持那个解释：
 
-结论：判据 1 在**Overview 是数量驱动**（预算档位偏松，调低默认预算能直接改善），**Mid/Close 是 fill 驱动**（合并节点 quad 变宽导致的 overdraw，光调低预算并不能让 Mid/Close 通过——降低预算只会让 LoD 更早退化到更粗的合并节点，fill 只会更差）。fill 问题的正解在子项目 B（E-B 早停 + quad 收紧到 √5σ）以及"合并节点在 0.3 px² 低通之前就被放宽"这个待查问题（见下方"局限"与 §11）。
+- **D > 1 的节点极少，也不宽。** 直接读三棵树的 Nodes 段（§4：节点 word0.w 低 16 位是 half 的 alpha/D）：D > 1 的节点只占全树的 **1.18% / 0.86% / 0.59%**（50w / 100w / 200w；200w 是 1,134,668 个节点里的 6,666 个，占其 254,386 个内部节点的 2.62%），最大 D 分别为 3.176 / 3.098 / 3.156，对应 quad 放宽 k = (√8 + 0.7·(D−1))/√8 ≤ 1.54。内部节点绝大多数是 alpha ≤ 1 的普通高斯，根本不走放宽路径。
+- **数据支持的是"LoD 保留了源模型的屏幕覆盖与 overdraw"。** Close 处 `200w.gsd@30万 / 50w.ply` = 29.64 / 22.11 = **1.34**，恰好等于 `200w.ply / 50w.ply` = 29.52 / 22.11 = **1.335**：30 万个节点的切面画出的 fill 与 88 万个原生 splat 相同。合并节点按 opacity × 面积加权拟合子节点，足迹覆盖子节点的并集（机制是推断，证据是上面这组比值；"B 的第一个实验"第 3 条直接量）——LoD 保住了 200w 重建的外观，也就保住了它的屏幕覆盖和每像素叠层数；`Model_50w.ply` 是另一份更稀疏的重建，overdraw 本来就少。在 fill 受限的视点，少画图元不等于少着色像素，ns/drawn 随图元数下降而上升，只是同一份 fill 摊到了更少的图元上。
+- **LoD 路径另有一份尚未归因的逐图元开销。** Close @80万 的 LoD 画 799,993 个图元用 33.86 ms，比画 880,282 个原生 splat 的 `200w.ply` 全量（29.52 ms）**慢 15%**——图元更少、fill 按上一条应当相同，却更慢。这份开销出在 LoD 路径自身，本轮没有拆分（候选，均未验证：32B ExtSplat 节点的逐顶点读取与解码、LoD 深度 kernel 同样读 32B 节点）。
+
+结论：判据 1 **记为未通过**。Overview 是**数量驱动**（预算档位偏松，调低默认预算能直接改善）；Mid/Close 是 **fill 受限 + LoD 路径逐图元开销**：LoD 切面保留了源重建的屏幕覆盖，在 fill 受限的视点，它按构造就追不上一份更稀疏的重建（`50w.ply`），在此之上还有约 15% 的逐图元开销待归因。调低预算从未让 GPU 时间变差（`200w.gsd`：Mid 30/50/80 万 = 21.61 / 24.07 / 27.91 ms，Close 29.64 / 29.76 / 33.86 ms；`100w.gsd` 与所有视点同样单调），只是在 fill 受限的视点收益很小（`200w.gsd` Close 30 万与 50 万只差 0.4%）。fill 的正解在子项目 B（E-B 早停 + quad 收紧到 √5σ）；合并节点 k 放宽落在 0.3 px² 低通之前这件事（D21）只影响 ≤ 1.2% 的亚像素节点、且改正它只会让这些节点更宽，**不是** fill 的杠杆。
+
+**B 的第一个实验**（先把上面三条拆干净，再动 fill）：
+
+1. Close 视点让 LoD 画出全部叶子（预算 ≥ 叶子数、像素阈值 0，切面即全部叶子，与 `200w.ply` 画的是同一组高斯），与 `200w.ply` 全量对比：差值就是 LoD 路径的逐图元开销，与 fill 无关。
+2. 把 D 夹到 1（D > 1 节点按普通高斯画）重测：预期与现状几乎无差（D > 1 节点 ≤ 1.2%），确认合并节点放宽不是 fill 的来源。
+3. 在 Close @30万 的切面里分别统计内部节点与叶子的屏幕面积（quad 面积之和、覆盖像素数），量化 fill 由谁贡献。
 
 **判据 2（与源大小脱钩，同预算下 `100w.gsd` 与 `200w.gsd` 相差 ≤ ±5%）：部分通过，随预算增大而失败。**
 
@@ -287,9 +301,9 @@ Model_200w.ply -> Model_200w.gsd: 880282 input, 0 empty dropped, 880282 leaves, 
 
 只有 50 万预算档三个视点全部通过；30 万档 Overview 略超（6.6% vs 5%）；80 万档三个视点全部大幅超标。原因判断：`Model_100w.gsd` 全树只有 728449 个节点、556529 个叶子，80 万（800000）预算已经超出它的总节点数——三个视点在 80 万档的 `drawn_splats` 都停在 549658–556480（约等于它的叶子数上限），预算根本没被用满；而 `Model_200w.gsd`（1134668 节点）在同一档能继续扩到接近 800000。两者的差距因此不是"同预算下谁需要更多细节"，而是**预算超出了较小源模型的物理容量**，属于本轮判据设计没有预留的边界情况，不是脱钩假设本身失效。30 万 / 50 万档（都在两棵树的容量之内）绝大多数通过，能支持"脱钩"的结论；80 万档的失败提示：往 1.5M splat 外推时，判据 2 只在预算不超过最小候选源树容量时成立。
 
-**判据 3（相对 `Model_200w.ply` 全量的收益倍数，仅记录不设门槛）**：跨度很大，从最快 Overview @30万 的 **2.38×** 到最慢 Close @80万 的 **0.87×**（此时 LoD 反而比全量 `.ply` 更慢）。收益随距离拉远、预算调低而变好，随贴近视点、预算调高而转为负收益——与判据 1 的等节点数切片揭示的一致：Overview 是数量驱动（远处本来就不需要那么多节点，收益随预算走），Mid/Close 是 fill 驱动（合并节点 quad 更宽导致 overdraw，收益随预算变差是因为预算越高、越依赖靠近的大合并节点）。
+**判据 3（相对 `Model_200w.ply` 全量的收益倍数，仅记录不设门槛）**：跨度很大，从最快 Overview @30万 的 **2.38×** 到最慢 Close @80万 的 **0.87×**（此时 LoD 反而比全量 `.ply` 更慢）。收益随距离拉远、预算调低而变好，随贴近视点、预算调高而转为负收益——与判据 1 的等图元数切片一致：Overview 是数量驱动（远处本来就不需要那么多节点，收益随预算走）；Mid/Close 受 fill 限制，LoD 切面保留了源模型的屏幕覆盖，调低预算省下的只是逐图元的那部分（`200w.gsd` Close 30 万与 50 万只差 0.4%），调高预算则把 LoD 路径的逐图元开销叠上去——Close @80万 比 `200w.ply` 全量慢 15%（33.86 vs 29.52 ms，图元 80 万对 88 万）。预算越高，切面里被细化成子节点的合并节点越多，而不是越依赖合并节点。
 
-**判据 4（每帧实画数 ≤ N）：通过。** 18 行 LoD 数据（3 资产×预算组合 × 3 视点，实为 2 资产 × 3 预算 × 3 视点）里 `drawn_splats` 无一超过对应 `lod_budget`（差额 0–250494，全部 ≤ 预算）。主线程只在绑定时同步一次，sweep 全程未观察到额外等待（trav/lat 与 GPU 时间是分列记录，不占 GPU 时间）。
+**判据 4（每帧实画数 ≤ N）：通过。** 18 行 LoD 数据（2 资产 × 3 预算 × 3 视点）里 `drawn_splats` 无一超过对应 `lod_budget`（差额 0–250494，全部 ≤ 预算）。判据的后半条"主线程除绑定外不等待遍历 job"本轮**没有测量**：sweep 不记录主线程等待时间。它由构造保证——`GsplatLodSelector.TryComplete` 只在 job `IsCompleted` 之后才 `Complete`，`TrySchedule` 不阻塞，只有绑定时的 `RunNow` 同步（`GsplatLodSelectorTests` 覆盖）。trav/lat 两列与 GPU 时间分列记录，不占 GPU 时间。
 
 **画面等价（Task 13 结论，本任务不重跑，原文引用）**：
 
@@ -299,9 +313,11 @@ Model_200w.ply -> Model_200w.gsd: 880282 input, 0 empty dropped, 880282 leaves, 
 | v0，预算 30 万 | `eq-ply-v0-b300k.png` / `eq-gsd-v0-b300k.png` | 与 80 万那一对**逐字节相同**（30 万在 Overview 距离没有真正卡住预算） |
 | 约 6 m 远景，预算 30 万（Ruling 3 额外验证，未写入场景） | `eq-ply-far6m-b300k.png` / `eq-gsd-far6m-b300k.png` | `.gsd` 只画 66,427 个节点（绝大多数是合并节点）；目视无明显变薄/变透明，只是略软；**全图总亮度 −4.5%**（4.80→4.58），剪影覆盖面积基本不变（−0.5%）；判断为合并节点的积分不透明度存在约 4–5% 的真实损失，肉眼不可见，不属于失败清单（毛刺/偏色/镜像/位置尺度错）里的大错，作为已知偏差跟踪到子项目 B 的最终画质评审 |
 
+注：上表"合并节点"指树的内部节点；按判据 1 下的 D 分布，内部节点绝大多数是 alpha ≤ 1 的普通高斯，D > 1 的只占 2.6–4.7%。那 4–5% 的亮度损失本轮没有归因到具体节点类型。
+
 截图目录：`/private/tmp/claude-501/-Users-wwj-Desktop-unity-MR-Base/340e9260-a0c9-4c4b-960e-bb96788bc51b/scratchpad/`（文件名如上表）。
 
-**局限**：Mac GPU 与 Adreno 同为 tile-based，但算力带宽差一个量级、非立体渲染、带 Editor 开销；Jobs Debugger 在本次测量中是开着的，`lod_traversal_ms`/`lod_latency_frames` 不能代表真机。本节数字只是**相对**证据——判据 1 在本轮预算/模型组合下未通过，判据 2 仅在预算不超过最小候选源树容量时成立；72fps 的绝对判断留给真机阶段（§10）。**调低默认预算只能改善判据 1 里数量驱动的部分（Overview 这类远视点）**，对 Mid/Close 这类 fill 驱动的失败无效甚至会更差（预算越低、越早退化到更粗的合并节点）——这部分要靠子项目 B（E-B 早停、quad 收到 √5σ）和"合并节点 quad 在 0.3 px² 低通之前就被放宽"这个待查问题来解决，不是调参数能绕开的。
+**局限**：Mac GPU 与 Adreno 同为 tile-based，但算力带宽差一个量级、非立体渲染、带 Editor 开销；Jobs Debugger 在本次测量中是开着的，`lod_traversal_ms`/`lod_latency_frames` 不能代表真机。本节数字只是**相对**证据——判据 1 在本轮预算/模型组合下未通过，判据 2 仅在预算不超过最小候选源树容量时成立；72fps 的绝对判断留给真机阶段（§10）。**调低默认预算只能改善判据 1 里数量驱动的部分（Overview 这类远视点）**；在 Mid/Close 这类 fill 受限的视点，调低预算不会变差，但收益很小——LoD 切面保留了源模型的屏幕覆盖，这部分要靠子项目 B（E-B 早停、quad 收到 √5σ），不是调参数能绕开的。另有约 15% 的 LoD 路径逐图元开销（Close @80万 对 `200w.ply` 全量）尚未归因，由"B 的第一个实验"第 1 条拆分。
 
 ## 9. 编号决策
 
@@ -365,6 +381,7 @@ Spark 在 Quest 上以同一代价运行。绑定时同步一次，避免首帧�
 
 **为什么**：预算是整帧共享的资源，不属于某个 renderer。多个 LoD renderer 各持一份预算会悄悄叠加超支。
 **升级路径**：Spark 的多树联合遍历（单堆、多实例根节点）。
+被拒不是永久的：名额空出后被拒的 renderer 自动绑定，见 D20。
 
 ### D13 — `.gsd` 资产 v1 不支持 cutouts，挂上即响亮报错
 
@@ -393,6 +410,65 @@ GPU 时间为 0 时中止，不换墙钟时间 —— 墙钟测的是另一件�
 
 绘制与排序路径三条管线共用，但本工程只用 URP；BiRP/HDRP 保证编译通过即可。
 
+### D19 — 本分支给非 LoD `GsplatRenderer` 带来的行为变化
+
+**选了什么**：
+
+1. 清空 `GsplatAsset`（置 null，或资产被销毁）现在当帧就释放该绑定的 GPU 资源（与 LoD driver）。此前 `Update` 先把
+   `m_prevAsset` 置 null 再比较，null 与 null 相等，于是不释放，资源一直占到 `OnDisable` 或下一次绑定。
+2. 每次换绑（包括 `ReloadAsset`，即每次重新导入）`ReleaseGsplatAsset` 把 `RemainingCount` 清零、`Initialized` 置 false：
+   换绑后的第一次排序一定先做一次恒等填充（`InitPayload`）。此前同数量、无 cutout 的换绑沿用上一个绑定排好的顺序缓冲。
+3. 同时清掉 cutout 的"未变"缓存（`m_cutoutsData`、`m_prevSplatCount`），并重置刷新计划（`ForceRefresh`）：换绑后的下一帧
+   一定重算 cutouts 并排序。
+
+**替代方案**：换绑沿用上一个绑定的 `RemainingCount` / `Initialized` / cutout 缓存与刷新计划（原状）。
+
+**为什么否决**：LoD 进来之后原状不再安全。被 D12 拒绝、或还没发布切面的 LoD 绑定会拿上一个绑定的数量去画一个大小不同的缓冲
+（越界读）；LoD → 非 LoD 的同容量换绑会跳过恒等填充，直接画旧切面的节点下标。可一旦换绑清零了数量，"cutout 未变、数量未变"
+的缓存就会跳过重算，带 cutout 的非 LoD renderer 每次重新导入后都画不出来，直到某个 cutout 移动；在 `CutoutsEveryNSorts`
+下，刷新计划还会再拖 N 次排序——所以缓存与计划必须和数量一起清。代价只是换绑那一帧多一次恒等填充和一次 cutout 计算，
+换绑本就罕见。`GsplatLodRendererTests` 的 `ReloadingAPlainAssetWithACutoutKeepsDrawingIt`（两种排序模式）与
+`SwitchingFromLodToAPlainAssetIdentityFillsItsOrder` 钉住这两条。
+
+### D20 — D12 的拒绝在名额空出后自动恢复
+
+**选了什么**：被 D12 拒绝的 LoD 绑定记下"被拒"；此后每帧 `UpdateLod` 一旦看到 `GsplatLodDriver.LiveCount == 0` 就自动绑定，
+不需要重新赋值资产。报错按"被拒的绑定"计：每次被拒报一次；重试只在名额空出时发生，不会再次被拒，所以不会每帧报；恢复之后
+若同一 renderer 的新绑定又被拒，再报一次。
+
+**替代方案**：(a) 维持一次性拒绝：被拒的 renderer 在重新绑定之前永远不画；(b) 每帧重试、每帧报错。
+
+**为什么否决**：(a) `MRSceneDirector` 切场景是"先加载新场景、设为激活、再卸载旧场景"（`CLAUDE.md`），新场景里的 `.gsd`
+在旧场景的 LoD renderer 还活着时绑定、被拒，旧场景卸载后它也永远不画——在本工程唯一的场景切换方式下必然触发。
+(b) 每帧报错刷屏，淹没其它错误；被拒是一个事件，不是每帧的新情况。
+
+### D21 — 合并节点的 quad 放宽发生在 `InitCorner` 的 0.3 px² 低通之前、随 `_ScaleFactor` 缩放：已知偏离 Spark，推迟到 B
+
+**选了什么**：保持现状。`GsplatLod.hlsl` 先把 k = `LodExtentScale(D)` 乘到 scale 上再算协方差，所以放宽落在 `InitCorner`
+的 0.3 px² 低通（模糊）**之前**，整个 quad 之后还会被 `_ScaleFactor` 缩放。Spark 则在模糊**之后**、按模糊后的 σ 放宽
+`maxStdDev + 0.7·(D−1)`。后果：亚像素的 D > 1 节点（≤ 1.2% 的树，§8.3）剖面比 Spark 窄 16–23%；`_ScaleFactor` 与 D 剖面
+相互作用——`_ScaleFactor = 0.75` 时 D = 5 节点在截断边缘的 alpha ≈ 0.50（剖面被硬切）。
+
+**替代方案**：(a) `InitCorner` 之后把 `corner.offset` 乘 k、uv 不变（Ruling 3 的原选项）；(b) 在 `InitCorner` 里加一个 extent
+乘子，同时作用于视锥剔除与 clamp；并按 Spark 的方式处理 `_ScaleFactor` 与 D 剖面。
+
+**为什么否决（推迟）**：(a) 让剖面与 Spark 一致，但不完整——`InitCorner` 的剔除与 clamp 仍按未放宽的 extent 算。正确做法是
+(b)，而它改的正是子项目 B 为 √5σ 重写的那段 `InitCorner`；现在改这段共享代码，会让 §8.3 的基线作废。它也不是 fill 的杠杆：
+改正只会让这 ≤ 1.2% 的节点变宽。连同 `_ScaleFactor`/D 剖面的相互作用一起交给 B。剖面本身（`LodMergedAlpha`）已由
+`GsdDecodeTests.MergedNodeProfileMeetsThePlainGaussianAndFadesTowardItsEdge` 在 GPU 上钉住。
+
+### D22 — LoD 选点只用 `Camera.main`（已知局限）
+
+**选了什么**：`GsplatRenderer` 每帧用 `Camera.main` 的位姿做选点；找不到就报错一次并停止更新切面（已发布的切面继续画，
+还没有切面就什么都不画），找回相机后恢复、再丢失时再报。
+
+**替代方案**：(a) 为渲染它的每个相机各选一次（Game、Scene 视图、多相机）；(b) 在 renderer 上显式指定选点相机。
+
+**为什么否决**：(a) 预算属于整帧（D12），每个相机各选一次就是多份预算、多份遍历；(b) 本工程运行时只有 MRCore rig 的一个主相机，
+v1 不需要。已知后果：编辑模式下单独（additive）打开一个不含 MRCore rig 的内容场景时没有 MainCamera，LoD 资产什么都不画；
+Scene 视图显示的是 Game 相机选出的切面（离 Game 相机远、离 Scene 相机近的地方会偏粗）。升级路径即 (b)，或编辑模式下改用
+SceneView 相机。
+
 ## 10. 后续阶段（不在本轮，但不丢）
 
 - **真机验收**：恢复 GsplatBench 的 Queue 构建入口（Quest/PICO，`f730e04` 收紧掉的那个，建议长期保留作性能回归量具）；
@@ -406,8 +482,8 @@ GPU 时间为 0 时中止，不换墙钟时间 —— 墙钟测的是另一件�
 | 项 | 现状 |
 |---|---|
 | Quest CPU 上遍历耗时 | 未测。Editor 只给 Mac 数字；超过 3 帧再考虑 Spark 的增量遍历（`dynamic_traverse_lod_trees`） |
-| 合并节点的 fill | 粗节点足迹更大，贴近视点时 fill 未必下降。§8.2 判据 1 的 1.2 系数即为此留；fill 的正解在 B |
+| 合并节点的 fill | 实测（§8.3）：LoD 切面保留源模型的屏幕覆盖与 overdraw，fill 受限视点上少画图元不减 fill；D > 1 节点只占全树 0.6–1.2%，不是来源。fill 的正解在 B；LoD 路径约 15% 的逐图元开销待拆分 |
 | LoD 父子硬切换的观感 | 未评估。Spark 以 base 1.5–1.75 缓解；需用户在 Editor/头显里看 |
 | `FrameTimingManager` 在 Mac/Metal 上是否有值 | 未验；为 0 即中止（D17） |
 | bench 在无头显 Editor 下能否跑 | `BenchRig` 依赖 XR 手柄与 XR display subsystem，非 XR 路径需新补，属本轮工作量 |
-| 内存 | 210 万节点：GPU 32B + SH3 40B ≈ 150MB，CPU 遍历表 ≈ 46MB。Quest 3 8GB 共享内存可容纳，但需在真机阶段确认 |
+| 内存 | 每节点三份常驻：GPU 32B 节点 + 40B SH3 = 72B；`GsplatLodAsset` 上传后仍常驻的托管副本（`Nodes`/`PackedSH1–3`/`ChildStart`/`ChildCount`）78B；CPU 遍历表 22B。210 万节点 ≈ GPU 150MB + 托管 164MB + 遍历表 46MB ≈ **360MB**，约为只算 GPU 与遍历表（≈196MB）的 2 倍；绑定时还有一份 32B/节点的临时 `TempJob` 拷贝（≈67MB）。实测的 `Model_200w`（113 万节点）≈ 82 + 88 + 25 ≈ 195MB。Quest 3 8GB 是 CPU/GPU 共享内存，三份都算在里面；可容纳，但需在真机阶段确认 |
