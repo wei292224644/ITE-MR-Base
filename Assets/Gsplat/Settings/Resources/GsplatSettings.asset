@@ -16,6 +16,11 @@ MonoBehaviour:
   GlobalMaterial: {fileID: 11400000, guid: c0d1e2f3a4b5c6d7e8f9a0b1c2d3e4f5, type: 2}
   CompositeShader: {fileID: 4800000, guid: 0451ef51e2d6d40488acb7e94df5cccd, type: 3}
   OffscreenScale: 0.5
+  LodSplatBudget: 500000
+  LodConeFov0: 90
+  LodConeFov: 120
+  LodConeFoveate: 0.4
+  LodBehindFoveate: 0.2
   EnableGlobalSort: 0
   SplatInstanceSize: 128
   UploadBatchSize: 100000
@@ -27,4 +32,5 @@ MonoBehaviour:
   Materials:
   - {fileID: 11400000, guid: 52d6acd34c7b8c8458e1547991be8d7b, type: 2}
   - {fileID: 11400000, guid: 4c970957deb11c343ac0f56e028a96b6, type: 2}
+  - {fileID: 11400000, guid: d44a0a135ef104d168a09d8764027e1b, type: 2}
   m_version: 1.4.0
