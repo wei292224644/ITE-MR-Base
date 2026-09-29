@@ -1,5 +1,6 @@
 using System.Collections;
 using System.Collections.Generic;
+using System.Linq;
 using System.Text;
 using Gsplat;
 using TMPro;
@@ -75,6 +76,10 @@ namespace MRBase.GsplatBench
         [SerializeField] float warmupSeconds = 2f;
         [SerializeField] float sampleSeconds = 6f;
 
+        [Header("LoD 对比（spec §8.2）")]
+        [Tooltip("固定视点：全景 / 中距 / 贴近表面。相机所在的整个 rig 被搬过去，Editor 与头显下都成立。")]
+        [SerializeField] Transform[] viewpoints;
+
         readonly List<GsplatRenderer> m_Renderers = new();
         readonly StringBuilder m_Builder = new();
 
@@ -95,6 +100,8 @@ namespace MRBase.GsplatBench
         float m_NextReportTime;
         float m_NextLogTime;
         bool m_Rotating;
+        float m_SavedOffscreenScale;
+        uint m_SavedLodBudget;
 
         public BenchKnobs Knobs { get; } = new();
         public BenchMetrics Metrics { get; } = new();
@@ -127,6 +134,77 @@ namespace MRBase.GsplatBench
         public string AssetLabel => CurrentAsset != null ? CurrentAsset.name : "(none)";
         public uint AssetSplatCount => CurrentAsset != null ? CurrentAsset.SplatCount : 0;
 
+        public int ViewpointCount => viewpoints?.Length ?? 0;
+        public string ViewpointLabel { get; private set; } = "(scene)";
+
+        public uint DrawnTotal
+        {
+            get
+            {
+                uint total = 0;
+                foreach (var renderer in m_Renderers)
+                    if (renderer != null)
+                        total += renderer.RemainingCount;
+                return total;
+            }
+        }
+
+        public bool IsLodActive => m_Renderers.Count > 0 && m_Renderers[0] != null && m_Renderers[0].IsLod;
+        public int LodLatencyFrames => IsLodActive ? m_Renderers[0].LodLatencyFrames : 0;
+        public double MeasureLodTraversalMs() => IsLodActive ? m_Renderers[0].MeasureLodTraversalMs() : 0;
+
+        /// <summary>命令行入口：<c>unity command eval</c> 调它跑 LoD 对比，不需要手柄也不需要键盘。</summary>
+        public void StartLodComparison()
+        {
+            if (!m_Sweep.Running)
+                StartCoroutine(m_Sweep.Run(BenchSweep.Mode.LodComparison));
+        }
+
+        /// <summary>按名字与类型切资产。.ply 与 .gsd 导入后同名（都叫 Model_100w），只能靠类型区分。</summary>
+        public bool SelectAsset(string assetName, bool lod)
+        {
+            if (assets == null)
+                return false;
+            for (var i = 0; i < assets.Length; ++i)
+            {
+                var asset = assets[i];
+                if (asset == null || asset.name != assetName || (asset is GsplatLodAsset) != lod)
+                    continue;
+                if (i != m_AssetIndex)
+                {
+                    m_AssetIndex = i;
+                    ApplyAssetToRenderers();
+                }
+
+                Metrics.ResetWindow();
+                return true;
+            }
+
+            return false;
+        }
+
+        /// <summary>把相机所在 rig 的根搬到视点，使相机的世界位姿恰好等于视点。头显里的头部追踪照常叠加在上面。</summary>
+        public void ApplyViewpoint(int index)
+        {
+            var camera = Camera.main;
+            if (camera == null || viewpoints == null || index < 0 || index >= viewpoints.Length || viewpoints[index] == null)
+                return;
+            var cam = camera.transform;
+            var root = cam.root;
+            var target = viewpoints[index];
+            var relRot = Quaternion.Inverse(root.rotation) * cam.rotation;
+            var relPos = Quaternion.Inverse(root.rotation) * (cam.position - root.position);
+            root.rotation = target.rotation * Quaternion.Inverse(relRot);
+            root.position = target.position - root.rotation * relPos;
+            ViewpointLabel = target.name;
+        }
+
+        public string DescribeViewpoints() => viewpoints == null
+            ? string.Empty
+            : string.Join(";", viewpoints.Where(v => v != null).Select(v =>
+                $"{v.name}@{v.position.x:F2}/{v.position.y:F2}/{v.position.z:F2}" +
+                $" r{v.eulerAngles.x:F1}/{v.eulerAngles.y:F1}/{v.eulerAngles.z:F1}"));
+
         void Awake()
         {
             // 切到 bench 专属渲染配置。放在 Awake 是因为必须早于第一次渲染，
@@ -136,6 +214,11 @@ namespace MRBase.GsplatBench
 
             m_Sweep = new BenchSweep(this);
             CreateInputActions();
+
+            // 旋钮直接改 GsplatSettings 资产。编辑器 Play 模式对 ScriptableObject 的修改不会自动回滚，
+            // 退出时手动复原，免得把 bench 的档位写进工程设置。
+            m_SavedOffscreenScale = GsplatSettings.Instance.OffscreenScale;
+            m_SavedLodBudget = GsplatSettings.Instance.LodSplatBudget;
         }
 
         void OnEnable()
@@ -172,6 +255,9 @@ namespace MRBase.GsplatBench
             m_SingleVariableSweep?.Dispose();
             m_NextAsset?.Dispose();
             m_RotateStick?.Dispose();
+
+            GsplatSettings.Instance.OffscreenScale = m_SavedOffscreenScale;
+            GsplatSettings.Instance.LodSplatBudget = m_SavedLodBudget;
         }
 
         IEnumerator Start()

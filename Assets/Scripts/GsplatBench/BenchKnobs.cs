@@ -28,6 +28,7 @@ namespace MRBase.GsplatBench
             Foveation,
             CutoutMeters,
             OffscreenScale,
+            LodBudget,
         }
 
         static readonly int[] k_MsaaSteps = { 1, 2, 4, 8 };
@@ -46,23 +47,29 @@ namespace MRBase.GsplatBench
         // 用来量化离群 splat 到底吃掉多少 —— 扫描件的包围盒常被它们撑到几公里。
         static readonly float[] k_CutoutSteps = { 0f, 200f, 100f, 50f, 20f, 10f, 5f };
 
+        // 只作用于 .gsd 资产（spec D12 的全局预算）。
+        static readonly int[] k_LodBudgetSteps = { 300000, 400000, 500000, 600000, 800000 };
+
         // 各旋钮当前所处的档位下标。
         //
         // 启动值 = **推荐配置**，不是 sweep 的 baseline。两者刻意分开：
         // sweep 的 baseline 故意配成最贵档（MSAA 4x / SH3 / 每帧排序 / 全分辨率），
         // 因为它要测的是「从最差往下每开一项还能省多少」的边际收益；
         // 而人戴着头显手动看的时候，从最差档起步只意味着先拧五次才到能看的状态。
-        int m_Msaa;             // off
-        int m_Sh;               // degree 0
-        int m_Downscale = 3;    // 0.25
-        int m_Sort = 4;         // 1/30
-        int m_Viewport = 2;     // 0.7
-        int m_Copies;           // x1
-        int m_Foveation = 2;    // 0.66
-        int m_Cutout;           // off
-        int m_Offscreen = 2;    // 0.5
+        int m_Msaa;
+        int m_Sh;
+        int m_Downscale;
+        int m_Sort;
+        int m_Viewport;
+        int m_Copies;
+        int m_Foveation;
+        int m_Cutout;
+        int m_Offscreen;
+        int m_LodBudget;
 
-        public const int KnobCount = 9;
+        public BenchKnobs() => ResetToRecommended();
+
+        public const int KnobCount = 10;
 
         public int Selected { get; private set; }
 
@@ -79,6 +86,8 @@ namespace MRBase.GsplatBench
 
         /// <summary>splat 专属 RT 的边长占相机分辨率的比例。</summary>
         public float OffscreenScale => k_OffscreenSteps[m_Offscreen];
+
+        public int LodBudget => k_LodBudgetSteps[m_LodBudget];
 
         public void SelectNext() => Selected = (Selected + 1) % KnobCount;
         public void SelectPrevious() => Selected = (Selected + KnobCount - 1) % KnobCount;
@@ -100,6 +109,7 @@ namespace MRBase.GsplatBench
                 case Knob.OffscreenScale:
                     m_Offscreen = Step(m_Offscreen, direction, k_OffscreenSteps.Length);
                     break;
+                case Knob.LodBudget: m_LodBudget = Step(m_LodBudget, direction, k_LodBudgetSteps.Length); break;
             }
         }
 
@@ -117,6 +127,7 @@ namespace MRBase.GsplatBench
                 case Knob.Foveation: m_Foveation = NearestFloat(k_FoveationSteps, value); break;
                 case Knob.CutoutMeters: m_Cutout = NearestFloat(k_CutoutSteps, value); break;
                 case Knob.OffscreenScale: m_Offscreen = NearestFloat(k_OffscreenSteps, value); break;
+                case Knob.LodBudget: m_LodBudget = NearestInt(k_LodBudgetSteps, value); break;
             }
         }
 
@@ -132,20 +143,25 @@ namespace MRBase.GsplatBench
             m_Foveation = 0; // 关：sweep 的边际收益要在同一 FFR 下比较
             m_Cutout = 0;    // 关
             m_Offscreen = 4; // 1.0：与相机同分辨率，splat 只走 gamma 合成不降载
+            m_LodBudget = 2; // 预算不是边际项：baseline 也取推荐值
         }
 
-        /// <summary>推荐配置：五项省电旋钮全开。启动时即此状态。</summary>
+        /// <summary>
+        /// 推荐配置 = 启动值（见上方注释）：五项省电旋钮全开。
+        /// LoD 对比 sweep 每档都从这里起步，保证各档只差资产与预算。
+        /// </summary>
         public void ResetToRecommended()
         {
-            m_Msaa = 0;
-            m_Sh = 0;
-            m_Downscale = 3;
-            m_Sort = 4;
-            m_Viewport = 2;
-            m_Copies = 0;
-            m_Foveation = 2; // 0.66
-            m_Cutout = 0;    // 关：合适的盒子大小得在设备上现调
-            m_Offscreen = 2; // 0.5
+            m_Msaa = 0;       // off
+            m_Sh = 0;         // degree 0
+            m_Downscale = 3;  // 0.25
+            m_Sort = 4;       // 1/30
+            m_Viewport = 2;   // 0.7
+            m_Copies = 0;     // x1
+            m_Foveation = 2;  // 0.66
+            m_Cutout = 0;     // 关：合适的盒子大小得在设备上现调
+            m_Offscreen = 2;  // 0.5
+            m_LodBudget = 2;  // 50w
         }
 
         static int Step(int index, int direction, int length) => Mathf.Clamp(index + direction, 0, length - 1);
@@ -188,6 +204,8 @@ namespace MRBase.GsplatBench
             var gsplatSettings = GsplatSettings.Instance;
             if (gsplatSettings != null && !Mathf.Approximately(gsplatSettings.OffscreenScale, OffscreenScale))
                 gsplatSettings.OffscreenScale = OffscreenScale;
+            if (gsplatSettings != null && gsplatSettings.LodSplatBudget != (uint)LodBudget)
+                gsplatSettings.LodSplatBudget = (uint)LodBudget;
 
             if (conditions != null)
             {
@@ -234,6 +252,7 @@ namespace MRBase.GsplatBench
             Knob.Foveation => "FFR",
             Knob.CutoutMeters => "cutout m",
             Knob.OffscreenScale => "offscreen",
+            Knob.LodBudget => "LoD budget",
             _ => "?"
         };
 
@@ -248,6 +267,7 @@ namespace MRBase.GsplatBench
             Knob.Foveation => FoveationLevel.ToString("F2", CultureInfo.InvariantCulture),
             Knob.CutoutMeters => CutoutMeters <= 0f ? "off" : CutoutMeters.ToString("F0", CultureInfo.InvariantCulture),
             Knob.OffscreenScale => OffscreenScale.ToString("F2", CultureInfo.InvariantCulture),
+            Knob.LodBudget => (LodBudget / 10000) + "w",
             _ => "?"
         };
 
@@ -264,7 +284,7 @@ namespace MRBase.GsplatBench
         }
 
         public const string CsvHeader =
-            "msaa,sh_degree,downscale,sort_interval,viewport_scale,renderer_copies,ffr_knob,cutout_m,offscreen_scale";
+            "msaa,sh_degree,downscale,sort_interval,viewport_scale,renderer_copies,ffr_knob,cutout_m,offscreen_scale,lod_budget";
 
         public string CsvRow() => string.Join(",",
             MsaaSamples.ToString(CultureInfo.InvariantCulture),
@@ -275,6 +295,7 @@ namespace MRBase.GsplatBench
             RendererCopies.ToString(CultureInfo.InvariantCulture),
             FoveationLevel.ToString("F2", CultureInfo.InvariantCulture),
             CutoutMeters.ToString("F0", CultureInfo.InvariantCulture),
-            OffscreenScale.ToString("F2", CultureInfo.InvariantCulture));
+            OffscreenScale.ToString("F2", CultureInfo.InvariantCulture),
+            LodBudget.ToString(CultureInfo.InvariantCulture));
     }
 }

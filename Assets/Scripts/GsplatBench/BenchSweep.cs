@@ -4,6 +4,7 @@ using System.Collections.Generic;
 using System.Globalization;
 using System.IO;
 using System.Text;
+using Gsplat;
 using UnityEngine;
 
 namespace MRBase.GsplatBench
@@ -24,6 +25,7 @@ namespace MRBase.GsplatBench
         {
             Cumulative,
             SingleVariable,
+            LodComparison,
         }
 
         readonly struct Step
@@ -33,12 +35,19 @@ namespace MRBase.GsplatBench
             public readonly float Value;
             public readonly bool IsBaseline;
 
+            // 仅 LodComparison：切到哪个资产、哪个视点。AssetName 为 null 表示不切。
+            public readonly string AssetName;
+            public readonly bool AssetIsLod;
+            public readonly int LodBudget;
+            public readonly int Viewpoint;
+
             public Step(string name)
             {
                 Name = name;
                 Knob = default;
                 Value = 0f;
                 IsBaseline = true;
+                AssetName = null; AssetIsLod = false; LodBudget = 0; Viewpoint = -1;
             }
 
             public Step(string name, BenchKnobs.Knob knob, float value)
@@ -47,6 +56,19 @@ namespace MRBase.GsplatBench
                 Knob = knob;
                 Value = value;
                 IsBaseline = false;
+                AssetName = null; AssetIsLod = false; LodBudget = 0; Viewpoint = -1;
+            }
+
+            public Step(string assetName, bool assetIsLod, int lodBudget, int viewpoint)
+            {
+                Name = $"{assetName}{(assetIsLod ? $".gsd@{lodBudget / 10000}w" : ".ply")}-v{viewpoint}";
+                Knob = default;
+                Value = 0f;
+                IsBaseline = false;
+                AssetName = assetName;
+                AssetIsLod = assetIsLod;
+                LodBudget = lodBudget;
+                Viewpoint = viewpoint;
             }
         }
 
@@ -62,6 +84,31 @@ namespace MRBase.GsplatBench
             new("+offscreen-0.5", BenchKnobs.Knob.OffscreenScale, 0.5f),
         };
 
+        // LoD 对比（spec §8.2）：同一套推荐旋钮下，全量 .ply 与不同预算的 .gsd 对照。
+        // 外层按资产、内层按视点：资产切换（整份重传）最少。
+        static readonly (string Asset, bool Lod, int Budget)[] k_LodCases =
+        {
+            ("Model_50w", false, 0),
+            ("Model_200w", false, 0),
+            ("Model_100w", true, 300000),
+            ("Model_100w", true, 500000),
+            ("Model_100w", true, 800000),
+            ("Model_200w", true, 300000),
+            ("Model_200w", true, 500000),
+            ("Model_200w", true, 800000),
+        };
+
+        Step[] m_Steps = k_Sequence;
+
+        Step[] BuildLodSteps()
+        {
+            var steps = new List<Step>();
+            foreach (var c in k_LodCases)
+                for (var v = 0; v < m_Rig.ViewpointCount; ++v)
+                    steps.Add(new Step(c.Asset, c.Lod, c.Budget, v));
+            return steps.ToArray();
+        }
+
         readonly BenchRig m_Rig;
         readonly List<string> m_Lines = new();
 
@@ -69,7 +116,7 @@ namespace MRBase.GsplatBench
         public bool StopRequested { get; private set; }
         public Mode CurrentMode { get; private set; }
         public int StepIndex { get; private set; }
-        public int StepCount => k_Sequence.Length;
+        public int StepCount => m_Steps.Length;
         public string StepName { get; private set; } = string.Empty;
         public string Phase { get; private set; } = "idle";
         public float PhaseRemaining { get; private set; }
@@ -92,22 +139,45 @@ namespace MRBase.GsplatBench
             CurrentMode = mode;
             m_Lines.Clear();
 
+            m_Steps = mode == Mode.LodComparison ? BuildLodSteps() : k_Sequence;
+            if (mode == Mode.LodComparison)
+            {
+                if (m_Steps.Length == 0)
+                {
+                    Abort("BenchRig 没有配置 viewpoints");
+                    yield break;
+                }
+
+                // D17：拿不到 GPU 时间就不跑。墙钟时间测的是另一件事，不能拿来顶替。
+                m_Rig.Metrics.ResetWindow();
+                for (var i = 0; i < 60; ++i)
+                    yield return null;
+                if (!m_Rig.Metrics.HasGpuData)
+                {
+                    Abort("no GPU timing: " + m_Rig.Metrics.GpuUnavailableReason);
+                    yield break;
+                }
+            }
+
             var stamp = DateTime.Now.ToString("yyyyMMdd-HHmmss", CultureInfo.InvariantCulture);
             OutputPath = Path.Combine(Application.persistentDataPath, $"gsplat-bench-{stamp}.csv");
 
             WriteContextHeader(mode);
             AppendLine("step_index,step_name,mode,valid," + BenchKnobs.CsvHeader +
+                       ",asset,asset_is_lod,viewpoint,drawn_splats,lod_traversal_ms,lod_latency_frames" +
                        ",splat_total,renderer_count,gpu_source,gpu_median_ms,gpu_p99_ms,compositor_gpu_ms," +
                        "cpu_median_ms,display_interval_ms,budget_ms,refresh_hz,stereo,foveation,eye_res_scale," +
                        "samples,drift");
 
-            for (StepIndex = 0; StepIndex < k_Sequence.Length; ++StepIndex)
+            for (StepIndex = 0; StepIndex < m_Steps.Length; ++StepIndex)
             {
                 if (StopRequested)
                     break;
 
-                StepName = k_Sequence[StepIndex].Name;
+                StepName = m_Steps[StepIndex].Name;
                 ConfigureStep(mode, StepIndex);
+                if (StopRequested)
+                    break;
 
                 // 预热：这一段数据不计入。刚换配置时着色器变体编译、资源重分配、
                 // GPU 频率爬升都还没稳定，采进去就是噪声。
@@ -130,6 +200,15 @@ namespace MRBase.GsplatBench
             BenchLog.Milestone($"sweep {Phase}: {m_Lines.Count - 1} rows -> {OutputPath}");
         }
 
+        void Abort(string reason)
+        {
+            Phase = "aborted";
+            PhaseRemaining = 0f;
+            Running = false;
+            BenchLog.Milestone("sweep aborted: " + reason);
+            Debug.LogError($"{BenchLog.Tag}|sweep aborted: {reason}");
+        }
+
         IEnumerator RunPhase(string phaseName, float seconds)
         {
             Phase = phaseName;
@@ -149,20 +228,41 @@ namespace MRBase.GsplatBench
 
         void ConfigureStep(Mode mode, int index)
         {
+            if (mode == Mode.LodComparison)
+            {
+                var lodStep = m_Steps[index];
+                m_Rig.Knobs.ResetToRecommended();
+                if (lodStep.AssetIsLod)
+                    m_Rig.Knobs.SetValue(BenchKnobs.Knob.LodBudget, lodStep.LodBudget);
+                m_Rig.ApplyKnobsNow();
+                if (!m_Rig.SelectAsset(lodStep.AssetName, lodStep.AssetIsLod))
+                {
+                    // 资产没挂上就停：缺一档的对照表比空档更容易被误读。
+                    var what = $"{lodStep.AssetName}{(lodStep.AssetIsLod ? ".gsd" : ".ply")}";
+                    BenchLog.Milestone($"sweep: {what} is not in BenchRig.assets");
+                    Debug.LogError($"{BenchLog.Tag}|sweep: {what} is not in BenchRig.assets");
+                    RequestStop();
+                    return;
+                }
+
+                m_Rig.ApplyViewpoint(lodStep.Viewpoint);
+                return;
+            }
+
             m_Rig.Knobs.ResetToBaseline();
 
             if (mode == Mode.Cumulative)
             {
                 for (var i = 0; i <= index; ++i)
                 {
-                    var step = k_Sequence[i];
+                    var step = m_Steps[i];
                     if (!step.IsBaseline)
                         m_Rig.Knobs.SetValue(step.Knob, step.Value);
                 }
             }
             else
             {
-                var step = k_Sequence[index];
+                var step = m_Steps[index];
                 if (!step.IsBaseline)
                     m_Rig.Knobs.SetValue(step.Knob, step.Value);
             }
@@ -190,6 +290,12 @@ namespace MRBase.GsplatBench
                 mode.ToString(),
                 valid ? "valid" : "invalid",
                 m_Rig.Knobs.CsvRow(),
+                m_Rig.AssetLabel,
+                (m_Rig.CurrentAsset is GsplatLodAsset).ToString(),
+                m_Rig.ViewpointLabel,
+                m_Rig.DrawnTotal.ToString(CultureInfo.InvariantCulture),
+                m_Rig.IsLodActive ? m_Rig.MeasureLodTraversalMs().ToString("F3", CultureInfo.InvariantCulture) : string.Empty,
+                m_Rig.LodLatencyFrames.ToString(CultureInfo.InvariantCulture),
                 m_Rig.SplatTotal.ToString(CultureInfo.InvariantCulture),
                 m_Rig.RendererCount.ToString(CultureInfo.InvariantCulture),
                 metrics.GpuSource.ToString(),
@@ -227,6 +333,8 @@ namespace MRBase.GsplatBench
             AppendLine($"# warmup_s,{m_Rig.WarmupSeconds.ToString("F1", CultureInfo.InvariantCulture)}");
             AppendLine($"# sample_s,{m_Rig.SampleSeconds.ToString("F1", CultureInfo.InvariantCulture)}");
             AppendLine($"# hud_enabled,{m_Rig.HudEnabled}");
+            AppendLine($"# game_view,{Screen.width}x{Screen.height}");
+            AppendLine($"# viewpoints,{m_Rig.DescribeViewpoints().Replace(',', ' ')}");
         }
 
         /// <summary>
